@@ -1,5 +1,41 @@
 {
   "expo": {
+    "plugins": [
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O aplicativo precisa acessar suas fotos para permitir o upload de imagens.",
+          "cameraPermission": "O aplicativo precisa acessar sua câmera para tirar fotos."
+        }
+      ],
+      [
+        "expo-file-system",
+        {
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./node_modules/@react-native-vector-icons/<font-package>/fonts/<font-file>.ttf",
+            "./node_modules/@react-native-vector-icons/simple-line-icons/fonts/SimpleLineIcons.ttf"
+          ]
+        }
+      ],
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": true
+        }
+      ]
+    ],
     "name": "papamotos",
     "slug": "papamotos",
     "version": "1.0.0",
@@ -12,14 +48,35 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "extra": {
+      "eas": {
+        "projectId": "2d93efbd-1062-4051-bf44-18c916565fb7"
+      }
+    },
     "ios": {
-      "supportsTablet": true
+      "infoPlist": {
+        "NSCameraUsageDescription": "Este aplicativo precisa de acesso à câmera.",
+        "NSPhotoLibraryUsageDescription": "Este aplicativo precisa de acesso à galeria.",
+        "NSPhotoLibraryAddUsageDescription": "Este aplicativo precisa de permissão para salvar fotos na sua galeria"
+      },
+      "supportsTablet": true,
+      "bundleIdentifier": "com.app.papa.motos"
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#CB2921",
+      "androidMode": "default",
+      "androidCollapsedTitle": "Papa Tango",
+      "iosDisplayInForeground": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
+        "backgroundColor": "#ffffff",
+        "useNextNotificationsApi": true
+      },
+      "newArchEnabled": true,
+      "package": "com.app_papa_motos"
     },
     "web": {
       "favicon": "./assets/favicon.png"

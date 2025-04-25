@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contrato de Locação - Papa Tango</title>
+    <style>
+        /* Estilos gerais */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Verdana, Geneva, Tahoma, sans-serif;
+        }
+        
+        body {
+            color: #333;
+            line-height: 1.5;
+            padding: 20px;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        
+        /* Cabeçalho e rodapé para impressão */
+        @page {
+        }
+        
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 120px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 20px 0;
+            width: 100%;
+            background-color: white; /* Fundo branco para evitar transparência */
+        }
+        
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 140px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            background-color: white; /* Fundo branco para evitar transparência */
+        }
+        
+        /* Ajuste para o conteúdo principal não sobrepor cabeçalho/rodapé */
+        .content {
+            margin-top: 160px; /* Espaço para o cabeçalho */
+            margin-bottom: 130px; /* Espaço para o rodapé */ 
+            padding: 0 20px; /* Padding lateral */
+        }
+        
+        .logo-container {
+            display: flex;
+            justify-content: center;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            top: 0;
+        }
+        
+        .logo-container img {
+            height: 80px;
+        }
+        
+        .rodape-container-esquerdo {
+            flex: 1;
+            text-align: left;
+        }
+        
+        .rodape-container-esquerdo img {
+            height: 150px;
+            width: 100%;
+            margin-top: -60px;
+        }
+        
+        .rodape-container-direito {
+            flex: 1;
+            text-align: right;
+        }
+        
+        .rodape-container-direito img {
+            height: 150px;
+            width: 100%;
+            margin-top: -30px;
+        }
+        
+        .contact-info {
+            flex: 1;
+        }
+        
+        .footer-logo {
+            text-align: right;
+        }
+        
+        .footer-logo img {
+            height: 130px;
+            max-width: 300px; /* Limitar largura */
+            width: 220px;
+        }
+        
+        /* Estilos do contrato */
+        h1 {
+            font-size: 20pt;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 30px;
+            margin-top: -60px;
+        }
+        
+        h2 {
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        
+        p {
+            font-size: 12pt;
+            margin-bottom: 10px;
+        }
+        
+        .section {
+            margin-bottom: 20px;
+        }
+        
+        .clause {
+            margin-bottom: 15px;
+            padding-left: 15px;
+        }
+        
+        .subclause {
+            margin-left: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .signatures {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-around;
+        }
+        
+        .date-location {
+            margin-top: 120px;
+            text-align: center;
+            margin-bottom: 150px;
+        }
+        
+        .bold {
+            font-weight: bold;
+        }
+        
+        .signature-line {
+            width: 270px;
+            border-top: 1px solid #000;
+            margin: 0 auto;
+            margin-bottom: 5px;
+        }
+        
+        .signature-name {
+            text-align: center;
+        }
+        
+        /* Listas numeradas e com marcadores */
+        ol {
+            list-style-type: decimal;
+            margin-left: 20px;
+            margin-bottom: 10px;
+        }
+        
+        ol ol {
+            list-style-type: decimal;
+            margin-left: 20px;
+        }
+        
+        ul {
+            list-style-type: disc;
+            margin-left: 20px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        /* Formatação especial */
+        .bold {
+            font-weight: bold;
+        }
+        
+        .page-break {
+            page-break-before: always;
+            margin-top: 160px; /* margem superior após quebra de página */
+        }
+        
+        /* Espaço para o logo central */
+        .spacer {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <!-- Cabeçalho fixo que aparecerá em todas as páginas -->
+    <div class="header">
+        <div class="rodape-container-esquerdo">
+            <img src="./assets/rodapeEsquerdo.png" alt="Logo Esquerda">
+        </div>
+        
+        <div class="logo-container">
+            <img src="./assets/logoPapaTango.png" alt="Logo Papa Tango">
+        </div>
+        
+        <div class="rodape-container-direito">
+            <img src="./assets/rodapeDireito.png" alt="Logo Direita">
+        </div>
+    </div>
+    
+    <!-- Rodapé fixo que aparecerá em todas as páginas -->
+    <div class="footer">
+        <div class="contact-info">
+            <p><strong>Telefone: </strong> (85) 99268-4035</p>
+            <p><strong>Email: </strong>papatangoalugueldemotos@gmail.com</p>
+            <p><strong>Endereço: </strong> Travessa Tapynaré, SN,<br>Bairro Siqueira, Fortaleza-CE, CEP 60.732-642</p>
+        </div>
+        
+        <div class="footer-logo">
+            <img src="./assets//rodapeBaixoDireito.png" alt="Logo Papa Tango">
+        </div>
+    </div>
+
+    <!-- Conteúdo principal -->
+    <div class="content">
+        <!-- Título do contrato -->
+        <h1>CONTRATO DE LOCAÇÃO</h1>
+        
+        <!-- Informações das partes -->
+        <div class="section">
+            <h2>LOCATÁRIO: ANTONIO FRANCISCO ARAGAO LIBERATO</h2>
+            <p>Com documento de identidade Nº 7092149 MTPS CE, inscrito(a) no CPF Nº 647.025.023-87, residente e domiciliado na Rua Americo Rocha Lima, N° 1240A, Bairro Vila Manoel Satiro, Cidade Fortaleza, CEP 60713-240, no Estado do Ceará, Brasil.</p>
+            
+            <h2>LOCADOR: 58.589.423 P H C MARTINS, sob nome fantasia, PAPA TANGO ALUGUEL DE MOTOS</h2>
+            <p>Inscrita no CNPJ sob o Nº 58.589.423/0001-79, com sede na Travessa Tapynaré, SN, Bairro Siqueira, Cidade Fortaleza, CEP 60.732-642, no Estado do Ceará, Brasil.</p>
+            
+            <h2>As partes acima identificadas vêm, através do presente instrumento, celebrar o CONTRATO DE LOCAÇÃO DE MOTO, que será regido pelas cláusulas e condições abaixo dispostas.</h2>
+        </div>
+        
+        <!-- Cláusulas do contrato -->
+        <div class="section">
+            <h2>CLÁUSULA 1ª – DO OBJETO DO CONTRATO</h2>
+            <div class="clause">
+                <p>1.1 O objeto do presente contrato é o seguinte veículo automotor:</p>
+                <div class="subclause">
+                    <p><b>Placa:</b> PNI8F48</p>
+                    <p><b>Tipo:</b> Moto</p>
+                    <p><b>Marca:</b> Honda</p>
+                    <p><b>Modelo:</b> CG150 START</p>
+                    <p><b>Cor:</b> Vermelha</p>
+                    <p><b>Ano Fabricação:</b> 2015</p>
+                    <p><b>Ano Modelo:</b> 2015</p>
+                    <p><b>Renavam:</b> 01062870600</p>
+                    <p><b>Chassi:</b> 9C2K1670FR539732</p>
+                </div>
+            </div>
+
+            <!-- Quebra de página -->
+            <div class="page-break"></div>
+            
+            <div class="clause">
+                <p>1.2 A Moto, objeto deste contrato, será utilizado <span class="bold">exclusivamente pelo LOCATÁRIO</span>, não sendo permitido sub-rogar os direitos por ele obtidos através do presente contrato a terceiros, tampouco permitir que outra pessoa conduza o referido veículo sem a inequívoca e expressa autorização do LOCADOR, <span class="bold">sob pena de rescisão contratual</span>, <span class="bold">multa de R$ 200,00 (Duzentos Reais)</span> bem como responsabilização total por qualquer dano em relação ao veículo, inclusive os provenientes de caso fortuito ou força maior.</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 2ª – DO HORÁRIO DO ALUGUEL E LOCAL DE COLETA E DEVOLUÇÃO DO VEÍCULO</h2>
+            <div class="clause">
+                <p>2.1 O veículo, objeto do presente contrato, permanecerá na posse do locatário <span class="bold">por período integral</span>, de segunda a domingo.</p>
+            </div>
+            
+            <div class="clause">
+                <p>2.2 O veículo, objeto do presente contrato, não poderá sair a mais de <span class="bold">50kms</span> de distância da capital Fortaleza, sob pena de quebra de contrato.</p>
+            </div>
+            
+            <div class="clause">
+                <p>2.3 O LOCATÁRIO deverá apresentar o veículo ao LOCADOR <span class="bold">1 (uma) vez por mês</span> para a realização de vistoria por parte do LOCADOR, em data e endereço por este designado, podendo também, ser através de chamada de vídeo.</p>
+            </div>
+            
+            <div class="clause">
+                <p>2.4 <span class="bold">A não apresentação do veículo</span> no prazo e local acima supracitados acarretará ao LOCATÁRIO <span class="bold">multa de R$ 40,00 (Quarenta Reais) por dia</span> de atraso além de possível rescisão contratual.</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 3ª – DAS OBRIGAÇÕES DO LOCADOR E ASSUNTOS RELACIONADOS AO LOCATÁRIO</h2>
+            <div class="clause">
+                <p>3.1 O veículo objeto do presente contrato será submetido à manutenção preventiva periódica realizada por profissional mecânico designado pelo LOCADOR, nos termos a seguir ou em caso de necessidade atestada pelo mecânico do LOCADOR:</p>
+            </div>
+
+            <!-- Quebra de página -->
+            <div class="page-break"></div>
+            
+            <div class="clause">
+                <p><span class="bold">Troca do Kit de Tração:</span> Toda vez que estiver fazendo barulho </p>
+                <p><span class="bold">Troca de Pneus:</span> Quando estiverem no nível ou abaixo do TWI</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.2 Caso alguma das manutenções supracitadas acima, seja necessária antes ou durante o período estipulado, deverá ser arcada <span class="bold">100% pelo LOCADOR.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>3.3 Os gastos decorrentes da manutenção periódica supracitada acima, bem como o valor pago pela mão de obra do profissional que realizará o serviço serão arcados 100% pelo LOCADOR.</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.4 As manutenções que não foram citadas na cláusula 3.1 também terão que ser arcadas pelo LOCADOR, quando forem necessárias e atestadas pelo mecânico dele.</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.5 No caso de quebra, defeito ou desgaste percebidos em ocasião diversa da manutenção periódica, deverá o LOCATÁRIO, <span class="bold">informar o LOCADOR imediatamente, no prazo de 24 horas,</span> bem como apresentar o veículo a este para reparos a serem realizados por profissional mecânico designado pelo LOCADOR.</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.6 <span class="bold">Caso a bomba de combustível queime ou danifique</span> por falta de combustível ou negligência quando a moto estiver em posse do <span class="bold">LOCATÁRIO, este deverá arcar com o valor integral da peça, mão de obra, reboque do carro e demais valores inerentes ao reparo.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>3.7 O LOCADOR obriga-se a manter Proteção Veicular contratada para o veículo objeto do presente contrato.</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.8 É de responsabilidade do LOCADOR o pagamento do IPVA, Imposto sobre Veículo Automotor, bem como o pagamento da Proteção Veicular contratada para o veículo objeto do presente contrato.</p>
+            </div>
+
+            <!-- Quebra de página -->
+            <div class="page-break"></div>
+            
+            <div class="clause">
+                <p>3.9 É de responsabilidade do LOCATÁRIO o pagamento de quaisquer multas inerentes à utilização do veículo sofridas na vigência deste contrato, salvo na ocasião em que o automóvel se encontrar na posse do LOCADOR.</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.9.1 O pagamento das multas pelo LOCATÁRIO tem que ser feito <span class="bold">imediatamente</span> após a constatação no sistema do DETRAN-CE, <span class="bold">independentemente de qualquer procedimento, seja transferência de pontos ou recurso.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>3.9.2 O LOCATÁRIO concorda que o LOCADOR irá indicá-lo como condutor/infrator responsável pelas infrações de trânsito apuradas durante a locação, nos termos do artigo 257, parágrafos 1º, 3º, 7º e 8º do Código de Trânsito. A partir da indicação, o Cliente terá legitimidade para se defender perante o órgão autuador.</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.9.3 Qualquer questionamento sobre eventual improcedência de multas de trânsito deverá ser feito pelo LOCATÁRIO <span class="bold">exclusivamente perante o órgão autuador.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>3.9.4 Se o LOCATÁRIO optar por recorrer da autuação e, sendo o recurso vitorioso, o LOCADOR lhe fornecerá cópia da guia de pagamento para que ele solicite ao órgão o reembolso.</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.10 Caso o veículo seja rebocado por estacionamento irregular, o LOCATÁRIO deverá arcar com todos os custos necessários para a recuperação do veículo junto ao respectivo depósito público. O LOCATÁRIO deverá arcar também com <span class="bold">multa contratual de R$ 30,00 (Trinta Reais) por dia em que a moto estiver no depósito, a título de lucro cessante.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>3.11 Caso o LOCATÁRIO estacione em local diferente do informado ao LOCADOR conforme declaração assinada, o LOCATÁRIO deverá arcar com qualquer dano ou prejuízo pecuniário ao veículo, <span class="bold">inclusive inerentes a caso fortuito ou força maior.</span></p>
+            </div>
+            
+            <!-- Quebra de página -->
+            <div class="page-break"></div>
+            
+            <div class="clause">
+                <p>3.12 Fica vedado ao LOCATÁRIO o acionamento da Proteção Veicular do veículo objeto deste contrato sem a expressa permissão do LOCADOR, <span class="bold">sob pena de multa de R$ 300,00 (Trezentos Reais),</span> além da obrigação de arcar com eventuais reboques necessários, caso a Proteção Veicular não mais disponibilize devido ao limite de utilizações mensais deste serviço.</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.13 O LOCATÁRIO se responsabiliza por quaisquer acessórios do veículo que estiverem em sua posse, como, por exemplo, chave da moto, documento da moto etc. Caso algum acessório da moto seja perdido ou danificado, o LOCATÁRIO <span class="bold">deverá arcar com todos os custos necessários à reposição.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>3.14 Fica vedado ao LOCATÁRIO sair do Estado com o veículo objeto deste contrato sem a autorização expressa e por escrito do LOCADOR, <span class="bold">sob pena de multa de R$ 200,00 (Duzentos Reais)</span>, além de responsabilização por quaisquer ocorridos com a moto, inclusive caso fortuito e força maior.</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.15 Em caso de roubo ou furto da moto, o LOCATÁRIO se compromete a avisar imediatamente o LOCADOR, bem como a comparecer à delegacia de polícia mais próxima da residência do LOCADOR para registrar a ocorrência.</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.16 O LOCATÁRIO se compromete a comparecer à sede da Proteção Veicular ou a outro local especificado pela Associação da moto a fim de cumprir com procedimento de indenização do veículo.</p>
+            </div>
+            
+            <div class="clause">
+                <p>3.17 Caso o LOCATÁRIO se envolva em sinistro estando sob ação de álcool/entorpecentes ou se o condutor não fizer o teste de embriaguez requerido pela autoridade, <span class="bold">este deverá arcar com o valor da tabela FIPE da moto</span>, caso a indenização da Proteção Veicular seja negada ou com todos os custos inerentes à recuperação do veículo junto ao depósito, em caso de reboque.</p>
+            </div>
+        </div>
+        
+        <!-- Quebra de página -->
+        <div class="page-break"></div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 4ª – DAS OBRIGAÇÕES DO LOCATÁRIO</h2>
+            <div class="clause">
+                <p>4.1 É de responsabilidade do LOCATÁRIO a troca do óleo do motor <span class="bold">a cada 1.000Kms</span>. <span class="bold">Deverá ser utilizado o óleo de viscosidade 10w30</span>. Será exigido foto do painel da moto mostrando os kms totais, nota fiscal da compra do óleo e vídeo da troca do óleo mostrando o painel com os kms totais da moto no mesmo vídeo. <span class="bold">A falta de registro ou ausência de troca de óleo</span> na quilometragem correta <span class="bold">acarretará uma multa de R$ 40,00 (Quarenta Reais) quando identificado.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>4.2 É de responsabilidade do LOCATÁRIO <span class="bold">a troca de qualquer lâmpada ou farol (dianteiro/traseiro) caso esses venham a falhar ou parar de funcionar.</span> No ato da troca da lâmpada/farol, deverá o LOCATÁRIO enviar um vídeo ao LOCADOR da substituição da lâmpada/farol.</p>
+            </div>
+            
+            <div class="clause">
+                <p>4.3 O LOCATÁRIO <span class="bold">é responsável por furos e/ou remendos na câmara de ar, andar sempre com o pneu calibrado, bem como manter a corrente de transmissão regulada</span>, conforme especificações do fabricante ou do LOCADOR.</p>
+            </div>
+            
+            <div class="clause">
+                <p>4.4 As obrigações que foram citadas nas cláusulas 4.1, 4.2, 4.3 <span class="bold">não extingue as demais obrigações do LOCATÁRIO</span> citadas neste contrato que estão presentes em outras cláusulas.</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 5ª – DAS OBRIGAÇÕES DECORRENTES DE COLISÕES E AVARIAS DO VEÍCULO</h2>
+            <div class="clause">
+                <p>5.1 É de responsabilidade do LOCATÁRIO o pagamento do reboque, taxas e reparos ao veículo objeto do presente contrato ou a veículo de outrem na ocorrência de acidentes e colisões sofridas na vigência do presente contrato quando não contempladas pela cobertura da Proteção Veicular a este contratado, <span class="bold">independente de dolo, culpa, negligência, imprudência ou imperícia do LOCATÁRIO.</span></p>
+            </div>
+
+            <!-- Quebra de página -->
+            <div class="page-break"></div>
+            
+            <div class="clause">
+                <p>5.2 Na ocorrência de necessidade de pagamento de franquia da Proteção Veicular, a quantia paga a título de franquia será <span class="bold">integralmente de responsabilidade do LOCATÁRIO</span>.</p>
+            </div>
+            
+            <div class="clause">
+                <p>5.3 Será de responsabilidade do LOCATÁRIO <span class="bold">o pagamento de taxas e diárias para a liberação do veículo decorrente de reboque realizado pelo Poder Público</span>, nos casos supracitados.</p>
+            </div>
+            
+            <div class="clause">
+                <p>5.4 A responsabilidade determinada nos itens supracitados permanece estabelecida, inclusive, caso o LOCATÁRIO não se encontre no interior do veículo objeto do presente contrato.</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 6ª – DO PAGAMENTO EM RAZÃO DA LOCAÇÃO DO VEÍCULO</h2>
+            <div class="clause">
+                <p>6.1 O LOCATÁRIO pagará ao LOCADOR o valor de <span class="bold">R$ 220,00 (Duzentos e Vinte Reais)</span> semanalmente, realizado <span class="bold">no mesmo dia da semana na qual o veículo foi entregue.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>6.2 O LOCATÁRIO se declara ciente que no dia do pagamento, <span class="bold">caso não tenha o valor da semana completa, deverá pagar pelo menos uma parte do valor.</span> Caso <span class="bold">NÃO</span> pague INCIDIRÁ a <span class="bold">cláusula 8.3.1 a qual informa que só pode existir dívidas no valor máximo de R$100 (Cem Reais).</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>6.3 A outra parte do valor, <span class="bold">na hipótese do não pagamento total da semana</span> conforme cláusula anterior, <span class="bold">sofrerá um acréscimo de R$ 10,00 (Dez Reais) por dia de atraso</span> a título de juros. O <span class="bold">LOCATÁRIO</span> se declara ciente, que essa outra parte do valor <span class="bold">deverá ser paga em até 3 dias corridos. Caso não seja feito o pagamento dentro desse prazo, INCIDIRÁ conforme cláusula 8.3.1.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>6.4 Fica o LOCATÁRIO obrigado a encaminhar o <span class="bold">comprovante de pagamento</span> ao LOCADOR, até as 23:59 horas do dia de vencimento de cada semana, <span class="bold">sob pena de incidência da multa por atraso prevista na cláusula 6.3</span>, independente de notícia de pagamento.</p>
+            </div>
+        </div>
+        
+        <!-- Quebra de página -->
+        <div class="page-break"></div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 7ª – DA QUANTIA CAUÇÃO</h2>
+            <div class="clause">
+                <p>7.1 Estabelecem as partes, a <span class="bold">QUANTIA CAUÇÃO</span> em valor total de <span class="bold">R$ 400,00 (Quatrocentos Reais)</span> a ser integralizada no ato de retirada do veículo.</p>
+            </div>
+            
+            <div class="clause">
+                <p>7.2 Ao término da vigência do presente contrato caberá ao LOCADOR restituir a integralidade da QUANTIA CAUÇÃO ao LOCATÁRIO no prazo de <span class="bold">20 (Vinte) dias úteis</span> a contar da devolução do veículo por parte do LOCATÁRIO conforme as seguintes CONDIÇÕES:</p>
+                <ul>
+                    <li>A devolução do automóvel em perfeito estado, em condição equivalente à observada no último checklist de vistoria e após vistoria feita por vídeo enviada no WhatsApp do locador.</li>
+                    <li>A inexistência de aluguéis, multa de trânsito ou multa por descumprimento contratual pendentes por parte do LOCATÁRIO.</li>
+                    <li>Após feita a manutenção necessária do veículo, caso haja necessidade.</li>
+                    <li>Após descontados quaisquer outros débitos pendentes.</li>
+                </ul>
+            </div>
+            
+            <div class="clause">
+                <p>7.3 Na hipótese de não estarem observadas as condições acima dispostas, poderá o LOCADOR utilizar-se da QUANTIA CAUÇÃO para adimplir eventuais débitos ou reparar danos causados ao automóvel que não decorram do desgaste natural e utilização adequada do bem, hipótese na qual só será de direito do LOCATÁRIO a quantia remanescente a tal utilização da QUANTIA CAUÇÃO, se houver.</p>
+            </div>
+            
+            <div class="clause">
+                <p>7.4 Os gastos com o combustível do veículo deverão ser arcados integralmente pelo locatário, <span class="bold">devendo sempre entregar o veículo com a mesma quantidade de combustível contida no veículo quando da entrega do mesmo pelo LOCADOR</span>, sob pena de desconto na QUANTIA CAUÇÃO do valor necessário a atingir tal quantidade de combustível.</p>
+            </div>
+
+            <!-- Quebra de página -->
+            <div class="page-break"></div>
+            
+            <div class="clause">
+                <p>7.5 Qualquer valor inerente à cobrança por passagem ou estacionamento do veículo durante a posse do LOCATÁRIO deverá por este ser arcado. Caso o LOCADOR seja cobrado por qualquer valor desta natureza, o LOCATÁRIO deverá reembolsá-lo imediatamente.</p>
+            </div>
+            
+            <div class="clause">
+                <p>7.6 Caso a moto seja devolvida suja, será cobrada a lavagem simples ou especial, dependendo do seu estado. Na hipótese de lavagem especial será cobrada também 1 (Uma) diária de locação ou quantas forem necessárias até a disponibilização da moto, limitadas a 10 diárias da moto alugada.</p>
+            </div>
+            
+            <div class="clause">
+                <p>7.7 Quando o documento da moto não for devolvido, será cobrado o reembolso das despesas para obtenção de 2ª via e, diante da impossibilidade de a moto não ser alugada.</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 8ª – DA VIGÊNCIA E RESCISÃO</h2>
+            <div class="clause">
+                <p>8.1 O presente contrato terá vigência a contar da data de sua assinatura e terá um prazo mínimo de 1 <span class="bold">(Um) mês de locação</span> e por prazo máximo indeterminado salvo manifestação de qualquer das partes em contrário, motivada por resilição ou descumprimento contratual ocasionado pela parte contrária. <span class="bold">Em caso de arrependimento ou descumprimento contratual que venha a ter uma quebra automática do contrato, antes do prazo mínimo, fica o LOCATÁRIO ciente que pagará ao LOCADOR o restante do valor equivalente ao período mínimo de locação.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>8.2 É assegurado às partes a resilição do presente CONTRATO a qualquer tempo, bastando, para tanto, dar ciência à outra parte acerca da rescisão, cabendo ao LOCATÁRIO a devolução do veículo ao LOCADOR em local designado por este <span class="bold">nos seguintes prazos:</span></p>
+                <ul>
+                    <li>1 (Uma) semana a contar da comunicação ao LOCADOR, no caso em que o LOCATÁRIO rescindir o presente contrato;</li>
+                    <li>Imediatamente a contar do momento em que teve ciência da resilição, quando realizada pelo LOCADOR.</li>
+                </ul>
+            </div>
+
+            <!-- Quebra de página -->
+            <div class="page-break"></div>
+            
+            <div class="clause">
+                <p>8.3 O Contrato será considerado automaticamente rescindido pelo LOCADOR, independentemente de qualquer notificação, e este, sem mais formalidades, providenciará a retomada da moto, sem que isso enseje ao LOCATÁRIO qualquer direito de retenção, indenização ou devolução da caução, quando:</p>
+                <ul>
+                    <li>A moto não for devolvido na data, hora e local previamente ajustados;</li>
+                    <li>Ocorrer o uso Inadequado da moto;</li>
+                    <li>Ocorrer apreensão da moto alugada por autoridades competentes;</li>
+                    <li>O LOCATÁRIO não quitar seus débitos nos respectivos vencimentos.</li>
+                </ul>
+            </div>
+            
+            <div class="clause">
+                <p>8.3.1 Caso o LOCATÁRIO acumule uma dívida no valor máximo de <span class="bold">R$ 100,00 (Cem Reais) e não a quite no prazo de 3 (Três) dias corridos</span>, o contrato ficará automaticamente rescindido e o veículo deverá ser entregue em local determinado pelo LOCADOR, imediatamente, sob pena de multa de <span class="bold">R$ 200,00 (Duzentos Reais) por dia</span>, salvo acordo contrário entre as partes.</p>
+            </div>
+            
+            <div class="clause">
+                <p>8.4 Fica desde já pactuada a total inexistência de vínculo trabalhista entre as partes do presente contrato, sendo indevida toda e qualquer incidência das obrigações previdenciárias e os encargos sociais, não havendo entre as partes qualquer tipo de subordinação e controle típicos de relações de emprego.</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 9ª – DO FORO</h2>
+            <div class="clause">
+                <p>9.1 Fica eleito o foro Fortaleza – CE, Para dirimir quaisquer controvérsias oriundas do CONTRATO.</p>
+            </div>
+        </div>
+
+        <!-- Quebra de página -->
+        <div class="page-break"></div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 10ª – DA DEVOLUÇÃO DO VEÍCULO APÓS O TÉRMINO DO CONTRATO</h2>
+            <div class="clause">
+                <p>10.1 Após o término do contrato, o veículo deve ser devolvido em local indicado pelo LOCADOR, <span class="bold">dentro do prazo de 24 horas</span> após a notificação de encerramento do contrato ou por outro prazo estipulado pelo LOCADOR, sob pena de <span class="bold">multa de R$ 50,00 (Cinquenta Reais) por dia.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>10.2 Deixa-se claro desde já que a não devolução de veículo pelo LOCATÁRIO após a notificação por escrito do LOCADOR <span class="bold">configura-se crime de APROPRIAÇÃO INDÉBITA conforme artigo 168 do Código Penal Brasileiro</span>, com pena de reclusão de um a quatro anos de prisão e multa.</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 11ª – DA DISPONIBILIZAÇÃO DE MOTO RESERVA</h2>
+            <div class="clause">
+                <p>11.1 O LOCADOR <span class="bold">não é obrigado</span> a disponibilizar moto reserva e não se responsabiliza caso o LOCATÁRIO não possa dirigir devido à indisponibilidade do veículo.</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 12ª – DA TROCA DA MOTO ALUGADA</h2>
+            <div class="clause">
+                <p>12.1 A troca da moto alugada estará <span class="bold">a critério do LOCADOR quando houver disponibilidade.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>12.2 Caso aconteça a troca da motocicleta ora locada inicialmente de acordo com este contrato, o LOCATÁRIO se declara ciente que terá as mesmas responsabilidades e obrigações com a moto substituída, conforme descrito em todas as cláusulas neste contrato de locação.</p>
+            </div>
+            
+            <div class="clause">
+                <p>12.3 O LOCATÁRIO também declara estar ciente que a nova motocicleta poderá ter um novo valor de aluguel que será informado pelo LOCADOR antes da substituição e que passa a ter as mesmas obrigações de pagamento no valor corrigido</p>
+            </div>
+
+            <!-- Quebra de página -->
+            <div class="page-break"></div>
+            
+            <div class="clause">
+                <p>12.4 O LOCATÁRIO declara estar ciente de que precisará assinar o <span class="bold">FORMULÁRIO DE TROCA</span> no momento da troca da moto, declarando estar devidamente informado sobre todos os fatos citados.</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>CLÁUSULA 13ª – DAS NOTIFICAÇÕES</h2>
+            <div class="clause">
+                <p>13.1 Quaisquer notificações e comunicações enviadas sob esse CONTRATO devem ser escritas ou por correspondência com aviso de recebimento aos endereços constantes do preâmbulo. <span class="bold">Em havendo alteração do endereço ficam as partes obrigadas a fornecer tal informação.</span></p>
+            </div>
+            
+            <div class="clause">
+                <p>13.2 E, por estarem assim, justas e contratadas, as PARTES firmam o presente instrumento em 02 (duas) vias de igual teor e forma, para que produza seus efeitos legais, e após ter lido e seu conteúdo ter sido claramente entendido e aceito.</p>
+            </div>
+        </div>
+        
+        <!-- Data e assinaturas -->
+        <div class="date-location">
+            <p><span class="bold">Fortaleza, 13 de Abril de 2025</span></p>
+        </div>
+        
+        <div class="signatures">
+            <div>
+                <div class="signature-line"></div>
+                <p class="signature-name"><span class="bold">LOCADOR</span></p>
+            </div>
+            
+            <div>
+                <div class="signature-line"></div>
+                <p class="signature-name"><span class="bold">LOCATÁRIO</span></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

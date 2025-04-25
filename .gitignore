@@ -34,3 +34,13 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# Arquivos de ambiente
+.env
+.env.local
+functions/env.json
+functions/.runtimeconfig.json
+
+# Logs e caches
+*.log
+.firebase/

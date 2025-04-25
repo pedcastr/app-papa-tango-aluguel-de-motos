@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://sdk.mercadopago.com/js/v2"></script>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 0; 
+      padding: 0; 
+      background-color: #f8f8f8; 
+    }
+    #paymentBrick_container { 
+      width: 100%; 
+      max-width: 600px; 
+      margin: 0 auto; 
+      padding: 20px; 
+    }
+    .loading { 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      height: 200px; 
+    }
+  </style>
+</head>
+<body>
+  <div id="paymentBrick_container">
+    <div class="loading">Carregando opções de pagamento...</div>
+  </div>
+  
+  <script>
+    // Função para obter parâmetros da URL
+    function getQueryParams() {
+      const params = {};
+      const queryString = window.location.search.substring(1);
+      const pairs = queryString.split('&');
+      
+      for (let i = 0; i < pairs.length; i++) {
+        const pair = pairs[i].split('=');
+        params[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
+      }
+      
+      return params;
+    }
+    
+    // Obter parâmetros da URL
+    const params = getQueryParams();
+    const amount = parseFloat(params.amount || '0');
+    const email = params.email || 'cliente@papamotos.com.br';
+    const name = params.name || 'Cliente PapaMotos';
+    const publicKey = params.publicKey || 'TEST-5ea603ae-4857-4494-a187-93dd6f22ccf0';
+    
+    // Inicializar o SDK do Mercado Pago
+    const mp = new MercadoPago(publicKey, {
+      locale: 'pt-BR'
+    });
+    
+    const bricksBuilder = mp.bricks();
+    
+    const renderPaymentBrick = async (bricksBuilder) => {
+      const settings = {
+        initialization: {
+          amount: amount,
+          payer: {
+            email: email,
+            name: name,
+          },
+        },
+        customization: {
+          visual: {
+            style: {
+              theme: 'default',
+            },
+          },
+          paymentMethods: {
+            creditCard: 'all',
+            debitCard: 'all',
+            ticket: 'all',
+            bankTransfer: 'all',
+            atm: 'all',
+            wallet_purchase: 'all',
+            maxInstallments: 12
+          },
+        },
+        callbacks: {
+          onReady: () => {
+            document.querySelector('.loading').style.display = 'none';
+            // Notificar a janela pai que o Brick está pronto
+            window.parent.postMessage({ type: 'BRICK_READY' }, '*');
+          },
+          onSubmit: ({ selectedPaymentMethod, formData }) => {
+            // Notificar a janela pai sobre o envio do formulário
+            window.parent.postMessage({ 
+              type: 'PAYMENT_SUBMIT', 
+              data: formData,
+              method: selectedPaymentMethod
+            }, '*');
+            
+            return new Promise((resolve, reject) => {
+              // O processamento real será feito pela janela pai
+              window.paymentPromiseResolve = resolve;
+              window.paymentPromiseReject = reject;
+            });
+          },
+          onError: (error) => {
+            console.error('Payment Brick error:', error);
+            // Notificar a janela pai sobre o erro
+            window.parent.postMessage({ 
+              type: 'PAYMENT_ERROR', 
+              error: error.message || 'Erro ao processar pagamento'
+            }, '*');
+          },
+        },
+      };
+      
+      window.paymentBrickController = await bricksBuilder.create(
+        'payment',
+        'paymentBrick_container',
+        settings
+      );
+    };
+    
+    // Renderizar o Payment Brick
+    renderPaymentBrick(bricksBuilder);
+    
+    // Função para receber mensagens da janela pai
+    window.addEventListener('message', function(event) {
+      try {
+        const message = event.data;
+        
+        if (message.type === 'PAYMENT_RESULT') {
+          if (message.success) {
+            window.paymentPromiseResolve && window.paymentPromiseResolve();
+          } else {
+            window.paymentPromiseReject && window.paymentPromiseReject();
+          }
+        }
+      } catch (e) {
+        console.error('Error processing message:', e);
+      }
+    });
+  </script>
+</body>
+</html>
