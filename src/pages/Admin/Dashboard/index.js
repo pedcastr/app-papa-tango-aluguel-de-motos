@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { View } from 'react-native';
 import { db, auth } from '../../../services/firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import NotificationBell from '../../../components/NotificationBell';
 import {
     Container,
     StatsContainer,
@@ -43,7 +45,7 @@ export default function Dashboard() {
         });
 
         const unsubscribeContracts = onSnapshot(
-            query(collection(db, "contratos"), where("statusContrato", "==", "ativo")),
+            query(collection(db, "contratos"), where("statusContrato", "==", true)),
             (snapshot) => {
                 setStats(prev => ({
                     ...prev,
@@ -78,6 +80,9 @@ export default function Dashboard() {
 
     return (
         <Container>
+            <View style={{ alignItems: 'flex-end', justifyContent: 'flex-end', marginRight: - 25, marginBottom: 10 }}>
+                <NotificationBell userType="admin" />
+            </View>
             <StatsContainer>
                 <StatCard>
                     <StatTitle>Total de Usuários</StatTitle>

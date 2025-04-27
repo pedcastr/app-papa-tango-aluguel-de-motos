@@ -357,6 +357,10 @@ export default function ContractList({ navigation }) {
                                 <DetailValue>{formatDate(contract.dataInicio)}</DetailValue>
                             </DetailRow>
                             <DetailRow>
+                                <DetailLabel>Recorrência de Pagamento</DetailLabel>
+                                <DetailValue>{contract.tipoRecorrenciaPagamento === 'semanal' ? 'Semanal' : 'Mensal'}</DetailValue>
+                            </DetailRow>
+                            <DetailRow>
                                 <DetailLabel>MesesContratados:</DetailLabel>
                                 <DetailValue>{contract.mesesContratados} meses</DetailValue>
                             </DetailRow>

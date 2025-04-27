@@ -7,6 +7,7 @@ import Users from '../pages/Admin/Users';
 import Vehicles from '../pages/Admin/Vehicles';
 import Contracts from '../pages/Admin/Contracts';
 import Rentals from '../pages/Admin/Rentals';
+import Payments from '../pages/Admin/Payments';
 
 const Tab = createBottomTabNavigator();
 
@@ -71,6 +72,15 @@ export default function AdminRoutes() {
         options={{
           tabBarIcon: ({ color }) => (
             <Icon name="assignment" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen 
+        name="Pagamentos" 
+        component={Payments}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Icon name="payments" size={24} color={color} />
           ),
         }}
       />

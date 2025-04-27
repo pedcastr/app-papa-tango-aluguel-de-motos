@@ -481,96 +481,118 @@ exports.processPayment = functions.https.onRequest((req, res) => {
 });
 
 /**
- * Envia uma notificação de pagamento para um usuário específico
- * @param {string} userId - ID do usuário que receberá a notificação
- * @param {Object} notification - Objeto contendo os dados da notificação
+ * Envia uma notificação push para um usuário específico ou para administradores
+ * @param {string|null} userId - O ID do usuário (email) para enviar a notificação, ou null se for notificação de admin
+ * @param {Object} notification - Objeto contendo os detalhes da notificação
  * @param {string} notification.title - Título da notificação
  * @param {string} notification.body - Corpo da notificação
- * @param {Object} [notification.data] - Dados adicionais da notificação (opcional)
- * @return {Promise<void>} Uma promessa que resolve quando a notificação é enviada
+ * @param {Object} [notification.data] - Dados adicionais para a notificação
+ * @param {boolean} [isAdminNotification=false] - Indica se é uma notificação para administradores
+ * @return {Promise<void>}
  */
-async function sendPaymentNotification(userId, notification) {
+async function sendPaymentNotification(userId, notification, isAdminNotification = false) {
   try {
     const db = admin.firestore();
-    const userDoc = await db.collection("users").doc(userId).get();
 
-    if (!userDoc.exists) {
-      console.warn(`Usuário ${userId} não encontrado para enviar notificação`);
-      return;
+    // Se for uma notificação de admin, não precisamos verificar o usuário específico
+    if (!isAdminNotification) {
+      const userDoc = await db.collection("users").doc(userId).get();
+      if (!userDoc.exists) {
+        console.warn(`Usuário ${userId} não encontrado para enviar notificação`);
+        return;
+      }
+
+      const user = userDoc.data();
+      const fcmToken = user.fcmToken;
+
+      if (!fcmToken) {
+        console.warn(`Usuário ${userId} não tem token para notificações`);
+        // Ainda assim, vamos salvar a notificação no Firestore
+      } else {
+        let success = false;
+
+        // Verificar se é um token Expo
+        if (fcmToken.startsWith("ExponentPushToken[")) {
+          // Enviar via API do Expo
+          const expoMessage = {
+            to: fcmToken,
+            title: notification.title,
+            body: notification.body,
+            data: notification.data || {},
+            sound: "default",
+            priority: "high",
+            channelId: "default",
+          };
+
+          console.log(`Enviando notificação via Expo para usuário ${userId}:`, expoMessage);
+
+          try {
+            // Usar axios em vez de fetch
+            const axiosResponse = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
+              headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+              },
+            });
+
+            // Com axios, a resposta já é um objeto JSON
+            const response = axiosResponse.data;
+            console.log(`Resposta da API Expo para usuário ${userId}:`, response);
+
+            if (response.data && Array.isArray(response.data) && response.data[0].status === "ok") {
+              success = true;
+              console.log(`Notificação Expo enviada com sucesso para usuário ${userId}`);
+            } else {
+              console.error(`Erro ao enviar notificação Expo para usuário ${userId}:`, response);
+            }
+          } catch (axiosError) {
+            console.error(`Erro na requisição para API do Expo (usuário ${userId}):`, axiosError);
+
+            // Capturar detalhes da resposta de erro, se disponíveis
+            if (axiosError.response) {
+              console.error("Detalhes da resposta de erro:", {
+                status: axiosError.response.status,
+                data: axiosError.response.data,
+              });
+            }
+          }
+        } else {
+          // Enviar via FCM diretamente
+          await admin.messaging().send({
+            token: fcmToken,
+            notification: {
+              title: notification.title,
+              body: notification.body,
+            },
+            data: notification.data || {},
+          });
+
+          success = true;
+          console.log(`Notificação FCM enviada para o usuário ${userId}`);
+        }
+
+        // Se não conseguimos enviar a notificação, ainda assim vamos salvá-la no Firestore
+        // para que o usuário possa vê-la quando abrir o app
+        if (!success) {
+          console.log(`Notificação não pôde ser entregue, mas será salva no Firestore para o usuário ${userId}`);
+        }
+      }
     }
 
-    const user = userDoc.data();
-    const fcmToken = user.fcmToken;
-
-    if (!fcmToken) {
-      console.warn(`Usuário ${userId} não tem token para notificações`);
-      return;
-    }
-
-    let success = false;
-
-    // Verificar se é um token Expo
-    if (fcmToken.startsWith("ExponentPushToken[")) {
-      // Enviar via API do Expo
-      const expoMessage = {
-        to: fcmToken,
+    // Salvar a notificação no Firestore
+    // Para notificações de admin, usamos userType = 'admin'
+    // Para notificações de usuário, usamos userId
+    if (isAdminNotification) {
+      await db.collection("notifications").add({
+        userType: "admin",
         title: notification.title,
         body: notification.body,
         data: notification.data || {},
-        sound: "default",
-        priority: "high",
-        channelId: "default",
-      };
-
-      console.log(`Enviando notificação via Expo para usuário ${userId}:`, expoMessage);
-
-      try {
-        // Usar axios em vez de fetch
-        const axiosResponse = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
-          headers: {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-          },
-        });
-
-        // Com axios, a resposta já é um objeto JSON
-        const response = axiosResponse.data;
-        console.log(`Resposta da API Expo para usuário ${userId}:`, response);
-
-        if (response.data && Array.isArray(response.data) && response.data[0].status === "ok") {
-          success = true;
-          console.log(`Notificação Expo enviada com sucesso para usuário ${userId}`);
-        } else {
-          console.error(`Erro ao enviar notificação Expo para usuário ${userId}:`, response);
-        }
-      } catch (axiosError) {
-        console.error(`Erro na requisição para API do Expo (usuário ${userId}):`, axiosError);
-
-        // Capturar detalhes da resposta de erro, se disponíveis
-        if (axiosError.response) {
-          console.error("Detalhes da resposta de erro:", {
-            status: axiosError.response.status,
-            data: axiosError.response.data,
-          });
-        }
-      }
-    } else {
-      // Enviar via FCM diretamente
-      await admin.messaging().send({
-        token: fcmToken,
-        notification: {
-          title: notification.title,
-          body: notification.body,
-        },
-        data: notification.data || {},
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-
-      success = true;
-      console.log(`Notificação FCM enviada para o usuário ${userId}`);
-    }
-
-    // Salvar a notificação no Firestore apenas se foi enviada com sucesso
-    if (success) {
+      console.log(`Notificação de admin salva no Firestore`);
+    } else {
       await db.collection("notifications").add({
         userId,
         title: notification.title,
@@ -579,6 +601,7 @@ async function sendPaymentNotification(userId, notification) {
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      console.log(`Notificação salva no Firestore para o usuário ${userId}`);
     }
   } catch (error) {
     console.error(`Erro ao enviar notificação para o usuário ${userId}:`, error);

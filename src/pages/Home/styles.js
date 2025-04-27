@@ -18,7 +18,7 @@ export const Header = styled.View`
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
+    margin-bottom: 25px;
 `;
 
 export const WelcomeText = styled.Text`

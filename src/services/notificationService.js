@@ -424,7 +424,7 @@ const getPaymentDetails = async (paymentId) => {
             payment_type_id: paymentData.paymentMethod,
             transaction_amount: paymentData.amount,
             date_created: paymentData.dateCreated?.toDate?.() || new Date(),
-            description: paymentData.description || 'Pagamento PapaMotos'
+            description: paymentData.description || 'Pagamento Papa Motos'
           };
         }
       }
@@ -445,7 +445,7 @@ const getPaymentDetails = async (paymentId) => {
       payment_type_id: paymentData.paymentMethod,
       transaction_amount: paymentData.amount,
       date_created: paymentData.dateCreated?.toDate?.() || new Date(),
-      description: paymentData.description || 'Pagamento PapaMotos'
+      description: paymentData.description || 'Pagamento Papa Motos'
     };
   } catch (error) {
     console.error("Erro ao buscar detalhes do pagamento:", error);

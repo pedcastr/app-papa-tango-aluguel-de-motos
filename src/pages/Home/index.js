@@ -1,15 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Modal, Linking, ActivityIndicator, Platform, ActionSheetIOS, Alert, Text, View, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Linking, ActivityIndicator, Platform, ActionSheetIOS, Alert, View } from 'react-native';
 import { auth, db, storage } from '../../services/firebaseConfig';
-import { getDoc, doc, updateDoc, where, collection, query, getDocs } from 'firebase/firestore';
+import { getDoc, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { ImagePickerModal } from '../../components/ImagePickerModal';
+import NotificationBell from '../../components/NotificationBell';
 
 import {
     Container,
@@ -44,11 +41,6 @@ import {
 } from './styles';
 
 export default function Home() {
-    const navigation = useNavigation();
-    const appState = useRef(AppState.currentState);
-    const [pendingPayment, setPendingPayment] = useState(null);
-    const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
-
     // Estados para gerenciar os dados
     const [userData, setUserData] = useState(null);
     const [contratoAtivo, setContratoAtivo] = useState(null);
@@ -60,84 +52,12 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [loadingSupport, setLoadingSupport] = useState(false);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
+    
 
     // Carrega os dados e pagamentos pendentes ao iniciar o componente
     useEffect(() => {
         carregarDados();
-        checkPendingPayments();
     }, []);
-
-    // Verificação de pagamentos pendentes quando o app é reaberto do background
-    useEffect(() => {
-        const subscription = AppState.addEventListener('change', nextAppState => {
-        if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-            // App voltou para o primeiro plano
-            console.log('App reaberto do background');
-            checkPendingPayments();
-        }
-        appState.current = nextAppState;
-        });
-        
-        return () => {
-        subscription.remove();
-        };
-    }, []);
-
-    // Função para verificar pagamentos pendentes
-    const checkPendingPayments = async () => {
-        try {
-        const currentUser = auth.currentUser;
-        if (!currentUser) return;
-        
-        // Verificar se o pagamento foi gerado recentemente (menos de 2 horas)
-        const paymentGeneratedTime = await AsyncStorage.getItem('paymentGeneratedTime');
-        const now = Date.now();
-        
-        if (paymentGeneratedTime) {
-            const timeSinceGeneration = now - parseInt(paymentGeneratedTime);
-            // Se o pagamento foi gerado há menos de 2 horas, não mostrar o alerta ainda
-            if (timeSinceGeneration < 2 * 60 * 60 * 1000) {
-            console.log("Pagamento gerado recentemente, aguardando 2 horas para mostrar alerta");
-            return;
-            }
-        }
-        
-        // Buscar pagamentos pendentes do usuário
-        const userPaymentsRef = collection(db, 'payments');
-        const q = query(
-            userPaymentsRef,
-            where('userEmail', '==', currentUser.email),
-            where('status', '==', 'pending'),
-            where('payment_type_id', '==', 'pix')
-        );
-        
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-            // Há pagamentos pendentes
-            const payment = {
-            id: querySnapshot.docs[0].id,
-            ...querySnapshot.docs[0].data()
-            };
-            
-            setPendingPayment(payment);
-            setIsPaymentModalVisible(true);
-        } else {
-            setPendingPayment(null);
-            setIsPaymentModalVisible(false);
-        }
-        } catch (error) {
-        console.error("Erro ao verificar pagamentos pendentes na Home:", error);
-        }
-    };
-
-    // Função para navegar para a tela de pagamento
-    const navigateToPayment = () => {
-        if (pendingPayment) {
-        navigation.navigate('PaymentSuccess', { paymentInfo: pendingPayment });
-        setIsPaymentModalVisible(false);
-        }
-    };
 
     // Função para abrir o seletor de fotos (usando ActionSheetIOS no iOS)
     const abrirSeletorFotos = useCallback(() => {
@@ -339,95 +259,27 @@ export default function Home() {
         }
     };
 
-    // Componente personalizado para o modal de pagamento pendente
-    const PendingPaymentModal = ({ isVisible, payment, onClose, onConfirm }) => {
-        if (!payment) return null;
-        
-        return (
-        <Modal 
-            isVisible={isVisible}
-            animationIn="fadeIn"
-            animationOut="fadeOut"
-            backdropOpacity={0.5}
-            onBackdropPress={onClose}
-            style={{ margin: 20 }}
-        >
-            <View style={{
-            backgroundColor: 'white',
-            borderRadius: 10,
-            padding: 20,
-            alignItems: 'center'
-            }}>
-            <Feather name="alert-circle" size={50} color="#CB2921" />
-            
-            <Text style={{
-                fontSize: 18,
-                fontWeight: 'bold',
-                marginTop: 15,
-                marginBottom: 10,
-                textAlign: 'center'
-            }}>
-                Pagamento Pendente
-            </Text>
-            
-            <Text style={{
-                fontSize: 16,
-                textAlign: 'center',
-                marginBottom: 20
-            }}>
-                Você tem um pagamento PIX de R$ {payment.transaction_amount?.toFixed(2)} pendente.
-            </Text>
-            
-            <View style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                width: '100%'
-            }}>
-                <TouchableOpacity
-                onPress={onClose}
-                style={{
-                    padding: 12,
-                    borderRadius: 8,
-                    backgroundColor: '#f5f5f5',
-                    flex: 1,
-                    marginRight: 10,
-                    alignItems: 'center'
-                }}
-                >
-                <Text style={{ color: '#666', fontWeight: 'bold' }}>Depois</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                onPress={onConfirm}
-                style={{
-                    padding: 12,
-                    borderRadius: 8,
-                    backgroundColor: '#CB2921',
-                    flex: 1,
-                    marginLeft: 10,
-                    alignItems: 'center'
-                }}
-                >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>Pagar Agora</Text>
-                </TouchableOpacity>
-            </View>
-            </View>
-        </Modal>
-        );
-    };
-
     return (
         <Container>
             <ViewPadding>
                 <Header>
                     <WelcomeText>Olá, {userData?.nome}</WelcomeText>
-                    <ProfileButton onPress={() => setModalVisible(true)}>
+                    <View style={{ 
+                        flexDirection: 'row', 
+                        alignItems: 'center',
+                        justifyContent: 'flex-end' /* Garantir alinhamento à direita */
+                    }}>
+                        {/* Componente de notificação */}
+                        <NotificationBell userType="client" />
+                        
+                        <ProfileButton onPress={() => setModalVisible(true)}>
                         {userPhoto ? (
                             <ProfileImage source={{ uri: userPhoto }} />
                         ) : (
                             <MaterialCommunityIcons name="account-circle" size={50} color="#1E1E1E" />
                         )}
-                    </ProfileButton>
+                        </ProfileButton>
+                    </View>
                 </Header>
 
                 {loading ? (
@@ -466,16 +318,19 @@ export default function Home() {
                                         <LocacaoInfo>
                                             <InfoTitle>Dados da Locação</InfoTitle>
                                             <InfoText>
-                                                <InfoLabel>Valor Semanal: </InfoLabel> R$ {aluguelData?.valorSemanal}
+                                                <InfoLabel>Valor Semanal: </InfoLabel>R$ {aluguelData?.valorSemanal}
                                             </InfoText>
                                             <InfoText>
-                                                <InfoLabel>Valor Mensal: </InfoLabel> R$ {aluguelData?.valorMensal}
+                                                <InfoLabel>Valor Mensal: </InfoLabel>R$ {aluguelData?.valorMensal}
                                             </InfoText>
                                             <InfoText>
-                                                <InfoLabel>Caução: </InfoLabel> R$ {aluguelData?.valorCaucao}
+                                                <InfoLabel>Caução: </InfoLabel>R$ {aluguelData?.valorCaucao}
                                             </InfoText>
                                             <InfoText>
-                                                <InfoLabel>Tempo: </InfoLabel> {contratoAtivo?.dataInicio ? calcularTempoLocacao(contratoAtivo.dataInicio) : 'Carregando...'}
+                                                <InfoLabel>Tempo: </InfoLabel>{contratoAtivo?.dataInicio ? calcularTempoLocacao(contratoAtivo.dataInicio) : 'Carregando...'}
+                                            </InfoText>
+                                            <InfoText>
+                                                <InfoLabel>Pagamento: </InfoLabel>{contratoAtivo?.tipoRecorrenciaPagamento === 'semanal' ? 'Semanal' : 'Mensal'}
                                             </InfoText>
                                         </LocacaoInfo>
                                     </InfoContainer>
@@ -577,13 +432,6 @@ export default function Home() {
                         }}
                     />
                 )}
-                {/* Modal de pagamento pendente */}
-                <PendingPaymentModal
-                    isVisible={isPaymentModalVisible}
-                    payment={pendingPayment}
-                    onClose={() => setIsPaymentModalVisible(false)}
-                    onConfirm={navigateToPayment}
-                />
             </ViewPadding>
         </Container>
     );

@@ -231,7 +231,6 @@ const Payment = () => {
             payment_type_id: paymentData.paymentType,
             userEmail: email,
             userName: name,
-            paymentResponse
           }
         });
       } else {

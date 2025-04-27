@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ActivityIndicator, FlatList, TouchableOpacity, Alert, Linking } from 'react-native';
+import { View, Text, ActivityIndicator, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { auth, db } from '../../services/firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerForPushNotifications } from '../../services/notificationService';
-import { testNotificationDirectly } from '../../services/notificationService';
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import {
   Container,
@@ -120,7 +119,7 @@ const Financeiro = () => {
             if (!aluguelId && contrato.motoId) {
               console.log("Buscando aluguel pela motoId:", contrato.motoId);
               
-              const alugueisQuery = query(
+              const alugueisQuery = query( 
                 collection(db, 'alugueis'),
                 where('motoId', '==', contrato.motoId),
                 where('ativo', '==', true)
@@ -324,27 +323,6 @@ const Financeiro = () => {
     return () => unsubscribeAuth();
   }, []);
 
-  // função para testar notificações
-  const testNotification = async () => {
-    try {
-      const result = await testNotificationDirectly();
-      if (result) {
-        Alert.alert(
-          "Teste de Notificação",
-          "Solicitação de notificação enviada com sucesso. Aguarde alguns segundos para recebê-la."
-        );
-      } else {
-        Alert.alert(
-          "Erro",
-          "Não foi possível enviar a notificação de teste. Verifique os logs."
-        );
-      }
-    } catch (error) {
-      console.error("Erro ao testar notificação:", error);
-      Alert.alert("Erro", "Ocorreu um erro ao testar a notificação: " + error.message);
-    }
-  };
-
   // função para testar o lembrete de pagamento
   const testPaymentReminder = async () => {
     try {
@@ -382,7 +360,7 @@ const Financeiro = () => {
       const emailBody = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
           <div style="text-align: center; margin-bottom: 20px;">
-            <img src="cid:logo" alt="Papa Motos Logo" style="max-width: 150px;">
+            <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Motos Logo" style="width: 70px; margin-bottom: 20px">
           </div>
           <h2 style="color: #CB2921; text-align: center;">Lembrete de Pagamento (Teste)</h2>
           <p>Olá ${userData?.nomeCompleto || 'Cliente'},</p>
@@ -429,46 +407,6 @@ const Financeiro = () => {
   };
   
 
-  const checkCurrentToken = async () => {
-    try {
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        Alert.alert("Erro", "Usuário não autenticado");
-        return;
-      }
-      
-      const userRef = doc(db, 'users', currentUser.email);
-      const userDoc = await getDoc(userRef);
-      
-      if (!userDoc.exists()) {
-        Alert.alert("Erro", "Documento do usuário não encontrado");
-        return;
-      }
-      
-      const userData = userDoc.data();
-      const token = userData.fcmToken;
-      
-      if (!token) {
-        Alert.alert("Aviso", "Token de notificação não encontrado. Registrando novo token...");
-        const newToken = await registerForPushNotifications();
-        if (newToken) {
-          Alert.alert("Sucesso", `Novo token registrado: ${newToken}`);
-        } else {
-          Alert.alert("Erro", "Não foi possível registrar um novo token");
-        }
-        return;
-      }
-      
-      Alert.alert(
-        "Token de Notificação",
-        `Token atual: ${token}\n\nTipo: ${token.startsWith("ExponentPushToken") ? "Expo" : "FCM"}`
-      );
-    } catch (error) {
-      console.error("Erro ao verificar token:", error);
-      Alert.alert("Erro", "Ocorreu um erro ao verificar o token: " + error.message);
-    }
-  };
-
   // Função para enviar notificação pelo Firestore
   const enviarNotificacaoPeloFirestore = async (userEmail, payment, title, body, data) => {
     try {
@@ -507,13 +445,6 @@ const Financeiro = () => {
         paymentInfo: paymentInfo || null,
         status: 'pending',
         createdAt: serverTimestamp(),
-        attachments: [
-          {
-            filename: 'logo.png',
-            path: 'src/assets/Logo.png',
-            cid: 'logo'
-          }
-        ]
       });
       
       console.log(`Solicitação de email criada: ${requestId}`);
@@ -591,8 +522,8 @@ const Financeiro = () => {
       const timeDiff = now - paymentDate; // diferença em milissegundos
       const minutesPassed = Math.floor(timeDiff / (1000 * 60));
       
-      // Se passaram mais de 1 minuto (para teste, 15 em produção) e a notificação ainda não foi enviada
-      if (minutesPassed > 1 && !notificationSent[payment.id]) {
+      // Se passaram mais de 20 minutos e a notificação ainda não foi enviada
+      if (minutesPassed > 20 && !notificationSent[payment.id]) {
         console.log(`Enviando notificação para pagamento pendente: ${payment.id} (${minutesPassed} minutos passados)`);
         
         try {
@@ -633,7 +564,7 @@ const Financeiro = () => {
           const emailBody = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
               <div style="text-align: center; margin-bottom: 20px;">
-                <img src="cid:logo" alt="Papa Motos Logo" style="max-width: 150px;">
+                <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Motos Logo" style="width: 70px; margin-bottom: 20px;">
               </div>
               <h2 style="color: #CB2921; text-align: center;">Pagamento Pendente</h2>
               <p>Olá ${userData?.nomeCompleto || 'Cliente'},</p>
@@ -747,7 +678,7 @@ const Financeiro = () => {
         const emailBody = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
             <div style="text-align: center; margin-bottom: 20px;">
-              <img src="cid:logo" alt="Papa Motos Logo" style="max-width: 150px;">
+              <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Motos Logo" style="width: 70px; margin-bottom: 20px;">
             </div>
             <h2 style="color: #CB2921; text-align: center;">Lembrete de Pagamento</h2>
             <p>Olá ${userData.nomeCompleto || 'Cliente'},</p>
@@ -888,67 +819,6 @@ const Financeiro = () => {
     
     return () => clearInterval(interval);
   }, []);
-
-  // useEffect para verificar pagamentos pendentes quando o componente é montado
-  useEffect(() => {
-    // Verificar se há pagamentos pendentes quando a tela for montada
-    const checkPendingPaymentsOnMount = async () => {
-      try {
-        const currentUser = auth.currentUser;
-        
-        if (!currentUser || !payments.length) return;
-        
-        // Filtrar pagamentos PIX pendentes
-        const pendingPixPayments = payments.filter(
-          payment => payment.status === 'pending' && payment.payment_type_id === 'pix'
-        );
-        
-        if (pendingPixPayments.length > 0) {
-          // Pegar o pagamento pendente mais recente
-          const latestPendingPayment = pendingPixPayments.reduce((latest, current) => {
-            const latestDate = new Date(latest.date_created);
-            const currentDate = new Date(current.date_created);
-            return currentDate > latestDate ? current : latest;
-          }, pendingPixPayments[0]);
-          
-          // Verificar se já enviamos notificação para este pagamento ao abrir o app
-          const appOpenNotificationKey = `app_open_${latestPendingPayment.id}`;
-          const alreadyNotified = await AsyncStorage.getItem(appOpenNotificationKey);
-          
-          if (!alreadyNotified) {
-            // Preparar dados para a notificação
-            const title = 'Pagamento Pendente Detectado';
-            const body = `Você tem um pagamento PIX de R$ ${latestPendingPayment.transaction_amount.toFixed(2)} pendente. Deseja concluí-lo agora?`;
-            
-            // Mostrar um alerta no app em vez de uma notificação push
-            Alert.alert(
-              title,
-              body,
-              [
-                {
-                  text: "Não agora",
-                  style: "cancel"
-                },
-                {
-                  text: "Concluir Pagamento",
-                  onPress: () => viewPaymentDetails(latestPendingPayment)
-                }
-              ]
-            );
-            
-            // Marcar como notificado para não mostrar novamente nesta sessão
-            await AsyncStorage.setItem(appOpenNotificationKey, 'true');
-          }
-        }
-      } catch (error) {
-        console.error("Erro ao verificar pagamentos pendentes na montagem:", error);
-      }
-    };
-    
-    if (payments.length > 0) {
-      checkPendingPaymentsOnMount();
-    }
-  }, [payments]);
   
   // Função para formatar status do pagamento
   const formatStatus = (status) => {
@@ -1131,7 +1001,7 @@ const Financeiro = () => {
           justifyContent: 'space-between',
           marginBottom: 8
         }}>
-          <PaymentInfoLabel style={{ color: '#6c757d' }}>Tipo:</PaymentInfoLabel>
+          <PaymentInfoLabel style={{ color: '#6c757d' }}>Recorrência:</PaymentInfoLabel>
           <PaymentInfoValue style={{ fontWeight: 'bold' }}>
             {proximoPagamento.tipoRecorrencia === 'semanal' ? 'Semanal' : 'Mensal'}
           </PaymentInfoValue>
@@ -1159,18 +1029,6 @@ const Financeiro = () => {
           <ButtonText>Realizar Pagamento</ButtonText>
         </Button>
         <Button
-          onPress={testNotification}
-          style={{ marginTop: 10, backgroundColor: '#2E7D32' }}
-        >
-          <ButtonText>Testar Notificação</ButtonText>
-        </Button>
-        <Button
-          onPress={checkCurrentToken}
-          style={{ marginTop: 10, backgroundColor: '#0277BD' }}
-        >
-          <ButtonText>Verificar Token</ButtonText>
-        </Button>
-        <Button
           onPress={testPaymentReminder}
           style={{ marginTop: 10, backgroundColor: '#9C27B0' }}
         >
@@ -1188,7 +1046,7 @@ const Financeiro = () => {
           <Feather name="alert-circle" size={50} color="#FF3B30" />
           <EmptyText>Você não possui um contrato ativo no momento.</EmptyText>
           <EmptyText style={{ marginTop: 10, fontSize: 14, color: '#666' }}>
-            Entre em contato com a PapaMotos para mais informações.
+            Entre em contato com a Papa Tango para mais informações.
           </EmptyText>
         </EmptyContainer>
       );
