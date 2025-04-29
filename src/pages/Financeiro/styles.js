@@ -11,7 +11,7 @@ export const Header = styled.View`
 `;
 
 export const Title = styled.Text`
-  font-size: 22px;
+  font-size: 24px;
   font-weight: bold;
   textt-align: center;
   color: #333;

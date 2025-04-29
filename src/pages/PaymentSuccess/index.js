@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Share, Alert, Linking, Image, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { db } from '../../services/firebaseConfig';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -31,6 +34,9 @@ const PaymentSuccess = () => {
   // Estado para controlar se já processamos os dados
   const [processedData, setProcessedData] = useState(false);
   const [paymentData, setPaymentData] = useState(null);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState(paymentInfo?.status || 'pending');
   
   // Processar os dados apenas uma vez quando o componente montar
   useEffect(() => {
@@ -81,7 +87,70 @@ const PaymentSuccess = () => {
   
     return unsubscribe;
   }, [navigation, paymentData]);
-  
+
+  // Verificar o status a cada 5 segundos se o pagamento estiver pendente
+  useEffect(() => {
+    // Verificar imediatamente ao montar o componente
+    checkPaymentStatus();
+    
+    // Configurar verificação periódica apenas se o pagamento estiver pendente
+    let interval;
+    if (currentStatus === 'pending') {
+      interval = setInterval(() => {
+        checkPaymentStatus();
+      }, 5000); // Verificar a cada 5 segundos
+    }
+    
+    // Limpar o intervalo ao desmontar
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [checkPaymentStatus, currentStatus]);
+
+  // Função para verificar o status do pagamento
+  const checkPaymentStatus = useCallback(async () => {
+    try {
+      if (!paymentInfo?.paymentId) {
+        console.log('ID de pagamento não disponível');
+        return;
+      }
+      
+      setRefreshing(true);
+      
+      // Verificar o status do pagamento usando a API
+      const response = await axios.get(
+        `https://checkpaymentstatus-q3zrn7ctxq-uc.a.run.app?paymentId=${paymentInfo.paymentId}`
+      );
+      
+      const { status } = response.data;
+      
+      // Se o status mudou, atualizar o estado
+      if (status !== currentStatus) {
+        setCurrentStatus(status);
+        
+        // Se o pagamento foi aprovado, mostrar uma mensagem
+        if (status === 'approved') {
+          Alert.alert(
+            'Pagamento Aprovado',
+            'Seu pagamento foi processado com sucesso!',
+            [{ text: 'OK' }]
+          );
+          
+          // Atualizar o documento no Firestore
+          const paymentRef = doc(db, 'payments', paymentInfo.id);
+          await updateDoc(paymentRef, {
+            status: 'approved',
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status do pagamento:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [paymentInfo, currentStatus]);
+    
   // Função para normalizar os dados do pagamento
   const normalizePaymentData = (rawData) => {
     if (!rawData) return null;
@@ -100,7 +169,7 @@ const PaymentSuccess = () => {
                    (rawData.dateCreated && rawData.dateCreated.seconds 
                      ? new Date(rawData.dateCreated.seconds * 1000).toISOString() 
                      : new Date().toISOString()),
-      description: rawData.description || 'Pagamento de serviço',
+      description: rawData.description || 'Pagamento',
       userName: rawData.userName || 'N/A',
       userEmail: rawData.userEmail || 'N/A',
       // Preservar o objeto original para acesso direto

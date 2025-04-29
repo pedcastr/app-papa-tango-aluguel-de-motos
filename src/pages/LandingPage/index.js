@@ -72,7 +72,7 @@ export default function LandingPage() {
 
   // Função para navegar para a tela de cadastro
   const handleRegisterPress = () => {
-    navigation.navigate('nome_sobrenome');
+    navigation.navigate('nome');
   };
 
   // Função para abrir o WhatsApp

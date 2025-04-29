@@ -4,23 +4,21 @@ import { Platform } from 'react-native';
 export const Container = styled.SafeAreaView`
     flex: 1;
     background-color: #F8F9FA;
-    padding-top: ${Platform.OS === 'android' ? '30px' : '0'};
 `;
 
 export const Header = styled.View`
     flex-direction: row;
     justify-content: space-between;
+    height: 65px;
     align-items: center;
     padding: 16px;
-    background-color: #FFF;
-    border-bottom-width: 1px;
-    border-bottom-color: #E9ECEF;
+    background-color: #CB2921;
 `;
 
 export const HeaderTitle = styled.Text`
     font-size: 20px;
     font-weight: bold;
-    color: #212529;
+    color: #ffffff;
 `;
 
 export const HeaderRight = styled.View`
@@ -96,9 +94,7 @@ export const PaymentCard = styled.View`
 `;
 
 export const PaymentHeader = styled.View`
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
+    align-items: start;
     margin-bottom: 8px;
 `;
 
@@ -111,6 +107,11 @@ export const PaymentTitle = styled.Text`
 export const StatusBadge = styled.View`
     padding: 4px 8px;
     border-radius: 12px;
+    align-items: center;
+    align-self: flex-end;
+    justify-content: center;
+    margin-bottom: 10px;
+    max-width: 30%;
 `;
 
 export const StatusText = styled.Text`
@@ -264,7 +265,7 @@ export const DetailValue = styled.Text`
     font-size: 14px;
     font-weight: 500;
     color: #212529;
-    max-width: 60%;
+    max-width: 90%;
     text-align: right;
 `;
 
@@ -289,4 +290,70 @@ export const AddButtonText = styled.Text`
     font-size: 16px;
     font-weight: bold;
     margin-left: 8px;
+`;
+
+export const QRCodeContainer = styled.View`
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0;
+  padding: 10px;
+  background-color: #fff;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+`;
+
+export const QRCodeImage = styled.Image`
+  width: 200px;
+  height: 200px;
+  margin: 10px 0;
+`;
+
+export const CodeContainer = styled.View`
+  background-color: #f5f5f5;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 10px 0;
+`;
+
+export const CodeText = styled.Text`
+  font-family: monospace;
+  font-size: 14px;
+  color: #333;
+  margin-top: 5px;
+  padding: 8px;
+  background-color: #fff;
+  border: 1px dashed #ccc;
+  border-radius: 4px;
+`;
+
+export const CopyButton = styled.TouchableOpacity`
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  background-color: #007bff;
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 10px;
+`;
+
+export const CopyButtonText = styled.Text`
+  color: #fff;
+  font-weight: bold;
+  margin-left: 8px;
+`;
+
+export const LinkButton = styled.TouchableOpacity`
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  background-color: #6c757d;
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 10px;
+`;
+
+export const LinkButtonText = styled.Text`
+  color: #fff;
+  font-weight: bold;
+  margin-left: 8px;
 `;

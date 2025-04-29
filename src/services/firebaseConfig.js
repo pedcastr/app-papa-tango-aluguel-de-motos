@@ -7,7 +7,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { Platform } from 'react-native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Importação correta para todas as plataformas
+// Importação para todas as plataformas
 import * as firebaseAuth from 'firebase/auth';
 
 const {
@@ -40,12 +40,12 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 
 // Inicializa o Functions
-const functions = getFunctions(app); // Adicione esta linha
+const functions = getFunctions(app);
 
 // Inicializa o Auth de forma condicional baseado na plataforma
 let auth;
 if (Platform.OS !== 'web') {
-  // Configuração para mobile - usando a importação correta
+  // Configuração para mobile (iOS e Android)
   auth = initializeAuth(app, {
     persistence: firebaseAuth.getReactNativePersistence(AsyncStorage),
     phoneAuthSettings: {
@@ -61,4 +61,4 @@ if (Platform.OS !== 'web') {
 // Configuração do provedor de autenticação por telefone
 const phoneProvider = new PhoneAuthProvider(auth);
 
-export { auth, db, storage, phoneProvider, functions, httpsCallable }; // Exporte functions e httpsCallable
+export { auth, db, storage, phoneProvider, functions, httpsCallable };

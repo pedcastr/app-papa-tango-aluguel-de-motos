@@ -10,7 +10,7 @@ const mercadopago = require("mercadopago");
 admin.initializeApp();
 const db = admin.firestore();
 
-// Configuração do Mercado Pago Webhook Teste
+// Configuração do Mercado Pago Webhook
 const WEBHOOK_SECRET = env.mercadopago.webhookSecret;
 
 // Configurar o Nodemailer para enviar e-mails diretamente pelo Gmail
@@ -428,7 +428,7 @@ exports.processPayment = functions.https.onRequest((req, res) => {
         return res.status(405).json({error: "Método não permitido"});
       }
 
-      console.log("Dados recebidos:", req.body);
+      console.log("Dados recebidos:", JSON.stringify(req.body));
 
       // Inicializar o SDK com seu token de acesso
       const mp = new mercadopago.MercadoPagoConfig({
@@ -440,27 +440,38 @@ exports.processPayment = functions.https.onRequest((req, res) => {
       // Mapear os parâmetros recebidos para os nomes esperados pelo Mercado Pago
       const {paymentType, transactionAmount, description, payer} = req.body;
 
+      // Garantir que o valor da transação seja um número válido
+      const amount = Number(parseFloat(transactionAmount).toFixed(2));
+
+      if (isNaN(amount) || amount <= 0) {
+        return res.status(400).json({
+          error: "Valor de transação inválido",
+          details: "O valor da transação deve ser um número positivo",
+        });
+      }
+
       // Criar o objeto de pagamento com os nomes corretos de parâmetros
       const paymentData = {
-        transaction_amount: transactionAmount,
+        transaction_amount: amount,
         description: description,
-        payment_method_id: paymentType === "pix" ? "pix" : "bolbradesco", // Mapear paymentType para payment_method_id
+        payment_method_id: paymentType === "pix" ? "pix" : "bolbradesco",
         payer: payer,
       };
 
       // Se for PIX, adicionar os parâmetros específicos
       if (paymentType === "pix") {
         paymentData.payment_method_id = "pix";
-
       // Se for boleto, adicionar os parâmetros específicos
       } else if (paymentType === "boleto") {
         paymentData.payment_method_id = "bolbradesco";
       }
 
-      console.log("Dados formatados para o Mercado Pago:", paymentData);
+      console.log("Dados formatados para o Mercado Pago:", JSON.stringify(paymentData));
 
       // Criar o pagamento usando o SDK do Mercado Pago
       const payment = await paymentClient.create({body: paymentData});
+
+      console.log("Resposta da API do Mercado Pago:", JSON.stringify(payment));
 
       res.json({
         status: payment.status,
@@ -472,6 +483,12 @@ exports.processPayment = functions.https.onRequest((req, res) => {
       });
     } catch (error) {
       console.error("Erro ao processar pagamento:", error);
+
+      // Melhorar o log de erro para incluir mais detalhes
+      if (error.response) {
+        console.error("Detalhes do erro da API:", JSON.stringify(error.response.data));
+      }
+
       res.status(500).json({
         error: "Erro ao processar pagamento",
         details: error.message,
@@ -527,7 +544,7 @@ async function sendPaymentNotification(userId, notification, isAdminNotification
           console.log(`Enviando notificação via Expo para usuário ${userId}:`, expoMessage);
 
           try {
-            // Usar axios em vez de fetch
+            // Usando axios para fazer a solicitação POST
             const axiosResponse = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
               headers: {
                 "Accept": "application/json",
@@ -933,8 +950,16 @@ exports.webhook = functions.https.onRequest((req, res) => {
           // Atualizar o status do pagamento no Firestore
           const db = admin.firestore();
 
-          // Criar ou atualizar o registro de pagamento
-          await db.collection("payments").doc(paymentId).set({
+          // Buscar o documento de pagamento existente para obter informações adicionais
+          const existingPaymentDoc = await db.collection("payments").doc(paymentId.toString()).get();
+          let paymentData = {};
+
+          if (existingPaymentDoc.exists) {
+            paymentData = existingPaymentDoc.data();
+          }
+
+          // Criar ou atualizar o registro de pagamento com MERGE para preservar campos existentes
+          await db.collection("payments").doc(paymentId.toString()).set({
             paymentId,
             status,
             statusDetail,
@@ -943,6 +968,13 @@ exports.webhook = functions.https.onRequest((req, res) => {
             dateApproved: dateApproved ? new Date(dateApproved) : null,
             externalReference,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            // Preservar campos importantes que podem já existir
+            userId: paymentData.userId || null,
+            userEmail: paymentData.userEmail || null,
+            description: paymentData.description || null,
+            contratoId: paymentData.contratoId || null,
+            aluguelId: paymentData.aluguelId || null,
+            paymentMethod: paymentData.paymentMethod || null,
           }, {merge: true});
 
           // Buscar o usuário associado a este pagamento
@@ -1041,5 +1073,85 @@ exports.checkPaymentStatus = functions.https.onRequest((req, res) => {
     }
   });
 });
+
+// Função agendada para verificar status de pagamentos pendentes
+exports.checkPendingPayments = functions.pubsub
+    .schedule("every 5 minutes")
+    .onRun(async (context) => {
+      try {
+        const db = admin.firestore();
+
+        // Buscar pagamentos pendentes das últimas 24 horas
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+        const pendingPayments = await db.collection("payments")
+            .where("status", "==", "pending")
+            .where("dateCreated", ">", oneDayAgo)
+            .get();
+
+        console.log(`Verificando ${pendingPayments.size} pagamentos pendentes`);
+
+        // Inicializar o SDK com seu token de acesso
+        const mp = new mercadopago.MercadoPagoConfig({
+          accessToken: env.mercadopago.accessToken,
+        });
+
+        const paymentClient = new mercadopago.Payment(mp);
+        const updatePromises = [];
+
+        pendingPayments.forEach((doc) => {
+          const payment = doc.data();
+
+          // Verificar apenas pagamentos que têm um ID do Mercado Pago
+          if (payment.paymentId) {
+            const updatePromise = paymentClient.get({id: payment.paymentId})
+                .then((paymentResponse) => {
+                  const paymentInfo = paymentResponse;
+
+                  // Se o status mudou, atualizar no Firestore
+                  if (paymentInfo.status !== payment.status) {
+                    console.log(`Atualizando pagamento ${payment.paymentId} 
+                  de ${payment.status} para ${paymentInfo.status}`);
+
+                    const updateData = {
+                      status: paymentInfo.status,
+                      statusDetail: paymentInfo.status_detail,
+                      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    };
+
+                    // Se o pagamento foi aprovado, enviar notificação
+                    if (paymentInfo.status === "approved" && payment.userEmail) {
+                      // Enviar notificação usando sua função existente
+                      sendPaymentNotification(payment.userEmail, {
+                        title: "Pagamento aprovado!",
+                        body: `Seu pagamento de R$ ${payment.amount.toFixed(2)} foi aprovado.`,
+                        data: {
+                          screen: "PaymentSuccess",
+                          paymentId: payment.paymentId,
+                        },
+                      });
+                    }
+
+                    return doc.ref.update(updateData);
+                  }
+                  return Promise.resolve();
+                })
+                .catch((error) => {
+                  console.error(`Erro ao verificar pagamento ${payment.paymentId}:`, error);
+                  return Promise.resolve();
+                });
+
+            updatePromises.push(updatePromise);
+          }
+        });
+
+        await Promise.all(updatePromises);
+        return null;
+      } catch (error) {
+        console.error("Erro ao verificar pagamentos pendentes:", error);
+        return null;
+      }
+    });
 
 

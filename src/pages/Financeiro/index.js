@@ -5,7 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { auth, db } from '../../services/firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerForPushNotifications } from '../../services/notificationService';
-import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, getDoc, onSnapshot, setDoc, orderBy } from 'firebase/firestore';
 import {
   Container,
   Header,
@@ -41,12 +41,185 @@ const Financeiro = () => {
   const [proximoPagamento, setProximoPagamento] = useState(null);
   const [contratoAtivo, setContratoAtivo] = useState(false);
   const [notificationSent, setNotificationSent] = useState({});
-  const [reminderNotificationSent, setReminderNotificationSent] = useState(false);
   
   // Referência para armazenar o ID do intervalo de verificação de pagamentos pendentes
   const pendingPaymentsIntervalRef = useRef(null);
   // Referência para armazenar o ID do intervalo de verificação de lembretes de pagamento
   const paymentReminderIntervalRef = useRef(null);
+
+  // useEffect principal que gerencia autenticação e carregamento inicial
+  useEffect(() => {
+    let unsubscribe = () => {};
+    
+    const authUnsubscribe = auth.onAuthStateChanged((user) => {
+      // Limpar o listener anterior se existir
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+      
+      if (user) {
+        setLoading(true);
+        // Registrar para notificações push
+        registerForPushNotifications();
+        // Carregar pagamentos
+        unsubscribe = loadPayments();
+      } else {
+        setLoading(false);
+        setPayments([]);
+        setUserData(null);
+        setProximoPagamento(null);
+        setContratoAtivo(false);
+        
+        // Limpar intervalos
+        if (pendingPaymentsIntervalRef.current) {
+          clearInterval(pendingPaymentsIntervalRef.current);
+          pendingPaymentsIntervalRef.current = null;
+        }
+        if (paymentReminderIntervalRef.current) {
+          clearInterval(paymentReminderIntervalRef.current);
+          paymentReminderIntervalRef.current = null;
+        }
+      }
+    });
+    
+    return () => {
+      authUnsubscribe();
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  // useEffect para verificação de token de autenticação
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+    
+    const checkAuthToken = async () => {
+      try {
+        const token = await currentUser.getIdToken(true);
+        console.log("Token renovado com sucesso");
+      } catch (error) {
+        console.error("Erro ao renovar token:", error);
+      }
+    };
+    
+    // Verificar imediatamente
+    checkAuthToken();
+    
+    // Configurar verificação periódica
+    const interval = setInterval(checkAuthToken, 10 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // useEffect para verificar pagamentos pendentes
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || !payments.length) return;
+    
+    // Verificar imediatamente
+    checkPendingPayments();
+    
+    // Limpar intervalo anterior se existir
+    if (pendingPaymentsIntervalRef.current) {
+      clearInterval(pendingPaymentsIntervalRef.current);
+    }
+    
+    // Configurar verificação periódica
+    pendingPaymentsIntervalRef.current = setInterval(checkPendingPayments, 10 * 60 * 1000);
+    
+    return () => {
+      if (pendingPaymentsIntervalRef.current) {
+        clearInterval(pendingPaymentsIntervalRef.current);
+      }
+    };
+  }, [payments, notificationSent, userData]);
+
+  // useEffect para verificar lembretes de pagamento
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || !proximoPagamento || !userData) return;
+    
+    // Verificar imediatamente
+    checkPaymentReminder();
+    
+    // Limpar intervalo anterior se existir
+    if (paymentReminderIntervalRef.current) {
+      clearInterval(paymentReminderIntervalRef.current);
+    }
+    
+    // Configurar verificação periódica
+    paymentReminderIntervalRef.current = setInterval(checkPaymentReminder, 60 * 60 * 1000);
+    
+    return () => {
+      if (paymentReminderIntervalRef.current) {
+        clearInterval(paymentReminderIntervalRef.current);
+      }
+    };
+  }, [proximoPagamento, userData]);
+
+  useEffect(() => {
+    let unsubscribe;
+    
+    const loadPayments = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Verificar se o usuário está autenticado
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          setError('Usuário não autenticado');
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Usuário logado:', currentUser.email);
+        
+        // Configurar um listener em tempo real para a coleção de pagamentos
+        const q = query(
+          collection(db, 'payments'),
+          where('userEmail', '==', currentUser.email),
+          orderBy('dateCreated', 'desc')
+        );
+        
+        unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const paymentsData = [];
+          querySnapshot.forEach((doc) => {
+            paymentsData.push({
+              id: doc.id,
+              ...doc.data(),
+              date_created: doc.data().dateCreated?.toDate?.().toISOString() || new Date().toISOString(),
+              transaction_amount: doc.data().amount || 0,
+              status: doc.data().status || 'pending',
+              payment_type_id: doc.data().paymentMethod || 'unknown'
+            });
+          });
+          
+          setPayments(paymentsData);
+          setLoading(false);
+        }, (error) => {
+          console.error('Erro ao carregar pagamentos:', error);
+          setError('Não foi possível carregar seus pagamentos. Tente novamente mais tarde.');
+          setLoading(false);
+        });
+      } catch (err) {
+        console.error('Erro ao carregar pagamentos:', err);
+        setError('Não foi possível carregar seus pagamentos. Tente novamente mais tarde.');
+        setLoading(false);
+      }
+    };
+    
+    loadPayments();
+    
+    // Limpar o listener quando o componente for desmontado
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
   
   // Função para carregar os dados do usuário
   const loadUserData = async () => {
@@ -119,7 +292,7 @@ const Financeiro = () => {
             if (!aluguelId && contrato.motoId) {
               console.log("Buscando aluguel pela motoId:", contrato.motoId);
               
-              const alugueisQuery = query( 
+              const alugueisQuery = query(
                 collection(db, 'alugueis'),
                 where('motoId', '==', contrato.motoId),
                 where('ativo', '==', true)
@@ -142,94 +315,149 @@ const Financeiro = () => {
                 
                 // Calcular próximo pagamento
                 try {
-                  // Verificar se o usuário já tem pagamentos aprovados
-                  let dataBase;
-                  let pagamentoMaisRecente = null;
+                  // Determinar se é pagamento semanal ou mensal
+                  const tipoRecorrencia = contrato.tipoRecorrenciaPagamento || 'mensal';
+                  const valorMensal = aluguel.valorMensal || 250;
+                  const valorSemanal = aluguel.valorSemanal || 70;
+                  const valor = tipoRecorrencia === 'semanal' ? valorSemanal : valorMensal;
                   
-                  // Buscar pagamentos aprovados do usuário
+                  // Buscar pagamentos do usuário
                   const paymentsQuery = query(
                     collection(db, 'payments'),
                     where('userEmail', '==', currentUser.email),
-                    where('status', '==', 'approved')
+                    orderBy('dateCreated', 'desc')
                   );
                   
                   const paymentsSnapshot = await getDocs(paymentsQuery);
                   
-                  if (!paymentsSnapshot.empty) {
-                    // Encontrar o pagamento aprovado mais recente
-                    paymentsSnapshot.forEach(doc => {
-                      const payment = doc.data();
-                      const paymentDate = payment.dateCreated?.toDate();
+                  // Verificar se existe algum pagamento aprovado
+                  const ultimoPagamentoAprovado = paymentsSnapshot.docs.find(doc => {
+                    const paymentData = doc.data();
+                    return paymentData.status === 'approved';
+                  });
+                  
+                  const hoje = new Date();
+                  hoje.setHours(0, 0, 0, 0); // Normalizar para início do dia
+                  
+                  let dataBase;
+                  let proximaData;
+                  
+                  // Se tiver pagamento aprovado, calcular a partir dele
+                  if (ultimoPagamentoAprovado) {
+                    const ultimoPagamentoData = ultimoPagamentoAprovado.data().dateCreated?.toDate();
+                    if (ultimoPagamentoData) {
+                      dataBase = new Date(ultimoPagamentoData);
+                      dataBase.setHours(0, 0, 0, 0); // Normalizar para início do dia
+                    } else {
+                      dataBase = new Date(contrato.dataInicio.toDate());
+                      dataBase.setHours(0, 0, 0, 0);
+                    }
+                  } else {
+                    // Se não tiver pagamento aprovado, usar a data de início do contrato
+                    dataBase = new Date(contrato.dataInicio.toDate());
+                    dataBase.setHours(0, 0, 0, 0);
+                  }
+                  
+                  // Calcular a próxima data de pagamento com base no tipo de recorrência
+                  proximaData = new Date(dataBase);
+                  
+                  if (tipoRecorrencia === 'semanal') {
+                    // Para pagamento semanal
+                    proximaData.setDate(proximaData.getDate() + 7);
+                    
+                    // Se não houver pagamento aprovado e a data de início for anterior à data atual,
+                    // precisamos encontrar a data de pagamento mais próxima (que pode estar no passado)
+                    if (!ultimoPagamentoAprovado) {
+                      // Ajustar para encontrar a data de pagamento correta
+                      proximaData = new Date(dataBase);
                       
-                      if (paymentDate && (!pagamentoMaisRecente || paymentDate > pagamentoMaisRecente.date)) {
-                        pagamentoMaisRecente = {
-                          date: paymentDate,
-                          amount: payment.amount
-                        };
+                      // Avançar de 7 em 7 dias até encontrar a primeira data após a data base
+                      while (proximaData <= dataBase) {
+                        proximaData.setDate(proximaData.getDate() + 7);
                       }
+                      
+                      // Se essa data já passou, é um pagamento atrasado
+                      if (proximaData < hoje) {
+                        // Não avançamos para a próxima data, pois queremos mostrar o atraso
+                      }
+                    }
+                  } else {
+                    // Para pagamento mensal
+                    proximaData.setMonth(proximaData.getMonth() + 1);
+                    
+                    // Se não houver pagamento aprovado e a data de início for anterior à data atual,
+                    // precisamos encontrar a data de pagamento mais próxima (que pode estar no passado)
+                    if (!ultimoPagamentoAprovado) {
+                      // Ajustar para encontrar a data de pagamento correta
+                      proximaData = new Date(dataBase);
+                      
+                      // Avançar de mês em mês até encontrar a primeira data após a data base
+                      while (proximaData <= dataBase) {
+                        proximaData.setMonth(proximaData.getMonth() + 1);
+                      }
+                      
+                      // Se essa data já passou, é um pagamento atrasado
+                      if (proximaData < hoje) {
+                        // Não avançamos para a próxima data, pois queremos mostrar o atraso
+                      }
+                    }
+                  }
+                  
+                  // Verificar se já existe um pagamento aprovado para o período atual
+                  let existePagamentoAtual = false;
+                  
+                  if (tipoRecorrencia === 'semanal') {
+                    // Para pagamento semanal, verificar se há pagamento na semana atual
+                    const inicioSemanaAtual = new Date(proximaData);
+                    inicioSemanaAtual.setDate(inicioSemanaAtual.getDate() - 7);
+                    
+                    existePagamentoAtual = paymentsSnapshot.docs.some(doc => {
+                      const paymentData = doc.data();
+                      const paymentDate = paymentData.dateCreated?.toDate();
+                      if (!paymentDate) return false;
+                      
+                      return paymentDate >= inicioSemanaAtual && 
+                             paymentDate < proximaData && 
+                             paymentData.status === 'approved';
+                    });
+                  } else {
+                    // Para pagamento mensal, verificar se há pagamento no mês atual
+                    const inicioMesAtual = new Date(proximaData);
+                    inicioMesAtual.setMonth(inicioMesAtual.getMonth() - 1);
+                    
+                    existePagamentoAtual = paymentsSnapshot.docs.some(doc => {
+                      const paymentData = doc.data();
+                      const paymentDate = paymentData.dateCreated?.toDate();
+                      if (!paymentDate) return false;
+                      
+                      return paymentDate >= inicioMesAtual && 
+                             paymentDate < proximaData && 
+                             paymentData.status === 'approved';
                     });
                   }
                   
-                  // Se encontrou um pagamento aprovado, usar sua data como base
-                  // Caso contrário, usar a data de início do contrato
-                  if (pagamentoMaisRecente) {
-                    console.log("Usando pagamento mais recente como base:", pagamentoMaisRecente);
-                    dataBase = new Date(pagamentoMaisRecente.date);
+                  // Calcular dias restantes (incluindo o dia de hoje)
+                  const diasRestantes = Math.floor((proximaData - hoje) / (1000 * 60 * 60 * 24));
+                  
+                  // Determinar status
+                  let status;
+                  if (existePagamentoAtual) {
+                    status = 'paid';
+                  } else if (diasRestantes < 0) {
+                    status = 'overdue'; // Atrasado
+                  } else if (diasRestantes === 0) {
+                    status = 'today'; // Vence hoje
                   } else {
-                    console.log("Usando data de início do contrato como base");
-                    dataBase = new Date(contrato.dataInicio.toDate());
+                    status = 'pending'; // Pendente
                   }
-                  
-                  const hoje = new Date();
-                  const valorMensal = aluguel.valorMensal || 250;
-                  const valorSemanal = aluguel.valorSemanal || 70;
-                  
-                  // Determinar se é pagamento semanal ou mensal
-                  const tipoRecorrencia = contrato.tipoRecorrenciaPagamento || 'mensal';
-                  const valor = tipoRecorrencia === 'semanal' ? valorSemanal : valorMensal;
-                  
-                  // Calcular próxima data de pagamento a partir da data base
-                  let proximaData = new Date(dataBase);
-                  
-                  if (tipoRecorrencia === 'semanal') {
-                    // Se estamos usando um pagamento anterior como base, adicionar 7 dias
-                    // Se estamos usando a data de início, avançar semanas até encontrar a próxima data após hoje
-                    if (pagamentoMaisRecente) {
-                      proximaData.setDate(proximaData.getDate() + 7);
-                    } else {
-                      while (proximaData < hoje) {
-                        proximaData.setDate(proximaData.getDate() + 7);
-                      }
-                    }
-                  } else {
-                    // Se estamos usando um pagamento anterior como base, adicionar 1 mês
-                    // Se estamos usando a data de início, avançar meses até encontrar a próxima data após hoje
-                    if (pagamentoMaisRecente) {
-                      proximaData.setMonth(proximaData.getMonth() + 1);
-                    } else {
-                      while (proximaData < hoje) {
-                        proximaData.setMonth(proximaData.getMonth() + 1);
-                      }
-                    }
-                  }
-                  
-                  // Se a próxima data calculada já passou, continuar avançando
-                  while (proximaData < hoje) {
-                    if (tipoRecorrencia === 'semanal') {
-                      proximaData.setDate(proximaData.getDate() + 7);
-                    } else {
-                      proximaData.setMonth(proximaData.getMonth() + 1);
-                    }
-                  }
-                  
-                  // Calcular dias restantes
-                  const diasRestantes = Math.ceil((proximaData - hoje) / (1000 * 60 * 60 * 24));
-                  
+
                   setProximoPagamento({
                     valor,
                     data: proximaData,
                     tipoRecorrencia,
-                    diasRestantes
+                    diasRestantes,
+                    diasAtraso: diasRestantes < 0 ? Math.abs(diasRestantes) : 0,
+                    status
                   });
                   
                   foundProximoPagamento = true;
@@ -256,7 +484,8 @@ const Financeiro = () => {
       const unsubscribe = onSnapshot(
         query(
           collection(db, 'payments'),
-          where('userEmail', '==', currentUser.email)
+          where('userEmail', '==', currentUser.email),
+          orderBy('dateCreated', 'desc')
         ),
         (snapshot) => {
           if (!snapshot.empty) {
@@ -266,14 +495,9 @@ const Financeiro = () => {
               status: doc.data().status,
               payment_type_id: doc.data().paymentMethod,
               transaction_amount: doc.data().amount,
-              date_created: doc.data().dateCreated?.toDate().toISOString(),
+              date_created: doc.data().dateCreated?.toDate()?.toISOString(),
               description: doc.data().description
             }));
-            
-            // Ordenar pagamentos por data (mais recentes primeiro)
-            paymentsList.sort((a, b) => {
-              return new Date(b.date_created) - new Date(a.date_created);
-            });
             
             setPayments(paymentsList);
           } else {
@@ -295,33 +519,9 @@ const Financeiro = () => {
       console.error('Erro ao carregar pagamentos:', err);
       setError('Não foi possível carregar seus pagamentos. Tente novamente mais tarde.');
       setLoading(false);
+      return () => {}; // Retorna uma função vazia em caso de erro
     }
   };
-
-  // Listener de autenticação para limpar os dados quando o usuário deslogar
-  useEffect(() => {
-    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
-      if (!user) {
-        // Usuário deslogou, limpar dados
-        setPayments([]);
-        setUserData(null);
-        setProximoPagamento(null);
-        setContratoAtivo(false);
-        
-        // Limpar intervalos
-        if (pendingPaymentsIntervalRef.current) {
-          clearInterval(pendingPaymentsIntervalRef.current);
-          pendingPaymentsIntervalRef.current = null;
-        }
-        if (paymentReminderIntervalRef.current) {
-          clearInterval(paymentReminderIntervalRef.current);
-          paymentReminderIntervalRef.current = null;
-        }
-      }
-    });
-    
-    return () => unsubscribeAuth();
-  }, []);
 
   // função para testar o lembrete de pagamento
   const testPaymentReminder = async () => {
@@ -339,9 +539,41 @@ const Financeiro = () => {
       
       const userEmail = currentUser.email;
       
-      // Preparar dados para a notificação
-      const title = 'Lembrete de Pagamento (Teste)';
-      const body = `Seu pagamento de R$ ${proximoPagamento.valor.toFixed(2)} vence em breve. Clique para pagar agora.`;
+      // Determinar o tipo de mensagem com base no status do pagamento
+      let title, body, emailSubject, emailContent;
+      
+      if (proximoPagamento.status === 'overdue') {
+        title = 'Pagamento em Atraso (Teste)';
+        body = `Seu pagamento de R$ ${proximoPagamento.valor.toFixed(2)} está atrasado há ${proximoPagamento.diasAtraso} ${proximoPagamento.diasAtraso === 1 ? 'dia' : 'dias'}. Clique para regularizar.`;
+        emailSubject = 'Pagamento em Atraso (Teste) - Papa Tango';
+        emailContent = `
+          <p>Olá ${userData?.nomeCompleto || 'Cliente'},</p>
+          <p>Este é um email de teste para o lembrete de pagamento em atraso.</p>
+          <p>Notamos que seu pagamento no valor de <strong>R$ ${proximoPagamento.valor.toFixed(2)}</strong> está atrasado há ${proximoPagamento.diasAtraso} ${proximoPagamento.diasAtraso === 1 ? 'dia' : 'dias'}.</p>
+          <p>Para regularizar sua situação, você pode realizar o pagamento diretamente pelo aplicativo PapaMotos.</p>
+        `;
+      } else if (proximoPagamento.status === 'today') {
+        title = 'Lembrete de Pagamento (Teste)';
+        body = `Seu pagamento de R$ ${proximoPagamento.valor.toFixed(2)} vence hoje. Clique para pagar agora.`;
+        emailSubject = 'Lembrete de Pagamento (Teste) - Papa Tango';
+        emailContent = `
+          <p>Olá ${userData?.nomeCompleto || 'Cliente'},</p>
+          <p>Este é um email de teste para o lembrete de pagamento.</p>
+          <p>Gostaríamos de lembrá-lo que seu pagamento no valor de <strong>R$ ${proximoPagamento.valor.toFixed(2)}</strong> vence hoje.</p>
+          <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo PapaMotos.</p>
+        `;
+      } else {
+        title = 'Lembrete de Pagamento (Teste)';
+        body = `Seu pagamento de R$ ${proximoPagamento.valor.toFixed(2)} vence em ${proximoPagamento.diasRestantes} dias. Clique para pagar agora.`;
+        emailSubject = 'Lembrete de Pagamento (Teste) - Papa Tango';
+        emailContent = `
+          <p>Olá ${userData?.nomeCompleto || 'Cliente'},</p>
+          <p>Este é um email de teste para o lembrete de pagamento.</p>
+          <p>Seu próximo pagamento no valor de <strong>R$ ${proximoPagamento.valor.toFixed(2)}</strong> vence em ${proximoPagamento.diasRestantes} dias.</p>
+          <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo PapaMotos.</p>
+        `;
+      }
+      
       const data = {
         screen: 'Financeiro'
       };
@@ -356,16 +588,13 @@ const Financeiro = () => {
       const pushSuccess = await enviarNotificacaoPeloFirestore(userEmail, paymentInfo, title, body, data);
       
       // Preparar e enviar email de teste
-      const emailSubject = 'Lembrete de Pagamento (Teste) - Papa Motos';
       const emailBody = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
           <div style="text-align: center; margin-bottom: 20px;">
-            <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Motos Logo" style="width: 70px; margin-bottom: 20px">
+            <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px">
           </div>
-          <h2 style="color: #CB2921; text-align: center;">Lembrete de Pagamento (Teste)</h2>
-          <p>Olá ${userData?.nomeCompleto || 'Cliente'},</p>
-          <p>Este é um email de teste para o lembrete de pagamento.</p>
-          <p>Seu próximo pagamento no valor de <strong>R$ ${proximoPagamento.valor.toFixed(2)}</strong> vence em ${proximoPagamento.diasRestantes} dias.</p>
+          <h2 style="color: #CB2921; text-align: center;">${emailSubject}</h2>
+          ${emailContent}
           <div style="text-align: center; margin: 30px 0;">
             <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
               Abrir no Aplicativo
@@ -560,11 +789,11 @@ const Financeiro = () => {
           console.log(`Notificação para pagamento ${payment.id} processada com sucesso`);
           
           // Enviar também um email de lembrete
-          const emailSubject = 'Lembrete de Pagamento Pendente - Papa Motos';
+          const emailSubject = 'Lembrete de Pagamento Pendente - Papa Tango';
           const emailBody = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
               <div style="text-align: center; margin-bottom: 20px;">
-                <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Motos Logo" style="width: 70px; margin-bottom: 20px;">
+                <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px;">
               </div>
               <h2 style="color: #CB2921; text-align: center;">Pagamento Pendente</h2>
               <p>Olá ${userData?.nomeCompleto || 'Cliente'},</p>
@@ -619,7 +848,6 @@ const Financeiro = () => {
       console.error('Erro ao verificar pagamentos pendentes:', error);
     }
   };
-  
 
   // Função para verificar se é necessário enviar lembrete de pagamento
   const checkPaymentReminder = async () => {
@@ -631,6 +859,16 @@ const Financeiro = () => {
       
       const userEmail = currentUser.email;
       const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0); // Normalizar para início do dia
+      
+      // Verificar se já enviamos uma notificação hoje
+      const reminderRef = doc(db, 'paymentReminders', `${userEmail}_${hoje.toISOString().split('T')[0]}`);
+      const reminderDoc = await getDoc(reminderRef);
+      
+      if (reminderDoc.exists()) {
+        console.log("Já enviamos um lembrete hoje, pulando");
+        return;
+      }
       
       // Verificar se hoje é o dia do pagamento
       const diaProximoPagamento = proximoPagamento.data.getDate();
@@ -641,25 +879,41 @@ const Financeiro = () => {
       const mesHoje = hoje.getMonth();
       const anoHoje = hoje.getFullYear();
       
-      const ehDiaDePagamento = diaHoje === diaProximoPagamento && 
-                               mesHoje === mesProximoPagamento && 
-                               anoHoje === anoProximoPagamento;
+      const ehDiaDePagamento = diaHoje === diaProximoPagamento &&
+                              mesHoje === mesProximoPagamento &&
+                              anoHoje === anoProximoPagamento;
+      
+      // Verificar se o pagamento está atrasado
+      const diasAtraso = proximoPagamento.diasRestantes < 0 ? Math.abs(proximoPagamento.diasRestantes) : 0;
+      const pagamentoAtrasado = diasAtraso > 0;
+      
+      // Só enviar notificação se for o dia do pagamento ou se estiver atrasado até 3 dias
+      const deveEnviarNotificacao = ehDiaDePagamento || (pagamentoAtrasado && diasAtraso <= 3);
       
       // Verificar se é aproximadamente 10h da manhã (entre 9:30 e 10:30)
-      const horaAtual = hoje.getHours();
-      const minutoAtual = hoje.getMinutes();
-      const ehHoraDeLembrete = (horaAtual === 9 && minutoAtual >= 30) || 
-                               (horaAtual === 10 && minutoAtual <= 30);
+      const horaAtual = new Date().getHours();
+      const minutoAtual = new Date().getMinutes();
+      const ehHoraDeLembrete = (horaAtual === 9 && minutoAtual >= 30) ||
+                              (horaAtual === 10 && minutoAtual <= 30);
       
-      // Para testes, vamos considerar qualquer hora
-      const ehHoraDeTesteLembrete = true;
+      // Para ambiente de desenvolvimento, podemos usar uma flag para testes
+      const isDevelopment = __DEV__;
+      const ehHoraDeTesteLembrete = isDevelopment;
       
-      if (ehDiaDePagamento && (ehHoraDeLembrete || ehHoraDeTesteLembrete) && !reminderNotificationSent) {
-        console.log("Enviando lembrete de pagamento para o dia de vencimento");
+      if (deveEnviarNotificacao && (ehHoraDeLembrete || ehHoraDeTesteLembrete)) {
+        console.log(`Enviando lembrete de pagamento. Dia do pagamento: ${ehDiaDePagamento}, Dias em atraso: ${diasAtraso}`);
         
-        // Preparar dados para a notificação
-        const title = 'Lembrete de Pagamento';
-        const body = `Seu pagamento de R$ ${proximoPagamento.valor.toFixed(2)} vence hoje. Clique para pagar agora.`;
+        // Preparar mensagem apropriada
+        let title, body;
+        
+        if (ehDiaDePagamento) {
+          title = 'Lembrete de Pagamento';
+          body = `Seu pagamento de R$ ${proximoPagamento.valor.toFixed(2)} vence hoje. Clique para pagar agora.`;
+        } else {
+          title = 'Pagamento em Atraso';
+          body = `Seu pagamento de R$ ${proximoPagamento.valor.toFixed(2)} está atrasado há ${diasAtraso} ${diasAtraso === 1 ? 'dia' : 'dias'}. Clique para regularizar.`;
+        }
+        
         const data = {
           screen: 'Financeiro'
         };
@@ -673,17 +927,31 @@ const Financeiro = () => {
         // Enviar notificação
         await enviarNotificacaoPeloFirestore(userEmail, paymentInfo, title, body, data);
         
-        // Enviar email de lembrete
-        const emailSubject = 'Lembrete de Pagamento - Papa Motos';
+        // Enviar email de lembrete com mensagem apropriada
+        const emailSubject = ehDiaDePagamento ? 'Lembrete de Pagamento - Papa Tango' : 'Pagamento em Atraso - Papa Tango';
+        
+        let emailContent;
+        if (ehDiaDePagamento) {
+          emailContent = `
+            <p>Olá, ${userData.nomeCompleto || 'Cliente'},</p>
+            <p>Gostaríamos de lembrá-lo que seu pagamento no valor de <strong>R$ ${proximoPagamento.valor.toFixed(2)}</strong> vence hoje.</p>
+            <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo Papa Tango.</p>
+          `;
+        } else {
+          emailContent = `
+            <p>Olá, ${userData.nomeCompleto || 'Cliente'},</p>
+            <p>Notamos que seu pagamento no valor de <strong>R$ ${proximoPagamento.valor.toFixed(2)}</strong> está atrasado há ${diasAtraso} ${diasAtraso === 1 ? 'dia' : 'dias'}.</p>
+            <p>Para regularizar sua situação, você pode realizar o pagamento diretamente pelo aplicativo Papa Tango.</p>
+          `;
+        }
+        
         const emailBody = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
             <div style="text-align: center; margin-bottom: 20px;">
-              <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Motos Logo" style="width: 70px; margin-bottom: 20px;">
+              <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px;">
             </div>
-            <h2 style="color: #CB2921; text-align: center;">Lembrete de Pagamento</h2>
-            <p>Olá ${userData.nomeCompleto || 'Cliente'},</p>
-            <p>Gostaríamos de lembrá-lo que seu pagamento no valor de <strong>R$ ${proximoPagamento.valor.toFixed(2)}</strong> vence hoje.</p>
-            <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo PapaMotos.</p>
+            <h2 style="color: #CB2921; text-align: center;">${emailSubject}</h2>
+            ${emailContent}
             <div style="text-align: center; margin: 30px 0;">
               <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
                 Abrir no Aplicativo
@@ -698,15 +966,12 @@ const Financeiro = () => {
         
         await enviarEmailPeloFirestore(userEmail, emailSubject, emailBody);
         
-        // Marcar como enviado para não enviar novamente no mesmo dia
-        setReminderNotificationSent(true);
-        
-        // Registrar no Firestore que o lembrete foi enviado
-        const reminderRef = doc(db, 'paymentReminders', `${userEmail}_${hoje.toISOString().split('T')[0]}`);
+        // Registrar no Firestore que o lembrete foi enviado hoje
         await setDoc(reminderRef, {
           userEmail: userEmail,
           paymentDate: proximoPagamento.data,
           paymentAmount: proximoPagamento.valor,
+          diasAtraso: diasAtraso,
           sentAt: serverTimestamp()
         });
         
@@ -717,108 +982,7 @@ const Financeiro = () => {
     }
   };
 
-  // Carregar pagamentos ao montar o componente
-  useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      const unsubscribe = loadPayments();
-      
-      // Limpar o listener quando o componente for desmontado
-      return () => {
-        if (typeof unsubscribe === 'function') {
-          unsubscribe();
-        }
-      };
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  // useEffect para verificar pagamentos pendentes periodicamente
-  useEffect(() => {
-    if (payments.length > 0 && auth.currentUser) {
-      // Verificar imediatamente
-      checkPendingPayments();
-      
-      // Limpar intervalo anterior se existir
-      if (pendingPaymentsIntervalRef.current) {
-        clearInterval(pendingPaymentsIntervalRef.current);
-      }
-      
-      // Configurar verificação periódica a cada 10 
-      pendingPaymentsIntervalRef.current = setInterval(checkPendingPayments, 10 * 60 * 1000);
-      
-      return () => {
-        if (pendingPaymentsIntervalRef.current) {
-          clearInterval(pendingPaymentsIntervalRef.current);
-        }
-      };
-    }
-  }, [payments, notificationSent]);
-
-  // useEffect para verificar lembretes de pagamento periodicamente
-  useEffect(() => {
-    if (proximoPagamento && auth.currentUser) {
-      // Verificar imediatamente
-      checkPaymentReminder();
-      
-      // Limpar intervalo anterior se existir
-      if (paymentReminderIntervalRef.current) {
-        clearInterval(paymentReminderIntervalRef.current);
-      }
-      
-      // Configurar verificação periódica (a cada 5 horas)
-      paymentReminderIntervalRef.current = setInterval(checkPaymentReminder, 5 * 60 * 60 * 1000);
-      
-      return () => {
-        if (paymentReminderIntervalRef.current) {
-          clearInterval(paymentReminderIntervalRef.current);
-        }
-      };
-    }
-  }, [proximoPagamento, userData, reminderNotificationSent]);
-
-  // Resetar o estado de reminderNotificationSent à meia-noite
-  useEffect(() => {
-    const checkMidnight = () => {
-      const now = new Date();
-      if (now.getHours() === 0 && now.getMinutes() === 0) {
-        setReminderNotificationSent(false);
-      }
-    };
-
-    const midnightInterval = setInterval(checkMidnight, 5 * 60 * 60 * 1000); // Verificar a cada 5 horas
-    
-    return () => clearInterval(midnightInterval);
-  }, []);
-
-  // registrar o token FCM quando o componente montar
-  useEffect(() => {
-    registerForPushNotifications();
-  }, []);
-
-  // useEffect para verificar o token de autenticação periodicamente
-  useEffect(() => {
-    const checkAuthToken = async () => {
-      try {
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          const token = await currentUser.getIdToken(true);  // Força a renovação do token
-          console.log("Token renovado com sucesso");
-        }
-      } catch (error) {
-        console.error("Erro ao renovar token:", error);
-      }
-    };
-    
-    // Verificar o token a cada 10 minutos
-    const interval = setInterval(checkAuthToken, 10 * 60 * 1000);
-    
-    // Verificar imediatamente
-    checkAuthToken();
-    
-    return () => clearInterval(interval);
-  }, []);
+  
   
   // Função para formatar status do pagamento
   const formatStatus = (status) => {
@@ -887,7 +1051,9 @@ const Financeiro = () => {
   const startNewPayment = () => {
     const paymentData = {
       amount: proximoPagamento ? proximoPagamento.valor.toFixed(2) : '250.00',
-      description: 'Pagamento de serviço',
+      description: proximoPagamento 
+        ? `Pagamento ${proximoPagamento.tipoRecorrencia === 'mensal' ? 'Mensal' : 'Semanal'}`
+        : 'Pagamento Papa Tango',
       userEmail: auth.currentUser?.email || 'cliente@exemplo.com',
       userName: userData?.nomeCompleto || 'Cliente'
     };
@@ -895,12 +1061,12 @@ const Financeiro = () => {
     navigation.navigate('Payment', paymentData);
   };
   
-  // Função para ver detalhes de um pagamento
+  // Função para ver detalhes de um pagamento 
   const viewPaymentDetails = (payment) => {
     navigation.navigate('PaymentSuccess', { paymentInfo: payment });
   };
   
-  // Renderizar item da lista de pagamentos
+  // Renderizar item da lista de pagamentos 
   const renderPaymentItem = ({ item }) => (
     <Card>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -954,9 +1120,31 @@ const Financeiro = () => {
     </Card>
   );
   
-  // Renderizar informações do próximo pagamento
+  // Renderizar informações do próximo pagamento 
   const renderProximoPagamento = () => {
     if (!proximoPagamento) return null;
+    
+    // Determinar a cor e o texto com base no status
+    let statusColor, statusText;
+    
+    switch (proximoPagamento.status) {
+      case 'paid':
+        statusColor = '#28a745'; // Verde
+        statusText = 'Pagamento em dia';
+        break;
+      case 'today':
+        statusColor = '#fd7e14'; // Laranja
+        statusText = 'Vence hoje';
+        break;
+      case 'overdue':
+        statusColor = '#dc3545'; // Vermelho
+        const diasAtraso = proximoPagamento.diasAtraso;
+        statusText = `Atrasado há ${diasAtraso} ${diasAtraso === 1 ? 'dia' : 'dias'}`;
+        break;
+      default:
+        statusColor = '#17a2b8'; // Azul
+        statusText = `Faltam ${proximoPagamento.diasRestantes} dias para o vencimento`;
+    }
     
     return (
       <PaymentInfoContainer style={{
@@ -1008,7 +1196,8 @@ const Financeiro = () => {
         </PaymentInfoRow>
         
         <CountdownContainer style={{
-          backgroundColor: proximoPagamento.diasRestantes <= 3 ? '#f8d7da' : '#d1e7dd',
+          backgroundColor: proximoPagamento.status === 'overdue' ? '#f8d7da' : 
+                           proximoPagamento.status === 'today' ? '#fff3cd' : '#d1e7dd',
           padding: 10,
           borderRadius: 8,
           marginTop: 10,
@@ -1016,29 +1205,29 @@ const Financeiro = () => {
         }}>
           <CountdownText style={{
             textAlign: 'center',
-            color: proximoPagamento.diasRestantes <= 3 ? '#721c24' : '#155724',
+            color: statusColor,
             fontWeight: 'bold'
           }}>
-            {proximoPagamento.diasRestantes <= 0
-              ? 'Pagamento vencido!'
-              : `Faltam ${proximoPagamento.diasRestantes} dias para o vencimento`}
+            {statusText}
           </CountdownText>
         </CountdownContainer>
         
         <Button onPress={startNewPayment} style={{ marginTop: 5 }}>
           <ButtonText>Realizar Pagamento</ButtonText>
         </Button>
-        <Button
-          onPress={testPaymentReminder}
-          style={{ marginTop: 10, backgroundColor: '#9C27B0' }}
-        >
-          <ButtonText>Testar Lembrete de Pagamento</ButtonText>
-        </Button>
+        {__DEV__ && (
+          <Button
+            onPress={testPaymentReminder}
+            style={{ marginTop: 10, backgroundColor: '#9C27B0' }}
+          >
+            <ButtonText>Testar Lembrete de Pagamento</ButtonText>
+          </Button>
+        )}
       </PaymentInfoContainer>
     );
   };
   
-  // Renderizar conteúdo quando não há pagamentos
+   {/* Renderizar conteúdo quando não há pagamentos */}
   const renderEmptyContent = () => {
     if (!contratoAtivo) {
       return (
@@ -1065,7 +1254,7 @@ const Financeiro = () => {
     );
   };
   
-  // Renderizar conteúdo de erro
+  {/* Renderizar conteúdo de erro */}
   const renderErrorContent = () => (
     <EmptyContainer>
       <Feather name="alert-circle" size={50} color="#FF3B30" />
@@ -1117,7 +1306,6 @@ const Financeiro = () => {
                   />
                 </>
               ) : (
-                // Mostrar mensagem de contrato inativo
                 <EmptyContainer>
                   <Feather name="alert-circle" size={50} color="#FF3B30" />
                   <EmptyText>Você não possui um contrato ativo no momento.</EmptyText>

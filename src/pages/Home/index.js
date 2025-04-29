@@ -4,7 +4,7 @@ import { auth, db, storage } from '../../services/firebaseConfig';
 import { getDoc, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import * as ImagePicker from 'expo-image-picker'; 
 import { ImagePickerModal } from '../../components/ImagePickerModal';
 import NotificationBell from '../../components/NotificationBell';
 

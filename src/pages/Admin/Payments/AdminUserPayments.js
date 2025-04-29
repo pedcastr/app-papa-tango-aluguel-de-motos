@@ -1,9 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, FlatList, Alert, TouchableOpacity } from 'react-native';
+import { View, ActivityIndicator, FlatList, Alert, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { db } from '../../../services/firebaseConfig';
-import { collection, query, orderBy, getDocs, where, addDoc, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { 
+    collection, 
+    query, 
+    orderBy, 
+    getDocs, 
+    where, 
+    addDoc, 
+    Timestamp, 
+    doc, 
+    getDoc, 
+    setDoc,
+    serverTimestamp 
+} from 'firebase/firestore';
 
 import {
     Container,
@@ -29,8 +41,6 @@ import {
     EmptyContainer,
     EmptyText,
     LoadingContainer,
-    AddButton,
-    AddButtonText
 } from './styles';
 
 export default function AdminUserPayments() {
@@ -41,6 +51,78 @@ export default function AdminUserPayments() {
     const [loading, setLoading] = useState(true);
     const [payments, setPayments] = useState([]);
     const [userContract, setUserContract] = useState(null);
+    const [pendingPixPayments, setPendingPixPayments] = useState([]);
+
+    // Função para mostrar alerta em qualquer plataforma
+    const showConfirmation = (title, message, onConfirm) => {
+        if (Platform.OS === 'web') {
+            if (window.confirm(`${title}\n\n${message}`)) {
+                onConfirm();
+            }
+        } else {
+            Alert.alert(title, message, [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Confirmar', onPress: onConfirm }
+            ]);
+        }
+    };
+    
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
+    
+    // Função para enviar notificação pelo Firestore
+    const enviarNotificacaoPeloFirestore = async (userEmail, payment, title, body, data) => {
+        try {
+            // Gerar um ID único para a solicitação
+            const requestId = `payment_${payment.id || 'admin'}_${Date.now()}`;
+            
+            // Criar um documento de solicitação de notificação no Firestore
+            await setDoc(doc(db, 'notificationRequests', requestId), {
+                userEmail: userEmail,
+                title: title,
+                body: body,
+                data: data,
+                status: 'pending',
+                createdAt: serverTimestamp()
+            });
+            
+            console.log(`Solicitação de notificação criada: ${requestId}`);
+            return true;
+        } catch (error) {
+            console.error(`Erro ao criar solicitação de notificação: ${error.message}`);
+            return false;
+        }
+    };
+
+    // Função para enviar email pelo Firestore
+    const enviarEmailPeloFirestore = async (userEmail, subject, body, paymentInfo) => {
+        try {
+            // Gerar um ID único para a solicitação
+            const requestId = `email_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+            
+            // Criar um documento de solicitação de email no Firestore
+            await setDoc(doc(db, 'emailRequests', requestId), {
+                to: userEmail,
+                subject: subject,
+                html: body,
+                paymentInfo: paymentInfo || null,
+                status: 'pending',
+                createdAt: serverTimestamp(),
+            });
+            
+            console.log(`Solicitação de email criada: ${requestId}`);
+            return true;
+        } catch (error) {
+            console.error(`Erro ao criar solicitação de email: ${error.message}`);
+            return false;
+        }
+    };
     
     // Função para carregar os pagamentos do usuário
     const loadUserPayments = async () => {
@@ -68,13 +150,20 @@ export default function AdminUserPayments() {
                     date_created: data.dateCreated || null,
                     date_approved: data.date_approved || null,
                     description: data.description || 'Pagamento',
-                    createdAt: data.dateCreated || null,
+                    createdAt: data.dateCreated ? data.dateCreated.toDate() : null,
                     userEmail: data.userEmail,
-                    userName: data.userName
+                    userName: data.userName,
+                    paymentDetails: data.paymentDetails || null
                 };
             });
             
             setPayments(paymentsData);
+            
+            // Filtrar pagamentos PIX pendentes
+            const pixPendingPayments = paymentsData.filter(
+                payment => payment.status === 'pending' && payment.payment_type_id === 'pix'
+            );
+            setPendingPixPayments(pixPendingPayments);
             
             // Buscar contrato do usuário
             const contratosRef = collection(db, 'contratos');
@@ -83,13 +172,13 @@ export default function AdminUserPayments() {
             
             if (!contratoSnapshot.empty) {
                 const contratoData = contratoSnapshot.docs[0].data();
-                tipoRecorrencia = contratoData.tipoRecorrenciaPagamento || 'mensal';
+                // Inicializar a variável aqui, antes de usá-la
+                let tipoRecorrencia = contratoData.tipoRecorrenciaPagamento || 'mensal';
                 
                 // Buscar aluguel associado ao contrato
                 let valorMensal = 0;
                 let valorSemanal = 0;
-                let tipoRecorrencia = 'mensal';
-
+                
                 if (contratoData.aluguelId) {
                     const aluguelRef = doc(db, 'alugueis', contratoData.aluguelId);
                     const aluguelSnapshot = await getDoc(aluguelRef);
@@ -116,7 +205,7 @@ export default function AdminUserPayments() {
                         
                         setUserContract({
                             dataInicio: contratoData.dataInicio,
-                            dataFim: null,
+                            dataFim: contratoData.dataFim || null,
                             valorMensal: aluguelData.valorMensal || 0,
                             valorSemanal: aluguelData.valorSemanal || 0,
                             tipoRecorrencia,
@@ -128,7 +217,7 @@ export default function AdminUserPayments() {
             }
         } catch (error) {
             console.error('Erro ao carregar pagamentos do usuário:', error);
-            Alert.alert('Erro', 'Não foi possível carregar os pagamentos deste usuário.');
+            showMessage('Erro', 'Não foi possível carregar os pagamentos deste usuário.');
         } finally {
             setLoading(false);
         }
@@ -142,6 +231,12 @@ export default function AdminUserPayments() {
     // Função para formatar data
     const formatDate = (date) => {
         if (!date) return 'N/A';
+        
+        // Verificar se é um objeto Timestamp do Firestore
+        if (date && typeof date === 'object' && date.seconds !== undefined && date.nanoseconds !== undefined) {
+            // Converter Timestamp para Date
+            date = new Date(date.seconds * 1000 + date.nanoseconds / 1000000);
+        }
         
         // Verificar se date é um objeto Date
         if (!(date instanceof Date)) {
@@ -213,6 +308,8 @@ export default function AdminUserPayments() {
             case 'ticket':
             case 'boleto':
                 return 'Boleto';
+            case 'manual':
+                return 'Manual (Admin)';
             default:
                 return type || 'N/A';
         }
@@ -220,101 +317,292 @@ export default function AdminUserPayments() {
     
     // Função para ver detalhes de um pagamento
     const viewPaymentDetails = (payment) => {
-        navigation.navigate('AdminPaymentDetails', { paymentInfo: payment });
+        // Criar uma versão serializável do objeto de pagamento
+        const serializablePaymentInfo = {
+            ...payment,
+            createdAt: payment.createdAt ? 
+                (payment.createdAt instanceof Date ? 
+                    payment.createdAt.toISOString() : payment.createdAt) : null,
+            date_approved: payment.date_approved ? 
+                (payment.date_approved instanceof Date ? 
+                    payment.date_approved.toISOString() : payment.date_approved) : null,
+        };
+        
+        // Navegar para a tela de detalhes com o objeto serializável
+        navigation.navigate('AdminPaymentDetails', { paymentInfo: serializablePaymentInfo });
     };
     
     // Função para enviar lembrete de pagamento
     const sendPaymentReminder = async () => {
         try {
             if (!userContract) {
-                Alert.alert('Erro', 'Não foi possível encontrar um contrato ativo para este usuário.');
+                showMessage('Erro', 'Não foi possível encontrar um contrato ativo para este usuário.');
                 return;
             }
             
-            // Criar solicitação de notificação
-            const notificationRef = collection(db, 'notificationRequests');
-            await addDoc(notificationRef, {
+            // Determinar qual valor usar baseado no tipo de recorrência
+            const valorPagamento = userContract.tipoRecorrencia === 'semanal'
+                ? userContract.valorSemanal
+                : userContract.valorMensal;
+            
+            // Criar um objeto de pagamento fictício para a função de notificação
+            const paymentInfo = {
+                id: `reminder_${Date.now()}`,
+                transaction_amount: valorPagamento
+            };
+            
+            // Preparar dados para a notificação
+            const title = 'Lembrete de Pagamento';
+            const body = `Seu pagamento de ${formatCurrency(valorPagamento)} está pendente. Clique para efetuar o pagamento.`;
+            const data = {
+                screen: 'Financeiro',
+                type: 'payment_reminder'
+            };
+            
+            // Enviar notificação
+            const notificationSent = await enviarNotificacaoPeloFirestore(
+                userEmail, 
+                paymentInfo, 
+                title, 
+                body, 
+                data
+            );
+            
+            // Enviar email de lembrete
+            const emailSubject = 'Lembrete de Pagamento - Papa Tango';
+            const emailBody = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px;">
+                    </div>
+                    <h2 style="color: #CB2921; text-align: center;">Lembrete de Pagamento</h2>
+                    <p>Olá ${userName || 'Cliente'},</p>
+                    <p>Gostaríamos de lembrá-lo que seu pagamento no valor de <strong>${formatCurrency(valorPagamento)}</strong></p>
+                    <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo PapaMotos.</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                            Abrir no Aplicativo
+                        </a>
+                    </div>
+                    <p>Caso prefira, você também pode entrar em contato com nosso suporte para mais informações.</p>
+                    <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
+                        Este é um email automático. Por favor, não responda a este email.
+                    </p>
+                </div>
+            `;
+            
+            const emailSent = await enviarEmailPeloFirestore(
+                userEmail, 
+                emailSubject, 
+                emailBody, 
+                {
+                    amount: valorPagamento,
+                    type: 'reminder'
+                }
+            );
+            
+            // Registrar no Firestore que o lembrete foi enviado
+            const reminderRef = doc(db, 'paymentReminders', `${userEmail}_${new Date().toISOString().split('T')[0]}`);
+            await setDoc(reminderRef, {
                 userEmail: userEmail,
-                title: 'Lembrete de Pagamento',
-                body: `Seu pagamento de R$ ${userContract.valorMensal.toFixed(2)} está pendente. Clique para efetuar o pagamento.`,
-                data: {
-                    screen: 'Financeiro',
-                    type: 'payment_reminder'
-                },
-                status: 'pending',
-                createdAt: Timestamp.now()
+                userName: userName,
+                paymentAmount: valorPagamento,
+                sentAt: serverTimestamp(),
+                sentBy: 'admin'
             });
             
-            Alert.alert('Sucesso', 'Lembrete de pagamento enviado com sucesso!');
+            showMessage('Sucesso', 'Lembrete de pagamento enviado com sucesso!');
         } catch (error) {
             console.error('Erro ao enviar lembrete:', error);
-            Alert.alert('Erro', 'Não foi possível enviar o lembrete de pagamento.');
+            showMessage('Erro', 'Não foi possível enviar o lembrete de pagamento.');
+        }
+    };
+    
+    // Função para enviar lembrete de pagamento PIX pendente
+    const sendPendingPixReminder = async () => {
+        try {
+            if (pendingPixPayments.length === 0) {
+                showMessage('Informação', 'Não há pagamentos PIX pendentes para este usuário.');
+                return;
+            }
+            
+            // Pegar o pagamento PIX pendente mais recente
+            const payment = pendingPixPayments[0];
+            
+            // Preparar dados para a notificação
+            const title = 'Pagamento PIX Pendente';
+            const body = `Você tem um pagamento PIX de ${formatCurrency(payment.transaction_amount)} pendente. Clique para concluir.`;
+            const data = {
+                screen: 'PaymentSuccess',
+                paymentId: payment.id
+            };
+            
+            // Enviar notificação
+            const notificationSent = await enviarNotificacaoPeloFirestore(
+                userEmail, 
+                payment, 
+                title, 
+                body, 
+                data
+            );
+            
+            // Enviar email de lembrete
+            const emailSubject = 'Lembrete de Pagamento Pendente - Papa Tango';
+            const emailBody = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px;">
+                    </div>
+                    <h2 style="color: #CB2921; text-align: center;">Pagamento Pendente</h2>
+                    <p>Olá ${userName || 'Cliente'},</p>
+                    <p>Notamos que você iniciou um pagamento via PIX no valor de <strong>${formatCurrency(payment.transaction_amount)}</strong>, mas ainda não o concluiu.</p>
+                    <p>Para sua comodidade, você pode finalizar o pagamento diretamente pelo aplicativo ou utilizando o código PIX abaixo:</p>
+                    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
+                        <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Copie o código PIX abaixo:</p>
+                        <p style="word-break: break-all; background: #fff; padding: 10px; border: 1px dashed #ccc; font-family: monospace; font-size: 12px;">
+                            ${payment.paymentDetails?.point_of_interaction?.transaction_data?.qr_code || 'Código PIX não disponível'}
+                        </p>
+                    </div>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="papamotors://payment/${payment.id}" style="background-color: #CB2921; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                            Abrir no Aplicativo
+                        </a>
+                    </div>
+                    <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
+                        Este é um email automático. Por favor, não responda a este email.
+                    </p>
+                </div>
+            `;
+            
+            await enviarEmailPeloFirestore(
+                userEmail, 
+                emailSubject, 
+                emailBody, 
+                {
+                    id: payment.id,
+                    amount: payment.transaction_amount,
+                    paymentMethod: payment.payment_type_id,
+                    qrCode: payment.paymentDetails?.point_of_interaction?.transaction_data?.qr_code
+                }
+            );
+            
+            // Atualizar o documento do pagamento para indicar que uma notificação foi enviada
+            const paymentRef = doc(db, 'payments', payment.id);
+            await setDoc(paymentRef, {
+                notificationSent: true,
+                notificationSentAt: serverTimestamp(),
+                notificationSentBy: 'admin'
+            }, { merge: true });
+            
+            showMessage('Sucesso', 'Lembrete de pagamento PIX pendente enviado com sucesso!');
+        } catch (error) {
+            console.error('Erro ao enviar lembrete de PIX pendente:', error);
+            showMessage('Erro', 'Não foi possível enviar o lembrete de pagamento PIX pendente.');
         }
     };
     
     // Função para registrar pagamento manual
     const registerManualPayment = () => {
         if (!userContract) {
-            Alert.alert('Erro', 'Não foi possível encontrar um contrato ativo para este usuário.');
+            showMessage('Erro', 'Não foi possível encontrar um contrato ativo para este usuário.');
             return;
         }
-
-        // Determinar qual valor usar baseado no tipo de recorrência
-        const valorPagamento = userContract.tipoRecorrencia === 'semanal' 
-        ? userContract.valorSemanal 
-        : userContract.valorMensal;
         
-        Alert.alert(
+        // Determinar qual valor usar baseado no tipo de recorrência
+        const valorPagamento = userContract.tipoRecorrencia === 'semanal'
+            ? userContract.valorSemanal
+            : userContract.valorMensal;
+        
+        showConfirmation(
             'Registrar Pagamento',
             `Deseja registrar um pagamento manual de ${formatCurrency(valorPagamento)} para ${userName}?`,
-            [
-                {
-                    text: 'Cancelar',
-                    style: 'cancel'
-                },
-                {
-                    text: 'Confirmar',
-                    onPress: async () => {
-                        try {
-                            // Adicionar pagamento ao Firestore
-                            const paymentsRef = collection(db, 'payments');
-                            const now = new Date();
-                            
-                            await addDoc(paymentsRef, {
-                                userEmail: userEmail,
-                                userName: userName,
-                                status: 'approved',
-                                paymentMethod: 'manual',
-                                amount: valorPagamento,
-                                description: `Pagamento ${userContract.tipoRecorrencia} registrado manualmente`,
-                                dateCreated: Timestamp.fromDate(now),
-                                date_approved: Timestamp.fromDate(now),
-                                registeredBy: 'admin'
-                            });
-                            
-                            // Enviar notificação ao usuário
-                            const notificationRef = collection(db, 'notificationRequests');
-                            await addDoc(notificationRef, {
-                                userEmail: userEmail,
-                                title: 'Pagamento Registrado',
-                                body: `Um pagamento de R$ ${userContract.valorMensal.toFixed(2)} foi registrado em sua conta.`,
-                                data: {
-                                    screen: 'Financeiro',
-                                    type: 'payment_registered'
-                                },
-                                status: 'pending',
-                                createdAt: Timestamp.now()
-                            });
-                            
-                            Alert.alert('Sucesso', 'Pagamento registrado com sucesso!');
-                            loadUserPayments(); // Recarregar pagamentos
-                        } catch (error) {
-                            console.error('Erro ao registrar pagamento:', error);
-                            Alert.alert('Erro', 'Não foi possível registrar o pagamento.');
+            async () => {
+                try {
+                    // Adicionar pagamento ao Firestore
+                    const paymentsRef = collection(db, 'payments');
+                    const now = new Date();
+                    
+                    const paymentDoc = await addDoc(paymentsRef, {
+                        userEmail: userEmail,
+                        userName: userName,
+                        status: 'approved',
+                        paymentMethod: 'manual',
+                        amount: valorPagamento,
+                        description: `Pagamento ${userContract.tipoRecorrencia}`,
+                        dateCreated: Timestamp.fromDate(now),
+                        date_approved: Timestamp.fromDate(now),
+                        registeredBy: 'admin'
+                    });
+                    
+                    // Enviar notificação ao usuário
+                    const paymentInfo = {
+                        id: paymentDoc.id,
+                        transaction_amount: valorPagamento
+                    };
+                    
+                    const title = 'Pagamento Registrado';
+                    const body = `Um pagamento de ${formatCurrency(valorPagamento)} foi recebido.`;
+                    const data = {
+                        screen: 'Financeiro',
+                        paymentId: paymentDoc.id
+                    };
+                    
+                    await enviarNotificacaoPeloFirestore(
+                        userEmail,
+                        paymentInfo,
+                        title,
+                        body,
+                        data
+                    );
+                    
+                    // Enviar email de confirmação
+                    const emailSubject = 'Confirmação de Pagamento - Papa Tango';
+                    const emailBody = `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                            <div style="text-align: center; margin-bottom: 20px;">
+                                <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px;">
+                            </div>
+                            <h2 style="color: #28a745; text-align: center;">Pagamento Confirmado</h2>
+                            <p>Olá ${userName || 'Cliente'},</p>
+                            <p>Um pagamento no valor de <strong>${formatCurrency(valorPagamento)}</strong> foi recebido.</p>
+                            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                                <p><strong>Detalhes do Pagamento:</strong></p>
+                                <p>Data: ${formatDate(now)}</p>
+                                <p>Valor: ${formatCurrency(valorPagamento)}</p>
+                                <p>Método: Manual (registrado pelo administrador)</p>
+                                <p>ID: ${paymentDoc.id}</p>
+                            </div>
+                            <p>Você pode verificar este pagamento no histórico do seu aplicativo.</p>
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                                    Abrir no Aplicativo
+                                </a>
+                            </div>
+                            <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
+                                Este é um email automático. Por favor, não responda a este email.
+                            </p>
+                        </div>
+                    `;
+                    
+                    await enviarEmailPeloFirestore(
+                        userEmail,
+                        emailSubject,
+                        emailBody,
+                        {
+                            id: paymentDoc.id,
+                            amount: valorPagamento,
+                            paymentMethod: 'manual',
+                            date: now
                         }
-                    }
+                    );
+                    
+                    showMessage('Sucesso', 'Pagamento registrado com sucesso!');
+                    loadUserPayments(); // Recarregar pagamentos
+                } catch (error) {
+                    console.error('Erro ao registrar pagamento:', error);
+                    showMessage('Erro', 'Não foi possível registrar o pagamento.');
                 }
-            ]
+            }
         );
     };
     
@@ -323,7 +611,7 @@ export default function AdminUserPayments() {
         <PaymentCard>
             <PaymentHeader>
                 <PaymentTitle>{item.description || 'Pagamento'}</PaymentTitle>
-                <StatusBadge style={{ backgroundColor: getStatusColor(item.status) }}>
+                <StatusBadge style={{ backgroundColor: getStatusColor(item.status), marginTop: -22 }}>
                     <StatusText>{formatStatus(item.status)}</StatusText>
                 </StatusBadge>
             </PaymentHeader>
@@ -333,7 +621,7 @@ export default function AdminUserPayments() {
             <PaymentInfo>
                 <PaymentInfoRow>
                     <PaymentInfoLabel>Data:</PaymentInfoLabel>
-                    <PaymentInfoValue>{formatDate(item.createdAt)}</PaymentInfoValue>
+                    <PaymentInfoValue>{item.createdAt ? formatDate(item.createdAt) : 'N/A'}</PaymentInfoValue>
                 </PaymentInfoRow>
                 
                 <PaymentInfoRow>
@@ -350,18 +638,28 @@ export default function AdminUserPayments() {
                 
                 <PaymentInfoRow>
                     <PaymentInfoLabel>ID:</PaymentInfoLabel>
-                    <PaymentInfoValue>{item.id.substring(0, 10)}...</PaymentInfoValue>
+                    <PaymentInfoValue>{item.id}</PaymentInfoValue>
                 </PaymentInfoRow>
             </PaymentInfo>
             
             <PaymentActions>
-                <ActionButton 
+                <ActionButton
                     onPress={() => viewPaymentDetails(item)}
                     style={{ backgroundColor: '#007bff' }}
                 >
                     <Feather name="eye" size={16} color="#FFF" />
                     <ActionButtonText>Ver Detalhes</ActionButtonText>
                 </ActionButton>
+                
+                {item.status === 'pending' && item.payment_type_id === 'pix' && (
+                    <ActionButton
+                        onPress={sendPendingPixReminder}
+                        style={{ backgroundColor: '#ffc107', marginLeft: 8 }}
+                    >
+                        <Feather name="bell" size={16} color="#FFF" />
+                        <ActionButtonText>Lembrar PIX</ActionButtonText>
+                    </ActionButton>
+                )}
             </PaymentActions>
         </PaymentCard>
     );
@@ -378,7 +676,7 @@ export default function AdminUserPayments() {
         <Container>
             <Header>
                 <BackButton onPress={() => navigation.goBack()}>
-                    <Feather name="arrow-left" size={24} color="#333" />
+                    <Feather name="arrow-left" size={24} color="#fff" />
                 </BackButton>
                 <HeaderTitle>Histórico de Pagamentos</HeaderTitle>
                 <View style={{ width: 40 }} />
@@ -393,7 +691,7 @@ export default function AdminUserPayments() {
                         <PaymentInfoRow>
                             <PaymentInfoLabel>Contrato:</PaymentInfoLabel>
                             <PaymentInfoValue>
-                                {formatDate(userContract.dataInicio?.toDate())} - {userContract.dataFim ? formatDate(userContract.dataFim.toDate()) : 'Atual'}
+                            {userContract.dataInicio ? formatDate(userContract.dataInicio) : 'N/A'} - {userContract.dataFim ? formatDate(userContract.dataFim) : 'Atual'}
                             </PaymentInfoValue>
                         </PaymentInfoRow>
                         
@@ -421,7 +719,7 @@ export default function AdminUserPayments() {
                 )}
                 
                 <View style={{ flexDirection: 'row', marginTop: 16 }}>
-                    <ActionButton 
+                    <ActionButton
                         onPress={sendPaymentReminder}
                         style={{ backgroundColor: '#ffc107', flex: 1, marginRight: 8 }}
                     >
@@ -429,7 +727,7 @@ export default function AdminUserPayments() {
                         <ActionButtonText>Enviar Lembrete</ActionButtonText>
                     </ActionButton>
                     
-                    <ActionButton 
+                    <ActionButton
                         onPress={registerManualPayment}
                         style={{ backgroundColor: '#28a745', flex: 1, marginLeft: 8 }}
                     >
@@ -437,6 +735,17 @@ export default function AdminUserPayments() {
                         <ActionButtonText>Registrar Pagamento</ActionButtonText>
                     </ActionButton>
                 </View>
+                {pendingPixPayments.length > 0 && (
+                    <View style={{ marginTop: 16, height: 50 }}>
+                    <ActionButton
+                        onPress={sendPendingPixReminder}
+                        style={{ backgroundColor: '#17a2b8', flex: 1}}
+                    >
+                        <Feather name="refresh-cw" size={16} color="#FFF" />
+                        <ActionButtonText>Lembrar PIX Pendente</ActionButtonText>
+                    </ActionButton>
+                    </View>
+                )}
             </UserInfo>
             
             {loading ? (
@@ -449,7 +758,7 @@ export default function AdminUserPayments() {
                     keyExtractor={(item) => item.id}
                     renderItem={renderPaymentItem}
                     ListEmptyComponent={renderEmptyContent}
-                    contentContainerStyle={{ 
+                    contentContainerStyle={{
                         flexGrow: 1,
                         paddingHorizontal: 16,
                         paddingBottom: 20
