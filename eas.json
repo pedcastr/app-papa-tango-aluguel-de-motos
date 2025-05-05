@@ -22,7 +22,8 @@
       "simulator": true
       },
       "env": {
-        "APP_ENV": "preview"
+        "APP_ENV": "preview",
+        "GOOGLE_SERVICES_JSON": "GOOGLE_SERVICES_JSON"
       },
       "channel": "preview"
     },
