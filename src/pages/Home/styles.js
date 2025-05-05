@@ -1,7 +1,18 @@
 import styled from 'styled-components/native';
 import { Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
+const isWebMobile = Platform.OS === 'web' && window.innerWidth < 768;
+
+
+export const Background = styled(LinearGradient).attrs({
+    colors: ['#CB2921', '#E74C3C', '#FFFFFF'],
+    start: { x: 0, y: 0 },
+    end: { x: 0, y: 0.5 }
+})`
+    flex: 1;
+`;
 
 export const Container = styled.SafeAreaView`
     flex: 1;
@@ -18,13 +29,13 @@ export const Header = styled.View`
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 25px;
+    margin-bottom: ${isWebDesktop ? '0px' : '25px'};
 `;
 
 export const WelcomeText = styled.Text`
     font-size: 24px;
     font-weight: bold;
-    color: #1E1E1E;
+    color: #FFFFFF;
 `;
 
 export const ProfileButton = styled.TouchableOpacity`
@@ -47,7 +58,7 @@ export const MotoContainer = styled.ScrollView`
 export const TitleText = styled.Text`
     font-size: 20px;
     font-weight: bold;
-    color: #1E1E1E;
+    color: #FFFFFF;
     text-align: center;
 `;
 
@@ -71,30 +82,31 @@ export const InfoContainer = styled.View`
 export const VeiculoInfo = styled.View`
     flex: 1;
     max-width: ${Platform.OS === 'web' ? '48%' : 'auto'};
+    margin-left: ${isWebDesktop ? '50px' : '0px'};
 `;
 
 export const LocacaoInfo = styled.View`
     flex: 1;
-    margin-left: 15px;
+    margin-left: ${isWebDesktop ? '200px' : '15px'};
     max-width: ${Platform.OS === 'web' ? '48%' : 'auto'};
 `;
 
 export const InfoTitle = styled.Text`
     font-size: 18px;
     font-weight: bold;
-    color: #1E1E1E;
+    color: '#1E1E1E';
     margin-bottom: 10px;
 `;
 
 export const InfoText = styled.Text`
     font-size: 16px;
-    color: #666;
+    color: ${isWebMobile? '#222' : '#667'};
     margin-bottom: 5px;
 `;
 
 export const InfoLabel = styled.Text`
     font-weight: bold;
-    color:rgb(75, 74, 74);
+    color:${isWebMobile ? '#222': 'rgb(75, 74, 74)'};
 `;
 
 export const EmptyContainer = styled.View`
@@ -116,7 +128,7 @@ export const LoadingContainer = styled.View`
 
 export const EmptyText = styled.Text`
     font-size: 16px;
-    color: #666;
+    color: ${isWebMobile? '#222' : '#667'};
     text-align: center;
     font-weight: bold;
     margin-top: 30px;
@@ -194,4 +206,11 @@ export const LogoutText = styled.Text`
     color: #fff;
     font-size: 16px;
     font-weight: bold;
+`;
+
+export const Divider = styled.View`
+  height: 1px;
+  background-color: #E0E0E0;
+  width: 100%;
+  margin: 15px 0;
 `;

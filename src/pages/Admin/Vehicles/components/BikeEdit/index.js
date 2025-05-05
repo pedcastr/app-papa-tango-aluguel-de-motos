@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, ActivityIndicator, View, ScrollView, Text, Platform } from 'react-native';
 import { db, storage } from '../../../../../services/firebaseConfig';
-import { doc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore'; 
+import { doc, updateDoc, getDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore'; 
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -167,71 +167,156 @@ export default function MotoEdit({ route, navigation }) {
      * Função para excluir foto da moto
      * Remove a imagem do Storage e atualiza o Firestore
      */
-    const handleDeleteImage = async () => {
-
+    const handleDeleteMoto = async () => {
         // Verificar se temos um ID válido
         if (!motoData.id) {
             showMessage("Erro", "ID da moto não disponível");
             return;
         }
-
+    
+        // Confirmar a exclusão com o usuário
         showConfirmation(
             'Confirmação',
-            'Tem certeza que deseja excluir esta foto da moto?',
+            'Tem certeza que deseja excluir permanentemente esta moto? Esta ação não pode ser desfeita.',
             async () => {
-                        try {
-                            setLoading(true);
-                            
-                            // Tentar excluir a imagem do Storage
-                            if (motoData.fotoUrl) {
-                                try {
-                                    // Método 1: Tentar extrair o caminho da URL
-                                    const urlString = motoData.fotoUrl;
-                                    const match = urlString.match(/\/o\/([^?]+)/);
-                                    
-                                    if (match && match[1]) {
-                                        // Se conseguir extrair o caminho da URL
-                                        const path = decodeURIComponent(match[1]);
-                                        const fileRef = ref(storage, path);
-                                        await deleteObject(fileRef);
-                                        console.log("Foto excluída com sucesso do Storage");
-                                    } else {
-                                        // Método 2: Tentar com o ID da moto e nome do arquivo
-                                        const urlParts = motoData.fotoUrl.split('/');
-                                        const fileName = urlParts[urlParts.length - 1].split('?')[0];
-                                        const alternativePath = `motos/${motoData.id}/fotos/${fileName}`;
-                                        
-                                        const fileRef = ref(storage, alternativePath);
-                                        await deleteObject(fileRef);
-                                        console.log("Foto excluída com sucesso do Storage (caminho alternativo)");
-                                    }
-                                } catch (storageError) {
-                                    console.error("Erro ao excluir do Storage:", storageError);
-                                    showMessage('Aviso', 'Não foi possível excluir a foto do armazenamento, mas o registro será removido do banco de dados.');
-                                }
+                try {
+                    setLoading(true);
+                    
+                    // 1. Verificar se a moto está associada a algum aluguel ou contrato
+                    const alugueisRef = collection(db, "alugueis");
+                    const alugueisQuery = query(alugueisRef, where("motoId", "==", motoData.id));
+                    const alugueisSnapshot = await getDocs(alugueisQuery);
+                    
+                    const contratosRef = collection(db, "contratos");
+                    const contratosQuery = query(contratosRef, where("motoId", "==", motoData.id));
+                    const contratosSnapshot = await getDocs(contratosQuery);
+                    
+                    const usersRef = collection(db, "users");
+                    const usersQuery = query(usersRef, where("motoAlugadaId", "==", motoData.id));
+                    const usersSnapshot = await getDocs(usersQuery);
+                    
+                    // Se a moto estiver associada a aluguéis, contratos ou usuários, perguntar se deseja continuar
+                    if (!alugueisSnapshot.empty || !contratosSnapshot.empty || !usersSnapshot.empty) {
+                        setLoading(false); // Desativar o loading enquanto aguarda a confirmação
+                        
+                        showConfirmation(
+                            'Atenção',
+                            `Esta moto está associada a ${alugueisSnapshot.size} aluguel(is), ${contratosSnapshot.size} contrato(s) e ${usersSnapshot.size} usuário(s). Excluir a moto também removerá essas associações. Deseja continuar?`,
+                            async () => {
+                                await realizarExclusaoCompleta(motoData, alugueisSnapshot, contratosSnapshot, usersSnapshot);
                             }
-                            
-                            // Atualizar Firestore para remover a referência da foto
-                            await updateDoc(doc(db, "motos", motoData.id), {
-                                fotoUrl: null
-                            });
-                            console.log("Referência da foto removida do Firestore");
-                            
-                            // Atualizar estado local
-                            setMotoData(prev => ({
-                                ...prev,
-                                fotoUrl: null
-                            }));
-                            
-                            showMessage('Sucesso', 'Foto da moto excluída com sucesso!');
-                        } catch (error) {
-                            console.error('Erro ao excluir foto:', error);
-                            showMessage('Erro', 'Falha ao excluir foto da moto. Tente novamente.');
-                        } finally {
-                            setLoading(false);
-                        }
-                    },
+                        );
+                    } else {
+                        // Não há associações, prosseguir com a exclusão direta
+                        await realizarExclusaoCompleta(motoData);
+                    }
+                } catch (error) {
+                    console.error('Erro ao verificar associações da moto:', error);
+                    showMessage('Erro', 'Falha ao excluir moto. Tente novamente.');
+                    setLoading(false);
+                }
+            }
         );
+    };
+    
+    // Função auxiliar para realizar a exclusão completa
+    const realizarExclusaoCompleta = async (motoData, alugueisSnapshot = null, contratosSnapshot = null, usersSnapshot = null) => {
+        try {
+            setLoading(true);
+            
+            // 1. Excluir a foto do Storage, se existir
+            if (motoData.fotoUrl) {
+                try {
+                    // Método 1: Tentar extrair o caminho da URL
+                    const urlString = motoData.fotoUrl;
+                    const match = urlString.match(/\/o\/([^?]+)/);
+                    
+                    if (match && match[1]) {
+                        // Se conseguir extrair o caminho da URL
+                        const path = decodeURIComponent(match[1]);
+                        const fileRef = ref(storage, path);
+                        await deleteObject(fileRef);
+                        console.log("Foto excluída com sucesso do Storage");
+                    } else {
+                        // Método 2: Tentar com o ID da moto e nome do arquivo
+                        const urlParts = motoData.fotoUrl.split('/');
+                        const fileName = urlParts[urlParts.length - 1].split('?')[0];
+                        const alternativePath = `motos/${motoData.id}/fotos/${fileName}`;
+                        
+                        const fileRef = ref(storage, alternativePath);
+                        await deleteObject(fileRef);
+                        console.log("Foto excluída com sucesso do Storage (caminho alternativo)");
+                    }
+                } catch (storageError) {
+                    console.error("Erro ao excluir do Storage:", storageError);
+                    // Continuar mesmo se falhar a exclusão da foto
+                }
+            }
+            
+            // 2. Remover associações com usuários
+            if (usersSnapshot && !usersSnapshot.empty) {
+                const atualizacoesUsuarios = [];
+                usersSnapshot.forEach(userDoc => {
+                    atualizacoesUsuarios.push(
+                        updateDoc(doc(db, "users", userDoc.id), {
+                            motoAlugadaId: null,
+                            motoAlugada: false
+                        })
+                    );
+                });
+                
+                if (atualizacoesUsuarios.length > 0) {
+                    await Promise.all(atualizacoesUsuarios);
+                    console.log(`${atualizacoesUsuarios.length} usuários atualizados`);
+                }
+            }
+            
+            // 3. Excluir aluguéis associados
+            if (alugueisSnapshot && !alugueisSnapshot.empty) {
+                const exclusoesAlugueis = [];
+                alugueisSnapshot.forEach(aluguelDoc => {
+                    exclusoesAlugueis.push(
+                        deleteDoc(doc(db, "alugueis", aluguelDoc.id))
+                    );
+                });
+                
+                await Promise.all(exclusoesAlugueis);
+                console.log(`${exclusoesAlugueis.length} aluguéis excluídos`);
+            }
+            
+            // 4. Atualizar contratos associados (remover referência à moto)
+            if (contratosSnapshot && !contratosSnapshot.empty) {
+                const atualizacoesContratos = [];
+                contratosSnapshot.forEach(contratoDoc => {
+                    atualizacoesContratos.push(
+                        updateDoc(doc(db, "contratos", contratoDoc.id), {
+                            motoId: null
+                        })
+                    );
+                });
+                
+                await Promise.all(atualizacoesContratos);
+                console.log(`${atualizacoesContratos.length} contratos atualizados`);
+            }
+            
+            // 5. Finalmente, excluir o documento da moto do Firestore
+            await deleteDoc(doc(db, "motos", motoData.id));
+            console.log("Documento da moto excluído com sucesso");
+            
+            showMessage('Sucesso', 'Moto excluída com sucesso!');
+            
+            // 6. Voltar para a tela anterior
+            navigation.navigate('BikeList', {
+                deleteBikeId: motoData.id,
+                timestamp: Date.now(),
+            });
+            
+        } catch (error) {
+            console.error('Erro ao excluir moto:', error);
+            showMessage('Erro', 'Falha ao excluir moto. Tente novamente.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     /**
@@ -258,72 +343,6 @@ export default function MotoEdit({ route, navigation }) {
         } finally {
             setLoading(false);
         }
-    };
-
-    const handleDeleteMoto = async () => {
-        // Verificar se temos um ID válido
-        if (!motoData.id) {
-            showMessage("Erro", "ID da moto não disponível");
-            return;
-        }
-    
-        // Confirmar a exclusão com o usuário
-        showConfirmation(
-            'Confirmação',
-            'Tem certeza que deseja excluir permanentemente esta moto? Esta ação não pode ser desfeita.',
-            async () => {
-                        try {
-                            setLoading(true);
-                            
-                            // 1. Excluir a foto do Storage, se existir
-                            if (motoData.fotoUrl) {
-                                try {
-                                    // Método 1: Tentar extrair o caminho da URL
-                                    const urlString = motoData.fotoUrl;
-                                    const match = urlString.match(/\/o\/([^?]+)/);
-                                    
-                                    if (match && match[1]) {
-                                        // Se conseguir extrair o caminho da URL
-                                        const path = decodeURIComponent(match[1]);
-                                        const fileRef = ref(storage, path);
-                                        await deleteObject(fileRef);
-                                        console.log("Foto excluída com sucesso do Storage");
-                                    } else {
-                                        // Método 2: Tentar com o ID da moto e nome do arquivo
-                                        const urlParts = motoData.fotoUrl.split('/');
-                                        const fileName = urlParts[urlParts.length - 1].split('?')[0];
-                                        const alternativePath = `motos/${motoData.id}/fotos/${fileName}`;
-                                        
-                                        const fileRef = ref(storage, alternativePath);
-                                        await deleteObject(fileRef);
-                                        console.log("Foto excluída com sucesso do Storage (caminho alternativo)");
-                                    }
-                                } catch (storageError) {
-                                    console.error("Erro ao excluir do Storage:", storageError);
-                                    // Continuar mesmo se falhar a exclusão da foto
-                                }
-                            }
-                            
-                            // 2. Excluir o documento da moto do Firestore
-                            await deleteDoc(doc(db, "motos", motoData.id));
-                            console.log("Documento da moto excluído com sucesso");
-                            
-                            showMessage('Sucesso', 'Moto excluída com sucesso!');
-                            
-                            // 3. Voltar para a tela anterior
-                            navigation.navigate('BikeList', {
-                                deleteBikeId: motoData.id,
-                                timestamp: Date.now(),
-                            });
-                            
-                        } catch (error) {
-                            console.error('Erro ao excluir moto:', error);
-                            showMessage('Erro', 'Falha ao excluir moto. Tente novamente.');
-                        } finally {
-                            setLoading(false);
-                        }
-                    },
-        );
     };
 
     // Se houver erro, mostrar mensagem de erro e botão para voltar

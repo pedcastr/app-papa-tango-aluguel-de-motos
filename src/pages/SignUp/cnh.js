@@ -36,7 +36,7 @@ import {
 
 export default function CNH({ navigation }) {
   const route = useRoute();
-  const { email, nome, nomeCompleto, cpf, phoneNumber, dadosEndereco, formData: existingFormData } = route.params;
+  const { email, nome, nomeCompleto, cpf, phoneNumber, dadosEndereco, formData: existingFormData, dataNascimento } = route.params;
   
   // FormData com os arquivos da CNH
   const [formData, setFormData] = useState({
@@ -310,7 +310,8 @@ export default function CNH({ navigation }) {
           cpf,
           phoneNumber,
           dadosEndereco,
-          formData: updatedFormData
+          formData: updatedFormData,
+          dataNascimento
         });
       }, 1500);
     } catch (error) {

@@ -15,7 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Feather } from '@expo/vector-icons'; 
 import axios from 'axios';
 import { auth, db } from '../../services/firebaseConfig';
-import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, addDoc, collection, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import {
   Container,
@@ -149,7 +149,7 @@ const Payment = () => {
       const paymentData = {
         paymentType: paymentMethod.type === 'ticket' ? 'boleto' :
                     paymentMethod.type === 'bank_transfer' ? 'pix' : paymentMethod.type,
-        transactionAmount: parseFloat(amount),
+        transactionAmount: Number(amount), // Garante que é número
         description: description || 'Pagamento de serviço',
         payer: {
           email: email,
@@ -161,13 +161,12 @@ const Payment = () => {
           }
         }
       };
-      
+
       // Adicionar dados específicos para boleto
       if (paymentMethod.type === 'ticket') {
         // Adicionar dados adicionais necessários para boleto
         paymentData.payer = {
           ...paymentData.payer,
-          // Adicionar endereço completo (obrigatório para boleto)
           address: {
             zip_code: endereco.cep?.replace(/[^\d]/g, '') || '60732645',
             street_name: endereco.logradouro || 'Rua Tapynaré',
@@ -199,21 +198,25 @@ const Payment = () => {
       if (result) {
         // Salvar o pagamento no Firestore
         try {
-          const paymentRef = await addDoc(collection(db, 'payments'), {
+          // Usar o paymentId como ID do documento
+          const paymentId = result.id.toString(); // Garantir que seja string
+          const paymentRef = doc(db, 'payments', paymentId);
+          
+          await setDoc(paymentRef, {
             userEmail: email,
             userName: name,
             amount: parseFloat(amount),
             description: description,
             status: result.status || 'pending',
             paymentMethod: paymentData.paymentType,
-            paymentId: result.id,
+            paymentId: result.id, // Manter o campo paymentId também
             dateCreated: serverTimestamp(),
             contratoId: contratoId || userData.contratoId || null,
             aluguelId: aluguelId || userData.aluguelAtivoId || null,
             paymentDetails: result
           });
           
-          console.log('Pagamento salvo no Firestore com ID:', paymentRef.id);
+          console.log('Pagamento salvo no Firestore com ID igual ao paymentId:', paymentId);
         } catch (err) {
           console.error('Erro ao salvar pagamento no Firestore:', err);
           // Não interromper o fluxo se falhar ao salvar no Firestore
@@ -380,13 +383,7 @@ const Payment = () => {
               
               <Divider />
               
-              <Button
-                onPress={() => navigation.goBack()}
-                style={{
-                  marginTop: 20,
-                  backgroundColor: '#888'
-                }}
-              >
+              <Button onPress={() => navigation.goBack()}>
                 <ButtonText>Cancelar</ButtonText>
               </Button>
             </>

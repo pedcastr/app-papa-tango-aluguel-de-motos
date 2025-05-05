@@ -3,6 +3,7 @@ import { Alert, ActivityIndicator, View, Text, Platform } from 'react-native';
 import { db } from '../../../../../services/firebaseConfig';
 import { collection, onSnapshot } from 'firebase/firestore';
 import FilterPanel from '../../../../../components/FilterPanel';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import PdfViewer from '../../../../../components/PdfViewerAdmin';
 
 import {
@@ -21,7 +22,8 @@ import {
     DocumentTitle,
     ActionButton,
     ActionButtonText,
-    EmptyMessage
+    EmptyMessage,
+    Divider,
 } from './styles';
 
 export default function ContractList({ navigation }) {
@@ -43,6 +45,150 @@ export default function ContractList({ navigation }) {
 
     // Verifica se o dispositivo é um desktop web
     const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
+
+    useEffect(() => {
+        let isMounted = true;
+        
+        // Função para aplicar filtro recebido
+        const applyInitialFilter = async () => {
+            try {
+                // Verificar se há um filtro salvo
+                let filterValue = null;
+                
+                // Tentar obter do AsyncStorage
+                const asyncStorageFilter = await AsyncStorage.getItem('contractListFilter');
+                if (asyncStorageFilter) {
+                    filterValue = asyncStorageFilter; // Usar o valor diretamente
+                    // Limpar o filtro após usá-lo
+                    await AsyncStorage.removeItem('contractListFilter');
+                }
+                
+                // Para web, verificar também o sessionStorage
+                if (Platform.OS === 'web' && !filterValue) {
+                    const sessionFilter = sessionStorage.getItem('contractListFilter');
+                    if (sessionFilter) {
+                        filterValue = sessionFilter; // Usar o valor diretamente
+                        // Limpar o filtro após usá-lo
+                        sessionStorage.removeItem('contractListFilter');
+                    }
+                }
+                
+                if (filterValue && isMounted) {
+                    console.log('Aplicando filtro de contratos:', filterValue);
+                    
+                    // Aplicar o filtro salvo
+                    if (filterValue === 'ativos') {
+                        setStatusFilter('ativo'); // Note que aqui usamos 'ativo' (não 'ativos')
+                    } else {
+                        setStatusFilter('todos');
+                    }
+                    
+                    // Garantir que os dados estejam carregados antes de aplicar o filtro
+                    if (contracts.length > 0) {
+                        // Aplicar os filtros aos dados com um pequeno delay
+                        setTimeout(() => {
+                            if (isMounted) {
+                                applyAllFilters();
+                            }
+                        }, 300);
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao recuperar filtro de contratos:', error);
+            }
+        };
+        
+        // Executar ao montar o componente
+        applyInitialFilter();
+        
+        // Configurar listener para eventos de filtro (web)
+        const handleFilterEvent = (event) => {
+            if (!isMounted) return;
+            
+            const { filter } = event.detail;
+            console.log('Evento de filtro de contratos recebido:', filter);
+            
+            if (filter === 'ativos') {
+                setStatusFilter('ativo'); // Note que aqui usamos 'ativo' (não 'ativos')
+            } else {
+                setStatusFilter('todos');
+            }
+            
+            // Aplicar os filtros aos dados com um pequeno delay
+            setTimeout(() => {
+                if (isMounted && contracts.length > 0) {
+                    applyAllFilters();
+                }
+            }, 300);
+        };
+        
+        // Adicionar listener apenas no ambiente web
+        if (Platform.OS === 'web') {
+            document.addEventListener('applyContractFilter', handleFilterEvent);
+        }
+        
+        // Cleanup
+        return () => {
+            isMounted = false;
+            if (Platform.OS === 'web') {
+                document.removeEventListener('applyContractFilter', handleFilterEvent);
+            }
+        };
+    }, [contracts]);
+    
+    // Adicione este useEffect para verificar o filtro quando o componente recebe foco
+    useEffect(() => {
+        let isMounted = true;
+        
+        // Função para verificar e aplicar o filtro quando o componente recebe foco
+        const checkFilterOnFocus = async () => {
+            if (Platform.OS === 'web') return; // Apenas para mobile
+            
+            try {
+                const filter = await AsyncStorage.getItem('contractListFilter');
+                const timestamp = await AsyncStorage.getItem('contractListFilterTimestamp');
+                
+                // Verificar se temos um filtro e um timestamp
+                if (filter && timestamp && isMounted) {
+                    console.log('Aplicando filtro de contratos no foco:', filter);
+                    
+                    // Aplicar o filtro
+                    if (filter === 'ativos') {
+                        setStatusFilter('ativo'); // Note que aqui usamos 'ativo' (não 'ativos')
+                    } else {
+                        setStatusFilter('todos');
+                    }
+                    
+                    // Aplicar os filtros aos dados
+                    if (contracts.length > 0) {
+                        setTimeout(() => {
+                            if (isMounted) {
+                                applyAllFilters();
+                            }
+                        }, 300);
+                    }
+                    
+                    // Limpar o filtro após aplicá-lo para permitir alterações futuras
+                    await AsyncStorage.removeItem('contractListFilter');
+                    await AsyncStorage.removeItem('contractListFilterTimestamp');
+                }
+            } catch (error) {
+                console.error('Erro ao verificar filtro no foco:', error);
+            }
+        };
+        
+        // Configurar listener para o evento de foco
+        const unsubscribe = navigation.addListener('focus', checkFilterOnFocus);
+        
+        // Verificar filtro ao montar o componente
+        checkFilterOnFocus();
+        
+        // Cleanup
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
+    }, [navigation, contracts]);    
 
     useEffect(() => {
         setLoading(true);
@@ -110,7 +256,7 @@ export default function ContractList({ navigation }) {
                 (contract.id && contract.id.toLowerCase().includes(searchTermLower)) ||
                 (contract.cliente && contract.cliente.toLowerCase().includes(searchTermLower)) ||
                 (contract.aluguelId && contract.aluguelId.toLowerCase().includes(searchTermLower)) ||
-                (contract.motoId && contract.motoId.toLowerCase().includes(searchTermLower))
+                (contract.motoId && contract.motoId.toLowerCase().includes(searchTermLower)) 
             );
         }
         
@@ -344,32 +490,39 @@ export default function ContractList({ navigation }) {
                                 <DetailLabel>Cliente:</DetailLabel>
                                 <DetailValue>{contract.cliente}</DetailValue>
                             </DetailRow>
+                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
                             <DetailRow>
                                 <DetailLabel>Aluguel:</DetailLabel>
                                 <DetailValue>{contract.aluguelId}</DetailValue>
                             </DetailRow>
+                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
                             <DetailRow>
                                 <DetailLabel>Moto:</DetailLabel>
                                 <DetailValue>{contract.motoId}</DetailValue>
                             </DetailRow>
+                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
                             <DetailRow>
                                 <DetailLabel>Data Início:</DetailLabel>
                                 <DetailValue>{formatDate(contract.dataInicio)}</DetailValue>
                             </DetailRow>
+                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
                             <DetailRow>
                                 <DetailLabel>Recorrência de Pagamento</DetailLabel>
                                 <DetailValue>{contract.tipoRecorrenciaPagamento === 'semanal' ? 'Semanal' : 'Mensal'}</DetailValue>
                             </DetailRow>
+                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
                             <DetailRow>
                                 <DetailLabel>MesesContratados:</DetailLabel>
                                 <DetailValue>{contract.mesesContratados} meses</DetailValue>
                             </DetailRow>
+                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
                             <DetailRow>
                                 <DetailLabelStatus>Status:</DetailLabelStatus>
                                 <DetailStatus aprovado={contract.statusContrato}>
                                     {contract.statusContrato ? 'Ativo' : 'Inativo'}
                                 </DetailStatus>
                             </DetailRow>
+                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
                             
                             {contract.urlContrato ? (
                                 <>

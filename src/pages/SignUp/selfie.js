@@ -25,7 +25,7 @@ import {
 
 export default function Selfie({ navigation }) {
   const route = useRoute();
-  const { email, nome, nomeCompleto, cpf, phoneNumber, dadosEndereco, formData } = route.params;
+  const { email, nome, nomeCompleto, cpf, phoneNumber, dadosEndereco, formData, dataNascimento } = route.params;
 
   // Estado para armazenar a selfie tirada
   const [photoImage, setPhotoImage] = useState(null);
@@ -84,7 +84,7 @@ export default function Selfie({ navigation }) {
 
       setSucesso(true);
       setTimeout(() => {
-        navigation.navigate("senha", { email, nome, nomeCompleto, cpf, phoneNumber, dadosEndereco, formData: updatedFormData });
+        navigation.navigate("senha", { email, nome, nomeCompleto, cpf, phoneNumber, dadosEndereco, formData: updatedFormData, dataNascimento });
       }, 1500);
     } catch (error) {
       console.log("Erro no upload:", error);

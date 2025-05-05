@@ -40,6 +40,11 @@ import {
     UserInfoTitle,
     UserInfoText,
     Divider,
+    CheckboxContainer,
+    CheckboxWrapper,
+    Checkbox,
+    CheckboxInner,
+    CheckboxLabel,
 } from './styles';
 
 export default function ContractForm({ navigation }) {
@@ -74,6 +79,12 @@ export default function ContractForm({ navigation }) {
     const [showUsersList, setShowUsersList] = useState(false);
     const [showMotosList, setShowMotosList] = useState(false);
     const [showAluguelsList, setShowAluguelsList] = useState(false);
+
+    // Estado para tipo de recorrência
+    const [recorrenciaTipo, setRecorrenciaTipo] = useState({
+        semanal: contractData.tipoRecorrenciaPagamento === 'semanal',
+        mensal: contractData.tipoRecorrenciaPagamento === 'mensal'
+    });
 
     // Carregar dados iniciais
     useEffect(() => {
@@ -269,6 +280,31 @@ export default function ContractForm({ navigation }) {
     const handleDateChange = (selectedDate) => {
         if (selectedDate) {
             setContractData(prev => ({...prev, dataInicio: selectedDate}));
+        }
+    };
+
+    // Função para lidar com a mudança de tipo de recorrência
+    const handleRecorrenciaChange = (tipo) => {
+        // Se o tipo já está selecionado, desmarque-o
+        if (recorrenciaTipo[tipo]) {
+            setRecorrenciaTipo({
+                semanal: false,
+                mensal: false
+            });
+            setContractData(prev => ({
+                ...prev,
+                tipoRecorrenciaPagamento: ''
+            }));
+        } else {
+            // Caso contrário, selecione apenas este tipo
+            setRecorrenciaTipo({
+                semanal: tipo === 'semanal',
+                mensal: tipo === 'mensal'
+            });
+            setContractData(prev => ({
+                ...prev,
+                tipoRecorrenciaPagamento: tipo
+            }));
         }
     };
 
@@ -568,16 +604,24 @@ export default function ContractForm({ navigation }) {
                             {errors.mesesContratados && <ErrorText>{errors.mesesContratados}</ErrorText>}
                         </InputGroup>
 
+                        {/* Tipo de Recorrência com Checkboxes */}
                         <InputGroup>
                             <Label>Tipo de Recorrência de Pagamento</Label>
-                            <Input
-                                value={contractData.tipoRecorrenciaPagamento}
-                                onChangeText={(text) => setContractData(prev => ({...prev, tipoRecorrenciaPagamento: text}))}
-                                placeholder="semanal ou mensal"
-                                autoCapitalize='none'
-                                error={errors.tipoRecorrenciaPagamento}
-                            />
-                            {errors.tipoRecorrenciaPagamento && <ErrorText>{errors.tipoRecorrenciaPagamento}</ErrorText>}
+                            <CheckboxContainer>
+                                <CheckboxWrapper onPress={() => handleRecorrenciaChange('semanal')}>
+                                    <Checkbox>
+                                        {recorrenciaTipo.semanal && <CheckboxInner />}
+                                    </Checkbox>
+                                    <CheckboxLabel>Semanal</CheckboxLabel>
+                                </CheckboxWrapper>
+                                
+                                <CheckboxWrapper onPress={() => handleRecorrenciaChange('mensal')}>
+                                    <Checkbox>
+                                        {recorrenciaTipo.mensal && <CheckboxInner />}
+                                    </Checkbox>
+                                    <CheckboxLabel>Mensal</CheckboxLabel>
+                                </CheckboxWrapper>
+                            </CheckboxContainer>
                         </InputGroup>
                         
                         <InputGroup>

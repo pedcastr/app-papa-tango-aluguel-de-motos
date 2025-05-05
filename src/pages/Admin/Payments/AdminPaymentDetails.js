@@ -30,7 +30,7 @@ import {
     CopyButton,
     CopyButtonText,
     LinkButton,
-    LinkButtonText
+    LinkButtonText,
 } from './styles';
 
 export default function AdminPaymentDetails() {
@@ -397,7 +397,7 @@ export default function AdminPaymentDetails() {
     // Obter linha digitável do boleto
     const getBoletoDigitableLine = () => {
         if (!hasBoletoDetails()) return '';
-        return paymentInfo.paymentDetails.transaction_details.barcode.content;
+        return paymentInfo.paymentDetails.transaction_details.digitable_line;
     };
 
     // Obter URL do boleto
@@ -426,7 +426,7 @@ export default function AdminPaymentDetails() {
         
         return (
             <>
-                <Divider />
+                <Divider style= {{marginTop: 30}} />
                 <CardSection>
                     <SectionTitle>Informações do PIX</SectionTitle>
                     
@@ -488,7 +488,7 @@ export default function AdminPaymentDetails() {
         
         return (
             <>
-                <Divider />
+                <Divider style= {{marginTop: 30}}  />
                 <CardSection>
                     <SectionTitle>Informações do Boleto</SectionTitle>
                     
@@ -543,7 +543,6 @@ export default function AdminPaymentDetails() {
             
             <ScrollView
                 contentContainerStyle={{ padding: 16 }}
-                showsVerticalScrollIndicator={false}
             >
                 <Card>
                     <StatusBadge style={{ backgroundColor: getStatusColor(paymentInfo.status), alignSelf: 'center', width: '30%', height: 35, marginBottom: 30 }}>
@@ -561,23 +560,29 @@ export default function AdminPaymentDetails() {
                             <DetailLabel>ID do Pagamento:</DetailLabel>
                             <DetailValue>{paymentInfo.id}</DetailValue>
                         </DetailRow>
+                        <Divider style={{ marginTop: -5, marginBottom: 5 }} />
                         
                         <DetailRow>
                             <DetailLabel>Data de Criação:</DetailLabel>
                             <DetailValue>{formatDate(paymentInfo.createdAt)}</DetailValue>
                         </DetailRow>
+                        <Divider style={{ marginTop: -5, marginBottom: 5 }} />
                         
-                        {paymentInfo.status === 'approved' && paymentInfo.date_approved && (
-                            <DetailRow>
-                                <DetailLabel>Data de Aprovação:</DetailLabel>
-                                <DetailValue>{formatDate(paymentInfo.date_approved)}</DetailValue>
-                            </DetailRow>
+                        {paymentInfo.status === 'approved' && paymentInfo.dateApproved && (
+                            <>
+                                <DetailRow>
+                                    <DetailLabel>Data de Aprovação:</DetailLabel>
+                                    <DetailValue>{formatDate(paymentInfo.dateApproved)}</DetailValue>
+                                </DetailRow>
+                                <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+                            </>
                         )}
                         
                         <DetailRow>
                             <DetailLabel>Método de Pagamento:</DetailLabel>
                             <DetailValue>{formatPaymentType(paymentInfo.payment_type_id)}</DetailValue>
                         </DetailRow>
+                        <Divider style={{ marginTop: -5, marginBottom: 5 }} />
                         
                         {paymentInfo.payment_type_id === 'credit_card' && paymentInfo.card && (
                             <>
@@ -603,7 +608,7 @@ export default function AdminPaymentDetails() {
                         )}
                     </CardSection>
                     
-                    <Divider />
+                    <Divider style={{ marginTop: 30 }} />
                     
                     <CardSection>
                         <SectionTitle>Informações do Cliente</SectionTitle>
@@ -612,18 +617,19 @@ export default function AdminPaymentDetails() {
                             <DetailLabel>Nome:</DetailLabel>
                             <DetailValue>{paymentInfo.userName || 'N/A'}</DetailValue>
                         </DetailRow>
+                        <Divider style={{ marginTop: -5, marginBottom: 5 }} />
                         
                         <DetailRow>
                             <DetailLabel>Email:</DetailLabel>
                             <DetailValue>{paymentInfo.userEmail || 'N/A'}</DetailValue>
                         </DetailRow>
+                        <Divider style={{ marginTop: -5, marginBottom: 5 }} />
                     </CardSection>
                     
                     {/* Renderizar seção de PIX ou Boleto se aplicável */}
                     {hasPixDetails() && renderPixSection()}
                     {hasBoletoDetails() && renderBoletoSection()}
                     
-                    <Divider />
                     
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
                         {paymentInfo.status !== 'approved' && (

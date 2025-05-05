@@ -40,7 +40,8 @@ export const WebViewContainer = styled.View`
 `;
 
 export const Button = styled.TouchableOpacity`
-    background-color: #CB2921;
+    background-color: #888888;
+    margin-top: 60px;
     max-width: 500px;
     padding: 15px;
     border-radius: 25px;

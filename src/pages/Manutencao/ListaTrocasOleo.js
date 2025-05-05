@@ -111,7 +111,7 @@ export default function ListaTrocasOleo({ navigation }) {
             renderItem={renderTrocaOleo}
             showsHorizontalScrollIndicator={false}
             keyExtractor={item => item.id}
-            style={{marginTop: 15}}
+            style={{ marginTop: 15 }}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}

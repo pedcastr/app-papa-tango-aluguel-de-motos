@@ -39,6 +39,7 @@ export default function UserForm({ navigation }) {
         nome: '',
         nomeCompleto: '',
         cpf: '',
+        dataNascimento: '',
         email: '',
         telefone: '',
         senha: '', 
@@ -480,7 +481,7 @@ export default function UserForm({ navigation }) {
     };
 
     const validateForm = () => {
-        if (!formData.nome || !formData.nomeCompleto || !formData.cpf || !formData.email || !formData.telefone || !formData.senha) {
+        if (!formData.nome || !formData.nomeCompleto || !formData.cpf || !formData.dataNascimento || !formData.email || !formData.telefone || !formData.senha) {
             setFeedback({
                 type: 'error',
                 title: 'Dados Incompletos',
@@ -707,6 +708,7 @@ export default function UserForm({ navigation }) {
                 nome: updatedFormData.nome,
                 nomeCompleto: updatedFormData.nomeCompleto,
                 cpf: updatedFormData.cpf,
+                dataNascimento: updatedFormData.dataNascimento,
                 email: emailFormatado,
                 telefone: updatedFormData.telefone,
                 endereco: updatedFormData.endereco,
@@ -789,6 +791,13 @@ export default function UserForm({ navigation }) {
                         <Input
                             value={formData.cpf}
                             onChangeText={(text) => setFormData(prev => ({...prev, cpf: text}))}
+                        />
+                    </InputGroup>
+                    <InputGroup>
+                        <Label>Data de Nascimento</Label>
+                        <Input
+                            value={formData.dataNascimento}
+                            onChangeText={(text) => setFormData(prev => ({...prev, dataNascimento: text}))}
                         />
                     </InputGroup>
                     <InputGroup>

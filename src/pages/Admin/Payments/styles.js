@@ -6,7 +6,7 @@ export const Container = styled.SafeAreaView`
     background-color: #F8F9FA;
 `;
 
-export const Header = styled.View`
+export const Header = styled.View` 
     flex-direction: row;
     justify-content: space-between;
     height: 65px;

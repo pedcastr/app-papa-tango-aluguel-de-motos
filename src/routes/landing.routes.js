@@ -5,6 +5,7 @@ import SignIn from '../pages/SignIn';
 import Nome from '../pages/SignUp/nome';
 import NomeCompleto from '../pages/SignUp/nomeCompleto';
 import CPF from '../pages/SignUp/cpf';
+import DataNascimento from '../pages/SignUp/dataNascimento';
 import Email from '../pages/SignUp/email';
 import EmailVerification from '../pages/SignUp/emailVerification';
 import Telefone from '../pages/SignUp/telefone';
@@ -53,6 +54,13 @@ export default function LandingRoutes() {
       <Stack.Screen
         name='cpf'
         component={CPF}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name='dataNascimento'
+        component={DataNascimento}
         options={{
           headerShown: false,
         }}

@@ -14,17 +14,25 @@ export const processPayment = async (paymentData) => {
     if (!paymentData.externalReference && auth.currentUser) {
       paymentData.externalReference = `user_${auth.currentUser.uid}`;
     }
-    
+
+    // Garante que transactionAmount é número
+    if (paymentData.transactionAmount) {
+      paymentData.transactionAmount = Number(paymentData.transactionAmount);
+    }
+
     const response = await axios.post('https://processpayment-q3zrn7ctxq-uc.a.run.app', paymentData);
-    
+
     // Salvar o pagamento no Firestore
     if (response.data && response.data.id) {
       await savePaymentToFirestore(response.data, paymentData);
     }
-    
+
     return response.data;
   } catch (error) {
     console.error('Erro ao processar pagamento:', error);
+    if (error.response) {
+      console.error('Detalhes do erro:', error.response.data);
+    }
     throw error;
   }
 };

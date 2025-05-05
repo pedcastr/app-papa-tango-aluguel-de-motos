@@ -28,12 +28,6 @@ export default function AdminRoutes() {
         name="Dashboard" 
         component={Dashboard}
         options={{
-          headerTitleAlign: 'center',
-          headerStyle: {
-            backgroundColor: '#CB2921',
-          },
-          headerTintColor: '#FFF',
-          headerShown: true,
           tabBarIcon: ({ color }) => (
             <Icon name="dashboard" size={24} color={color} />
           ),

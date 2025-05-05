@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { Alert, ActivityIndicator, ScrollView, Platform } from 'react-native';
 import { db } from '../../../../../services/firebaseConfig';
-import { doc, getDoc, updateDoc, getDocs, collection, query, where, orderBy } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, getDocs, collection, query, where, orderBy, deleteDoc } from 'firebase/firestore';
 import {
     Container,
     Form,
@@ -49,6 +49,29 @@ export default function RentalEdit({ route, navigation }) {
     const [motos, setMotos] = useState([]);
     const [showMotosList, setShowMotosList] = useState(false);
     const [selectedMoto, setSelectedMoto] = useState(null);
+
+    // Função para mostrar alerta em qualquer plataforma
+    const showConfirmation = (title, message, onConfirm) => {
+        if (Platform.OS === 'web') {
+            if (window.confirm(`${title}\n\n${message}`)) {
+                    onConfirm();
+            }
+        } else {
+            Alert.alert(title, message, [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Sim, excluir', onPress: onConfirm }
+            ]);
+        }
+    };
+    
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
     
     // Carregar motos disponíveis e a moto atual
     useEffect(() => {
@@ -88,7 +111,7 @@ export default function RentalEdit({ route, navigation }) {
                 setMotos(motosData);
             } catch (error) {
                 console.error("Erro ao carregar motos:", error);
-                Alert.alert("Erro", "Falha ao carregar motos");
+                showMessage("Erro", "Falha ao carregar motos");
             } finally {
                 setLoading(false);
             }
@@ -146,7 +169,7 @@ export default function RentalEdit({ route, navigation }) {
     // Função para atualizar o aluguel
     const handleUpdate = async () => {
         if (!validateForm()) {
-            Alert.alert("Erro", "Por favor, corrija os erros no formulário");
+            showMessage("Erro", "Por favor, corrija os erros no formulário");
             return;
         }
         
@@ -166,11 +189,11 @@ export default function RentalEdit({ route, navigation }) {
             // Atualizar documento no Firestore
             await updateDoc(doc(db, "alugueis", rental.id), dataToUpdate);
             
-            Alert.alert("Sucesso", "Aluguel atualizado com sucesso!");
+            showMessage("Sucesso", "Aluguel atualizado com sucesso!");
             navigation.goBack();
         } catch (error) {
             console.error("Erro ao atualizar aluguel:", error);
-            Alert.alert("Erro", "Falha ao atualizar aluguel");
+            showMessage("Erro", "Falha ao atualizar aluguel");
         } finally {
             setLoading(false);
         }
@@ -178,37 +201,98 @@ export default function RentalEdit({ route, navigation }) {
     
     // Função para excluir o aluguel
     const handleDelete = () => {
-        Alert.alert(
+        showConfirmation(
             "Confirmar Exclusão",
-            "Tem certeza que deseja excluir este aluguel?",
-            [
-                {
-                    text: "Cancelar",
-                    style: "cancel"
-                },
-                {
-                    text: "Excluir",
-                    onPress: async () => {
-                        try {
-                            setLoading(true);
-                            await updateDoc(doc(db, "alugueis", rental.id), {
-                                ativo: false,
-                                excluido: true,
-                                dataExclusao: new Date()
-                            });
-                            Alert.alert("Sucesso", "Aluguel excluído com sucesso!");
-                            navigation.goBack();
-                        } catch (error) {
-                            console.error("Erro ao excluir aluguel:", error);
-                            Alert.alert("Erro", "Falha ao excluir aluguel");
-                        } finally {
-                            setLoading(false);
-                        }
-                    },
-                    style: "destructive"
+            "Tem certeza que deseja excluir permanentemente este aluguel? Esta ação não pode ser desfeita.",
+            async () => {
+                try {
+                    setLoading(true);
+                    
+                    // 1. Verificar se o aluguel está associado a contratos
+                    const contratosRef = collection(db, "contratos");
+                    const contratosQuery = query(contratosRef, where("aluguelId", "==", rental.id));
+                    const contratosSnapshot = await getDocs(contratosQuery);
+                    
+                    // 2. Verificar se o aluguel está associado a usuários
+                    const usersRef = collection(db, "users");
+                    const usersQuery = query(usersRef, where("aluguelAtivoId", "==", rental.id));
+                    const usersSnapshot = await getDocs(usersQuery);
+                    
+                    // Se o aluguel estiver associado a contratos ou usuários, perguntar se deseja continuar
+                    if (!contratosSnapshot.empty || !usersSnapshot.empty) {
+                        setLoading(false); // Desativar o loading enquanto aguarda a confirmação
+                        
+                        showConfirmation(
+                            "Atenção",
+                            `Este aluguel está associado a ${contratosSnapshot.size} contrato(s) e ${usersSnapshot.size} usuário(s). Excluir o aluguel removerá essas associações. Deseja continuar?`,
+                            async () => {
+                                await realizarExclusaoCompleta(rental.id, contratosSnapshot, usersSnapshot);
+                            }
+                        );
+                    } else {
+                        // Não há associações, prosseguir com a exclusão direta
+                        await realizarExclusaoCompleta(rental.id);
+                    }
+                } catch (error) {
+                    console.error("Erro ao verificar associações do aluguel:", error);
+                    showMessage("Erro", "Falha ao excluir aluguel. Tente novamente.");
+                    setLoading(false);
                 }
-            ]
+            }
         );
+    };
+
+    // Função auxiliar para realizar a exclusão completa
+    const realizarExclusaoCompleta = async (aluguelId, contratosSnapshot = null, usersSnapshot = null) => {
+        try {
+            setLoading(true);
+            
+            // 1. Remover associações com contratos
+            if (contratosSnapshot && !contratosSnapshot.empty) {
+                const atualizacoesContratos = [];
+                contratosSnapshot.forEach(contratoDoc => {
+                    atualizacoesContratos.push(
+                        updateDoc(doc(db, "contratos", contratoDoc.id), {
+                            aluguelId: null
+                        })
+                    );
+                });
+                
+                if (atualizacoesContratos.length > 0) {
+                    await Promise.all(atualizacoesContratos);
+                    console.log(`${atualizacoesContratos.length} contratos atualizados`);
+                }
+            }
+            
+            // 2. Remover associações com usuários
+            if (usersSnapshot && !usersSnapshot.empty) {
+                const atualizacoesUsuarios = [];
+                usersSnapshot.forEach(userDoc => {
+                    atualizacoesUsuarios.push(
+                        updateDoc(doc(db, "users", userDoc.id), {
+                            aluguelAtivoId: null
+                        })
+                    );
+                });
+                
+                if (atualizacoesUsuarios.length > 0) {
+                    await Promise.all(atualizacoesUsuarios);
+                    console.log(`${atualizacoesUsuarios.length} usuários atualizados`);
+                }
+            }
+            
+            // 3. Finalmente, excluir o documento do aluguel do Firestore
+            await deleteDoc(doc(db, "alugueis", aluguelId));
+            console.log("Documento do aluguel excluído com sucesso");
+            
+            showMessage("Sucesso", "Aluguel excluído permanentemente com sucesso!");
+            navigation.goBack();
+        } catch (error) {
+            console.error("Erro ao excluir aluguel:", error);
+            showMessage("Erro", "Falha ao excluir aluguel. Tente novamente.");
+        } finally {
+            setLoading(false);
+        }
     };
     
     return (

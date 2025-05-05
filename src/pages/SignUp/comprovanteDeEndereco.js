@@ -36,7 +36,7 @@ import {
 
 export default function ComprovanteDeEndereco({ navigation }) {
   const route = useRoute();
-  const { email, nome, nomeCompleto, phoneNumber, dadosEndereco, cpf } = route.params;
+  const { email, nome, nomeCompleto, phoneNumber, dadosEndereco, cpf, dataNascimento } = route.params;
 
   const [formData, setFormData] = useState({
     comprovanteEndereco: {
@@ -248,6 +248,7 @@ export default function ComprovanteDeEndereco({ navigation }) {
           dadosEndereco,
           formData: updatedFormData,
           cpf,
+          dataNascimento,
         });
       }, 1500);
     } catch (error) {

@@ -28,7 +28,7 @@ import { AuthContext } from "../../context/AuthContext";
 
 export default function Senha({ navigation }) {
     const route = useRoute();
-    const { email, nome, nomeCompleto, cpf, phoneNumber, dadosEndereco, formData } = route.params; 
+    const { email, nome, nomeCompleto, cpf, phoneNumber, dadosEndereco, formData, dataNascimento } = route.params; 
     const [senhaRepetida, setSenhaRepetida] = useState("");
     const [senhaRepetidaErro, setSenhaRepetidaErro] = useState("");
     const [password, setPassword] = useState('');
@@ -133,6 +133,7 @@ export default function Senha({ navigation }) {
                 nome,
                 nomeCompleto,
                 cpf,
+                dataNascimento,
                 email: emailFormatado,
                 telefone: phoneNumber,
                 endereco: dadosEndereco,

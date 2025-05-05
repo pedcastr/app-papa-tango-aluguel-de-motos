@@ -21,6 +21,7 @@ import {
     TextButtonEnviar,
     ButtonFoto,
     RemoveButton,
+    Divider,
 } from "./styles";
 
 export default function TrocaOleo({ navigation }) {
@@ -325,6 +326,7 @@ export default function TrocaOleo({ navigation }) {
                         ) : <MaterialIcons name="camera-alt" size={110} color="#000" /> }
                     </AreaFoto>
                 </ButtonFoto>
+                <Divider style={{ marginTop: 25, marginBottom: -5 }} />
 
                 <TextPage>
                     Foto da nota fiscal de compra do óleo
@@ -345,6 +347,7 @@ export default function TrocaOleo({ navigation }) {
                         ) : <MaterialIcons name="camera-alt" size={110} color="#000" />}
                     </AreaFoto>
                 </ButtonFoto>
+                <Divider style={{ marginTop: 25, marginBottom: -5 }} />
 
                 <TextPage>
                     Vídeo do novo óleo sendo adicionado e no mesmo vídeo mostrar kms totais da moto
@@ -409,6 +412,7 @@ export default function TrocaOleo({ navigation }) {
                         ) : <MaterialIcons name="camera-alt" size={110} color="#000" />}
                     </AreaFoto>
                 </ButtonFoto>
+                <Divider style={{ marginTop: 25, marginBottom: -5 }} />
 
                 <TextPage>
                     Foto dos kms totais da moto após a troca de óleo
@@ -429,6 +433,7 @@ export default function TrocaOleo({ navigation }) {
                         ) : <MaterialIcons name="camera-alt" size={110} color="#000" />}
                     </AreaFoto>
                 </ButtonFoto>
+                <Divider style={{ marginTop: 25, marginBottom: -5 }} />
 
                 
                 <ButtonEnviar onPress={enviarParaFirebase} disabled={loading}>

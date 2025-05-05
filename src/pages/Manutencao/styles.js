@@ -8,6 +8,7 @@ export const Container = styled.View`
     padding: 16px;
     width: auto;
     max-width: auto;
+    background-color: #fff;
 `;
 
 export const Header = styled.View`
@@ -33,6 +34,19 @@ export const AreaEscolha = styled.View`
     justify-content: center;
 `;
 
+export const AreaSemContratoAtivo = styled.View`
+    width: 100%;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+`;
+
+export const TextaAreaSemContrato = styled.Text`
+    font-size: 18px;
+    font-weight: bold;
+    color: #000;
+`;
+
 export const ButtonOleo = styled.TouchableOpacity`
     width: 70%;
     max-width: 500px;
@@ -43,6 +57,12 @@ export const ButtonOleo = styled.TouchableOpacity`
     background-color: #CB2921;
     margin-bottom: 60px;
     ${Platform.OS === 'web' ? 'box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);' : 'elevation: 3;'}
+`;
+
+export const LoadingContainer = styled.View`
+  flex: 1;
+  align-items: center;
+  justify-content: center;
 `;
 
 export const TextButtons = styled.Text`
@@ -226,4 +246,11 @@ export const ImageDetalhes = styled.Image`
     height: 200px;
     margin-bottom: 20px;
     border-radius: 5px;
+`;
+
+export const Divider = styled.View`
+  height: 1px;
+  background-color: #E0E0E0;
+  width: 100%;
+  margin: 15px 0;
 `;

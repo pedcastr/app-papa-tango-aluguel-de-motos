@@ -21,7 +21,7 @@ import {
 
 export default function Email({ navigation }) {
     const route = useRoute(); 
-    const { nome, nomeCompleto, cpf } = route.params;
+    const { nome, nomeCompleto, cpf, dataNascimento } = route.params;
     const [email, setEmail] = useState('');
     const [erros, setErros] = useState({ email: '' });
     const [loading, setLoading] = useState(false);
@@ -69,7 +69,7 @@ export default function Email({ navigation }) {
     
                 setTimeout(() => {
                     if (data.success) {
-                        navigation.navigate("EmailVerification", { email, nome, nomeCompleto, cpf });
+                        navigation.navigate("EmailVerification", { email, nome, nomeCompleto, cpf, dataNascimento });
                     } else {
                         Alert.alert("Erro", "Falha ao enviar o código, tente novamente.");
                     }

@@ -190,5 +190,11 @@ export const ContainerSemTrocas = styled.View`
     align-items: center;
 `;
 
+export const Divider = styled.View`
+  height: 1px;
+  background-color: #E0E0E0;
+  width: 100%;
+  margin: 15px 0;
+`;
 
 

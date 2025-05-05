@@ -37,10 +37,9 @@ export const InputGroup = styled.View`
 `;
 
 export const Label = styled.Text`
-    font-size: 14px;
-    color: #333;
+    font-size: 16px;
+    color: #555;
     margin-bottom: 5px;
-    font-weight: 500;
 `;
 
 export const Input = styled.TextInput`
@@ -249,4 +248,39 @@ export const Divider = styled.View`
     height: 1px;
     background-color: #E0E0E0;
     margin-vertical: 15px;
+`;
+
+export const CheckboxContainer = styled.View`
+    flex-direction: row;
+    align-items: center;
+    margin-top: 5px;
+`;
+
+export const CheckboxWrapper = styled.TouchableOpacity`
+    flex-direction: row;
+    align-items: center;
+    margin-right: 20px;
+`;
+
+export const Checkbox = styled.View`
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    border-width: 1px;
+    border-color: #CB2921;
+    justify-content: center;
+    align-items: center;
+`;
+
+export const CheckboxInner = styled.View`
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background-color: #CB2921;
+`;
+
+export const CheckboxLabel = styled.Text`
+    font-size: 16px;
+    color: #333;
+    margin-left: 8px;
 `;

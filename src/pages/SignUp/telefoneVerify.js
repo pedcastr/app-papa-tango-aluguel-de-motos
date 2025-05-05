@@ -23,7 +23,7 @@ import {
 
 export default function VerifyPhone({ navigation }) {
     const route = useRoute();
-    const { phoneNumber, email, nome, nomeCompleto, codigo: codigoEnviado, cpf } = route.params;
+    const { phoneNumber, email, nome, nomeCompleto, codigo: codigoEnviado, cpf, dataNascimento } = route.params;
     const [codigo, setCodigo] = useState('');
     const [loading, setLoading] = useState(false);
     const [erro, setErro] = useState({ codigo: '' });;
@@ -73,6 +73,7 @@ export default function VerifyPhone({ navigation }) {
                     nomeCompleto,
                     phoneNumber,
                     cpf,
+                    dataNascimento
                 });
             }, 1500);
         } else {

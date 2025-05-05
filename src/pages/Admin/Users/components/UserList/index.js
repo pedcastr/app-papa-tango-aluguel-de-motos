@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { Alert } from 'react-native';
 import { db } from '../../../../../services/firebaseConfig';
 import { collection, onSnapshot } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import FilterPanel from '../../../../../components/FilterPanel';
 
 import {
@@ -44,6 +45,165 @@ export default function UserList({ navigation }) {
     const [motosAlugadasUnicas, setMotosAlugadasUnicas] = useState([]);
     const [alugueisUnicos, setAlugueisUnicos] = useState([]);
     const [contratosUnicos, setContratosUnicos] = useState([]);
+
+    // Função para funcionar a navegação da tela Dashboard para a tela de Usuários com filtro aplicado
+    useEffect(() => {
+        let isMounted = true;
+        
+        // Função para aplicar filtro recebido
+        const applyInitialFilter = async () => {
+            try {
+                // Verificar se há um filtro salvo
+                let filterValue = null;
+                
+                // Tentar obter do AsyncStorage
+                const asyncStorageFilter = await AsyncStorage.getItem('userListFilter');
+                if (asyncStorageFilter) {
+                    filterValue = asyncStorageFilter; // Usar o valor diretamente
+                    // Limpar o filtro após usá-lo
+                    await AsyncStorage.removeItem('userListFilter');
+                }
+                
+                // Para web, verificar também o sessionStorage
+                if (Platform.OS === 'web' && !filterValue) {
+                    const sessionFilter = sessionStorage.getItem('userListFilter');
+                    if (sessionFilter) {
+                        filterValue = sessionFilter; // Usar o valor diretamente
+                        // Limpar o filtro após usá-lo
+                        sessionStorage.removeItem('userListFilter');
+                    }
+                }
+                
+                if (filterValue && isMounted) {
+                    console.log('Aplicando filtro de usuários:', filterValue);
+                    
+                    // Aplicar o filtro salvo
+                    if (filterValue === 'aprovados') {
+                        setApprovalFilter('aprovados');
+                    } else if (filterValue === 'pendentes') {
+                        setApprovalFilter('pendentes');
+                    } else {
+                        setApprovalFilter('todos');
+                    }
+                    
+                    // Garantir que os dados estejam carregados antes de aplicar o filtro
+                    if (users.length > 0) {
+                        // Aplicar os filtros aos dados com um pequeno delay
+                        setTimeout(() => {
+                            if (isMounted) {
+                                applyAllFilters(users);
+                            }
+                        }, 300);
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao recuperar filtro de usuários:', error);
+            }
+        };
+        
+        // Executar ao montar o componente
+        applyInitialFilter();
+        
+        // Configurar listener para eventos de filtro (web)
+        const handleFilterEvent = (event) => {
+            if (!isMounted) return;
+            
+            const { filter } = event.detail;
+            console.log('Evento de filtro de usuários recebido:', filter);
+            
+            if (filter === 'aprovados') {
+                setApprovalFilter('aprovados');
+            } else if (filter === 'pendentes') {
+                setApprovalFilter('pendentes');
+            } else {
+                setApprovalFilter('todos');
+            }
+            
+            // Aplicar os filtros aos dados com um pequeno delay
+            setTimeout(() => {
+                if (isMounted && users.length > 0) {
+                    applyAllFilters(users);
+                }
+            }, 300);
+        };
+        
+        // Adicionar listener apenas no ambiente web
+        if (Platform.OS === 'web') {
+            document.addEventListener('applyUserFilter', handleFilterEvent);
+        }
+        
+        // Cleanup
+        return () => {
+            isMounted = false;
+            if (Platform.OS === 'web') {
+                document.removeEventListener('applyUserFilter', handleFilterEvent);
+            }
+        };
+    }, []);
+    
+    // UseEffect para reagir a mudanças nos dados
+    useEffect(() => {
+        // Verificar se temos um filtro ativo que não seja 'todos'
+        if (approvalFilter !== 'todos' && users.length > 0) {
+            // Aplicar o filtro aos dados atualizados
+            applyAllFilters(users);
+        }
+    }, [users]);
+
+    // UseEffect para verificar o filtro a cada vez que o componente recebe foco
+    useEffect(() => {
+        let isMounted = true;
+        
+        // Função para verificar e aplicar o filtro quando o componente recebe foco
+        const checkFilterOnFocus = async () => {
+            if (Platform.OS === 'web') return; // Apenas para mobile
+            
+            try {
+                const filter = await AsyncStorage.getItem('userListFilter');
+                const timestamp = await AsyncStorage.getItem('userListFilterTimestamp');
+                
+                // Verificar se temos um filtro e um timestamp
+                if (filter && timestamp && isMounted) {
+                    console.log('Aplicando filtro de usuários no foco:', filter);
+                    
+                    // Aplicar o filtro
+                    if (filter === 'aprovados') {
+                        setApprovalFilter('aprovados');
+                    } else if (filter === 'pendentes') {
+                        setApprovalFilter('pendentes');
+                    } else {
+                        setApprovalFilter('todos');
+                    }
+                    
+                    // Aplicar os filtros aos dados
+                    if (users.length > 0) {
+                        setTimeout(() => {
+                            if (isMounted) {
+                                applyAllFilters(users);
+                            }
+                        }, 300);
+                    }
+
+                    await AsyncStorage.removeItem('userListFilter'); // Limpar o filtro após usá-lo
+                    await AsyncStorage.removeItem('userListFilterTimestamp'); // Limpar o timestamp após usá-lo
+                }
+            } catch (error) {
+                console.error('Erro ao verificar filtro no foco:', error);
+            }
+        };
+        
+        // Configurar listener para o evento de foco
+        const unsubscribe = navigation.addListener('focus', checkFilterOnFocus);
+        
+        // Verificar filtro ao montar o componente
+        checkFilterOnFocus();
+        
+        // Cleanup
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
+    }, [navigation, users]);
 
     /**
      * Efeito para extrair valores únicos para os filtros

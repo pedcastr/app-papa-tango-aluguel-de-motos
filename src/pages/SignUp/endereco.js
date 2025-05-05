@@ -25,7 +25,7 @@ import {
 
 export default function Endereco({ navigation }) {
     const route = useRoute();
-    const { email, nome, nomeCompleto, phoneNumber, cpf } = route.params; 
+    const { email, nome, nomeCompleto, phoneNumber, cpf, dataNascimento } = route.params; 
     const [loading, setLoading] = useState(false);
     const [erro, setErro] = useState({ cep : '' });
     const [erroNumero, setErroNumero] = useState(''); 
@@ -121,7 +121,7 @@ export default function Endereco({ navigation }) {
             setSucesso(true); // Mostrar a animação json de sucesso
 
             setTimeout(() => {
-                navigation.navigate("comprovanteDeEndereco", { email, nome, nomeCompleto, phoneNumber, dadosEndereco, cpf });
+                navigation.navigate("comprovanteDeEndereco", { email, nome, nomeCompleto, phoneNumber, dadosEndereco, cpf, dataNascimento });
             }, 1500); // Aguarda 1.5 segundos antes de navegar
             
         } catch (error) {

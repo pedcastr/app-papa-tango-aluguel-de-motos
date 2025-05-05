@@ -25,7 +25,7 @@ import {
 export default function EmailVerification() {
     const route = useRoute(); 
     const navigation = useNavigation();
-    const { email, nome, nomeCompleto, cpf } = route.params; 
+    const { email, nome, nomeCompleto, cpf, dataNascimento } = route.params; 
     const [codigo, setCodigo] = useState('');
     const [erros, setErros] = useState({ codigo: '' });
     const [loading, setLoading] = useState(false);
@@ -91,7 +91,7 @@ export default function EmailVerification() {
     
                 setSucesso(true); 
                 setTimeout(() => {
-                    navigation.navigate("Telefone", { email, nome, nomeCompleto, cpf });
+                    navigation.navigate("Telefone", { email, nome, nomeCompleto, cpf, dataNascimento });
                 }, 1500); 
 
             } else {

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { ScrollView, ActivityIndicator, Alert, Linking, Platform } from 'react-native';
+import { ScrollView, ActivityIndicator, Alert, Linking, Platform, View } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { WebView } from 'react-native-webview';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../../../../../services/firebaseConfig';
 import { FeedbackModal } from '../../../../../components/FeedbackModal'; 
 
@@ -28,7 +28,8 @@ import {
     ButtonsContainer,
     LoadingContainer,
     ContactIconButton,
-    WebPdfContainer
+    WebPdfContainer,
+    Divider,
 } from './styles';
 
 export default function UserDetails() {
@@ -186,6 +187,51 @@ export default function UserDetails() {
                 });
         }
     };
+
+    // Função para enviar notificação pelo Firestore
+    const enviarNotificacaoPeloFirestore = async (userEmail, title, body, data) => {
+        try {
+        // Gerar um ID único para a solicitação
+        const requestId = `${userData.email}_${Date.now()}`;
+        
+        // Criar um documento de solicitação de notificação no Firestore
+        await setDoc(doc(db, 'notificationRequests', requestId), {
+            userEmail: userEmail,
+            title: title,
+            body: body,
+            data: data,
+            createdAt: serverTimestamp()
+        });
+        
+        console.log(`Solicitação de notificação criada: ${requestId}`);
+        return true;
+        } catch (error) {
+        console.error(`Erro ao criar solicitação de notificação: ${error.message}`);
+        return false;
+        }
+    };
+
+    // Função para enviar email pelo Firestore
+    const enviarEmailPeloFirestore = async (userEmail, subject, body ) => {
+        try {
+        // Gerar um ID único para a solicitação
+        const requestId = `email_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+        
+        // Criar um documento de solicitação de email no Firestore
+        await setDoc(doc(db, 'emailRequests', requestId), {
+            to: userEmail,
+            subject: subject,
+            html: body,
+            createdAt: serverTimestamp(),
+        });
+        
+        console.log(`Solicitação de email criada: ${requestId}`);
+        return true;
+        } catch (error) {
+        console.error(`Erro ao criar solicitação de email: ${error.message}`);
+        return false;
+        }
+    };
     
     /**
      * Atualiza o status de aprovação do usuário no Firestore
@@ -208,6 +254,76 @@ export default function UserDetails() {
                 ...prevData,
                 aprovado: approve
             }));
+
+            try {
+                // Preparar dados para a notificação push
+                const title = 'Seu cadastro ' + (approve ? 'foi aprovado' : 'não foi aprovado') + (approve ? ' 🥳🎉' : ' ☹️');
+                const body = approve 
+                    ? 'Parabéns! Seu cadastro foi aprovado com sucesso.' 
+                    : 'Seu cadastro foi não foi aprovado. Entre em contato para mais informações.';
+                const data = {
+                    screen: 'SignIn',
+                };
+
+                // Usar o método alternativo baseado em Firestore
+                const success = await enviarNotificacaoPeloFirestore(userData.email, title, body, data);
+
+                if (!success) {
+                    throw new Error("Falha ao criar solicitação de notificação");
+                }
+
+                console.log(`Notificação de ${approve ? 'aprovação' : 'não aprovação'} do usuário ${userData.email} processada com sucesso`);
+
+                // Enviar também um email de lembrete
+                const emailSubject = 'Seu cadastro ' + (approve ? 'foi aprovado' : 'não foi aprovado') + (approve ? ' 🥳🎉' : ' ☹️');
+                const emailBody = approve 
+                ? `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px;">
+                    </div>
+                    <h2 style="color: #CB2921; text-align: center; margin-bottom: 30px">📢 Cadastro Aprovado! Bem-vindo à Papa Tango Aluguel de Motos! 🏁</h2>
+                    <p>Olá, <strong>${userData.nome}</strong>! 🎉</p>
+                    <p>Parabéns! Seu cadastro foi aprovado com sucesso. Agora você pode acelerar rumo à sua próxima aventura e aproveitar todos os nossos serviços! 🚀</p>
+                    <p>🔑 Use seu login e senha para acessar o nosso App e explorar todas as motos disponíveis para aluguel! 🏍️💨</p>
+                    <p>📲 Em breve, um dos nossos atendentes entrará em contato com você pelo WhatsApp no número <strong>${userData.telefone}</strong>, enviando nosso catálogo de motos disponíveis e ajudando com qualquer dúvida que você tiver. 🏍️🛠️</p>
+                    <br>
+                    <p><strong>Atenciosamente, Equipe Papa Tango Aluguel de Motos</strong></p>
+                </div>
+                ` : `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px;">
+                    </div>
+                    <h2 style="color: #CB2921; text-align: center; margin-bottom: 30px;">Cadastro Não Aprovado 😞</h2>
+                    <p>Olá <strong>${userData.nome}</strong>,</p>
+                    <br>
+                    <p>Agradecemos o seu interesse em nossos serviços de aluguel de motos e por ter realizado seu cadastro conosco. Após a análise das informações fornecidas, infelizmente, neste momento, não conseguimos aprovar sua solicitação.</p>
+                    <p>Nosso processo de análise inclui a verificação de documentos como CNH, antecedentes, comprovante de endereço e consulta financeira, garantindo a segurança de todos os nossos clientes e parceiros.</p>
+                    <p>Caso tenha dúvidas sobre o processo ou deseje revisar as informações enviadas, estamos à disposição para esclarecer qualquer ponto e auxiliar da melhor forma possível.</p>
+                    <p>Obrigado pela sua compreensão. Esperamos poder atendê-lo futuramente.</p>
+                    <br>
+                    <p><strong>Atenciosamente, Equipe Papa Tango Aluguel de Motos</strong></p>
+                </div>
+                `;
+                
+                await enviarEmailPeloFirestore(userData.email, emailSubject, emailBody );
+                
+                } catch (error) {
+                    console.error(`Erro ao enviar notificação de aprovação/desaprovação do usuário ${userData.email}:`, error.message);
+                
+                    // Tentar registrar o erro no Firestore para análise posterior
+                    try {
+                        await setDoc(doc(db, 'notificationErrors', `${userData.email}_${Date.now()}`), {
+                        userEmail: userData.email,
+                        error: error.message,
+                        timestamp: serverTimestamp()
+                        });
+                    } catch (e) {
+                        console.error("Erro ao registrar falha de notificação:", e);
+                    }
+                }
+            
             
             // Configura a mensagem de feedback
             setFeedback({
@@ -379,36 +495,51 @@ export default function UserDetails() {
                         <InfoLabel>Nome Completo:</InfoLabel>
                         <InfoValue>{userData.nomeCompleto || userData.nome}</InfoValue>
                     </InfoRow>
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
                     
                     <InfoRow>
                         <InfoLabel>Email:</InfoLabel>
                         <InfoValue>{userData.email}</InfoValue>
-                        {userData.email && (
-                            <ContactIconButton onPress={openEmail}>
-                                <Icon name="email" size={24} color="#CB2921" />
-                            </ContactIconButton>
-                        )}
+                        <View style={{ flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', justifyContent: 'flex-end' }}>
+                            {userData.email && (
+                                <ContactIconButton onPress={openEmail}>
+                                    <Icon name="email" size={24} color="#CB2921" />
+                                </ContactIconButton>
+                            )}
+                        </View>
                     </InfoRow>
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
 
                     <InfoRow>
                         <InfoLabel>CPF:</InfoLabel>
                         <InfoValue>{userData.cpf}</InfoValue>
                     </InfoRow>
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
+
+                    <InfoRow>
+                        <InfoLabel>Data de Nascimento:</InfoLabel>
+                        <InfoValue>{userData.dataNascimento}</InfoValue>
+                    </InfoRow>
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
                     
                     <InfoRow>
                         <InfoLabel>Telefone:</InfoLabel>
                         <InfoValue>{userData.telefone}</InfoValue>
-                        {userData.telefone && (
-                            <ContactIconButton onPress={openWhatsApp}>
-                                <FontAwesome name="whatsapp" size={24} color="#25D366" />
-                            </ContactIconButton>
-                        )}
+                        <View style={{ flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', justifyContent: 'flex-end' }}>
+                            {userData.telefone && (
+                                <ContactIconButton onPress={openWhatsApp}>
+                                    <FontAwesome name="whatsapp" size={24} color="#25D366" />
+                                </ContactIconButton>
+                            )}
+                        </View>
                     </InfoRow>
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
                     
                     <InfoRow>
                         <InfoLabel>Data de Cadastro:</InfoLabel>
                         <InfoValue>{userData.dataCadastro}</InfoValue>
                     </InfoRow>
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
                 </Section>
                 
                 {/* Endereço */}
@@ -419,31 +550,37 @@ export default function UserDetails() {
                         <InfoLabel>CEP:</InfoLabel>
                         <InfoValue>{userData.endereco?.cep}</InfoValue>
                     </InfoRow>
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
                     
                     <InfoRow>
                         <InfoLabel>Logradouro:</InfoLabel>
                         <InfoValue>{userData.endereco?.logradouro}</InfoValue>
                     </InfoRow>
-                    
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
+
                     <InfoRow>
                         <InfoLabel>Número:</InfoLabel>
                         <InfoValue>{userData.endereco?.numero}</InfoValue>
                     </InfoRow>
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
                     
                     <InfoRow>
                         <InfoLabel>Bairro:</InfoLabel>
                         <InfoValue>{userData.endereco?.bairro}</InfoValue>
                     </InfoRow>
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
                     
                     <InfoRow>
                         <InfoLabel>Cidade:</InfoLabel>
                         <InfoValue>{userData.endereco?.cidade}</InfoValue>
                     </InfoRow>
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
                     
                     <InfoRow>
                         <InfoLabel>Estado:</InfoLabel>
                         <InfoValue>{userData.endereco?.estado}</InfoValue>
                     </InfoRow>
+                    <Divider style={{ marginTop: - 10, marginBottom: 10 }} />
                 </AddressSection>
                 
                 {/* Documentos - CNH */}

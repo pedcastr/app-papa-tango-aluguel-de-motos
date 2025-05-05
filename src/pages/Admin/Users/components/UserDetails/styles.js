@@ -33,13 +33,12 @@ export const SectionTitle = styled.Text`
 export const InfoRow = styled.View`
     flex-direction: row;
     margin-bottom: 10px;
-    flex-wrap: wrap;
 `;
 
 export const InfoLabel = styled.Text`
     font-weight: bold;
     color: #555;
-    width: 100px;
+    margin-right: 5px;
 `;
 
 export const InfoValue = styled.Text`

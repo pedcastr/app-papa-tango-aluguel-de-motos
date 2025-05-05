@@ -3,19 +3,7 @@ import { View, ActivityIndicator, FlatList, Alert, Platform } from 'react-native
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { db } from '../../../services/firebaseConfig';
-import { 
-    collection, 
-    query, 
-    orderBy, 
-    getDocs, 
-    where, 
-    addDoc, 
-    Timestamp, 
-    doc, 
-    getDoc, 
-    setDoc,
-    serverTimestamp 
-} from 'firebase/firestore';
+import { collection, query, orderBy, where, addDoc, Timestamp, doc, getDoc, setDoc,serverTimestamp, onSnapshot } from 'firebase/firestore';
 
 import {
     Container,
@@ -41,6 +29,7 @@ import {
     EmptyContainer,
     EmptyText,
     LoadingContainer,
+    Divider,
 } from './styles';
 
 export default function AdminUserPayments() {
@@ -52,6 +41,132 @@ export default function AdminUserPayments() {
     const [payments, setPayments] = useState([]);
     const [userContract, setUserContract] = useState(null);
     const [pendingPixPayments, setPendingPixPayments] = useState([]);
+
+    // Substitua o useEffect atual por este
+    useEffect(() => {
+        let paymentsUnsubscribe = () => {};
+        let contractUnsubscribe = () => {};
+        
+        const loadUserData = async () => {
+        setLoading(true);
+        
+        try {
+            // Configurar listener para contratos do usuário
+            const contratosRef = collection(db, 'contratos');
+            const contratoQuery = query(contratosRef, where('cliente', '==', userEmail));
+            
+            contractUnsubscribe = onSnapshot(contratoQuery, async (contratoSnapshot) => {
+            if (!contratoSnapshot.empty) {
+                const contratoData = contratoSnapshot.docs[0].data();
+                // Inicializar a variável aqui, antes de usá-la
+                let tipoRecorrencia = contratoData.tipoRecorrenciaPagamento || 'mensal';
+                
+                // Buscar aluguel associado ao contrato
+                let valorMensal = 0;
+                let valorSemanal = 0;
+                
+                if (contratoData.aluguelId) {
+                const aluguelRef = doc(db, 'alugueis', contratoData.aluguelId);
+                const aluguelSnapshot = await getDoc(aluguelRef);
+                
+                if (aluguelSnapshot.exists()) {
+                    const aluguelData = aluguelSnapshot.data();
+                    valorMensal = aluguelData.valorMensal || 0;
+                    valorSemanal = aluguelData.valorSemanal || 0;
+                    
+                    // Buscar moto associada ao aluguel
+                    let motoModelo = 'N/A';
+                    let motoPlaca = 'N/A';
+                    
+                    if (contratoData.motoId) {
+                    const motoRef = doc(db, 'motos', contratoData.motoId);
+                    const motoSnapshot = await getDoc(motoRef);
+                    
+                    if (motoSnapshot.exists()) {
+                        const motoData = motoSnapshot.data();
+                        motoModelo = motoData.modelo || 'N/A';
+                        motoPlaca = motoData.placa || 'N/A';
+                    }
+                    }
+                    
+                    setUserContract({
+                    dataInicio: contratoData.dataInicio,
+                    dataFim: contratoData.dataFim || null,
+                    valorMensal: aluguelData.valorMensal || 0,
+                    valorSemanal: aluguelData.valorSemanal || 0,
+                    tipoRecorrencia,
+                    modeloMoto: motoModelo,
+                    placaMoto: motoPlaca
+                    });
+                }
+                }
+            }
+            
+            // Configurar listener para pagamentos do usuário
+            const paymentsRef = collection(db, 'payments');
+            const paymentsQuery = query(
+                paymentsRef,
+                where('userEmail', '==', userEmail),
+                orderBy('dateCreated', 'desc')
+            );
+            
+            paymentsUnsubscribe = onSnapshot(paymentsQuery, (paymentsSnapshot) => {
+                // Mapear documentos para o formato necessário
+                const paymentsData = paymentsSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    status: data.status || 'pending',
+                    payment_type_id: data.paymentMethod || 'pix',
+                    transaction_amount: data.amount || 0,
+                    date_created: data.dateCreated || null,
+                    dateApproved: data.dateApproved || null,
+                    description: data.description || 'Pagamento',
+                    createdAt: data.dateCreated ? data.dateCreated.toDate() : null,
+                    userEmail: data.userEmail,
+                    userName: data.userName,
+                    paymentDetails: data.paymentDetails || null
+                };
+                });
+                
+                setPayments(paymentsData);
+                
+                // Filtrar pagamentos PIX pendentes
+                const pixPendingPayments = paymentsData.filter(
+                payment => payment.status === 'pending' && payment.payment_type_id === 'pix'
+                );
+                setPendingPixPayments(pixPendingPayments);
+                
+                setLoading(false);
+            }, (error) => {
+                console.error('Erro ao observar pagamentos:', error);
+                setLoading(false);
+            });
+            }, (error) => {
+            console.error('Erro ao observar contrato:', error);
+            setLoading(false);
+            });
+        } catch (error) {
+            console.error('Erro ao carregar dados do usuário:', error);
+            showMessage('Erro', 'Não foi possível carregar os pagamentos deste usuário.');
+            setLoading(false);
+        }
+        };
+        
+        // Iniciar carregamento
+        loadUserData();
+        
+        // Limpar listeners ao desmontar o componente
+        return () => {
+        if (typeof paymentsUnsubscribe === 'function') {
+            paymentsUnsubscribe();
+        }
+        if (typeof contractUnsubscribe === 'function') {
+            contractUnsubscribe();
+        }
+        };
+    }, [userEmail]);  
+  
 
     // Função para mostrar alerta em qualquer plataforma
     const showConfirmation = (title, message, onConfirm) => {
@@ -123,110 +238,6 @@ export default function AdminUserPayments() {
             return false;
         }
     };
-    
-    // Função para carregar os pagamentos do usuário
-    const loadUserPayments = async () => {
-        try {
-            setLoading(true);
-            
-            // Buscar pagamentos do usuário
-            const paymentsRef = collection(db, 'payments');
-            const paymentsQuery = query(
-                paymentsRef,
-                where('userEmail', '==', userEmail),
-                orderBy('dateCreated', 'desc')
-            );
-            
-            const paymentsSnapshot = await getDocs(paymentsQuery);
-            
-            // Mapear documentos para o formato necessário
-            const paymentsData = paymentsSnapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    status: data.status || 'pending',
-                    payment_type_id: data.paymentMethod || 'pix',
-                    transaction_amount: data.amount || 0,
-                    date_created: data.dateCreated || null,
-                    date_approved: data.date_approved || null,
-                    description: data.description || 'Pagamento',
-                    createdAt: data.dateCreated ? data.dateCreated.toDate() : null,
-                    userEmail: data.userEmail,
-                    userName: data.userName,
-                    paymentDetails: data.paymentDetails || null
-                };
-            });
-            
-            setPayments(paymentsData);
-            
-            // Filtrar pagamentos PIX pendentes
-            const pixPendingPayments = paymentsData.filter(
-                payment => payment.status === 'pending' && payment.payment_type_id === 'pix'
-            );
-            setPendingPixPayments(pixPendingPayments);
-            
-            // Buscar contrato do usuário
-            const contratosRef = collection(db, 'contratos');
-            const contratoQuery = query(contratosRef, where('cliente', '==', userEmail));
-            const contratoSnapshot = await getDocs(contratoQuery);
-            
-            if (!contratoSnapshot.empty) {
-                const contratoData = contratoSnapshot.docs[0].data();
-                // Inicializar a variável aqui, antes de usá-la
-                let tipoRecorrencia = contratoData.tipoRecorrenciaPagamento || 'mensal';
-                
-                // Buscar aluguel associado ao contrato
-                let valorMensal = 0;
-                let valorSemanal = 0;
-                
-                if (contratoData.aluguelId) {
-                    const aluguelRef = doc(db, 'alugueis', contratoData.aluguelId);
-                    const aluguelSnapshot = await getDoc(aluguelRef);
-                    
-                    if (aluguelSnapshot.exists()) {
-                        const aluguelData = aluguelSnapshot.data();
-                        valorMensal = aluguelData.valorMensal || 0;
-                        valorSemanal = aluguelData.valorSemanal || 0;
-                        
-                        // Buscar moto associada ao aluguel
-                        let motoModelo = 'N/A';
-                        let motoPlaca = 'N/A';
-                        
-                        if (contratoData.motoId) {
-                            const motoRef = doc(db, 'motos', contratoData.motoId);
-                            const motoSnapshot = await getDoc(motoRef);
-                            
-                            if (motoSnapshot.exists()) {
-                                const motoData = motoSnapshot.data();
-                                motoModelo = motoData.modelo || 'N/A';
-                                motoPlaca = motoData.placa || 'N/A';
-                            }
-                        }
-                        
-                        setUserContract({
-                            dataInicio: contratoData.dataInicio,
-                            dataFim: contratoData.dataFim || null,
-                            valorMensal: aluguelData.valorMensal || 0,
-                            valorSemanal: aluguelData.valorSemanal || 0,
-                            tipoRecorrencia,
-                            modeloMoto: motoModelo,
-                            placaMoto: motoPlaca
-                        });
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Erro ao carregar pagamentos do usuário:', error);
-            showMessage('Erro', 'Não foi possível carregar os pagamentos deste usuário.');
-        } finally {
-            setLoading(false);
-        }
-    };
-    
-    // Carregar pagamentos ao montar o componente
-    useEffect(() => {
-        loadUserPayments();
-    }, [userEmail]);
     
     // Função para formatar data
     const formatDate = (date) => {
@@ -597,7 +608,6 @@ export default function AdminUserPayments() {
                     );
                     
                     showMessage('Sucesso', 'Pagamento registrado com sucesso!');
-                    loadUserPayments(); // Recarregar pagamentos
                 } catch (error) {
                     console.error('Erro ao registrar pagamento:', error);
                     showMessage('Erro', 'Não foi possível registrar o pagamento.');
@@ -620,27 +630,34 @@ export default function AdminUserPayments() {
             
             <PaymentInfo>
                 <PaymentInfoRow>
-                    <PaymentInfoLabel>Data:</PaymentInfoLabel>
+                    <PaymentInfoLabel>Data de Criação do Pagamento:</PaymentInfoLabel>
                     <PaymentInfoValue>{item.createdAt ? formatDate(item.createdAt) : 'N/A'}</PaymentInfoValue>
                 </PaymentInfoRow>
+                <Divider style={{ marginTop: -5, marginBottom: 5 }} />
                 
                 <PaymentInfoRow>
                     <PaymentInfoLabel>Método:</PaymentInfoLabel>
                     <PaymentInfoValue>{formatPaymentType(item.payment_type_id)}</PaymentInfoValue>
                 </PaymentInfoRow>
+                <Divider style={{ marginTop: -5, marginBottom: 5 }} />
                 
-                {item.status === 'approved' && item.date_approved && (
-                    <PaymentInfoRow>
-                        <PaymentInfoLabel>Aprovado em:</PaymentInfoLabel>
-                        <PaymentInfoValue>{formatDate(item.date_approved)}</PaymentInfoValue>
-                    </PaymentInfoRow>
+                {item.status === 'approved' && item.dateApproved && (
+                    <>
+                        <PaymentInfoRow>
+                            <PaymentInfoLabel>Aprovado em:</PaymentInfoLabel>
+                            <PaymentInfoValue>{formatDate(item.dateApproved)}</PaymentInfoValue>
+                        </PaymentInfoRow>
+                        <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+                    </>
                 )}
                 
                 <PaymentInfoRow>
                     <PaymentInfoLabel>ID:</PaymentInfoLabel>
                     <PaymentInfoValue>{item.id}</PaymentInfoValue>
                 </PaymentInfoRow>
+                <Divider style={{ marginTop: -5, marginBottom: 5 }} />
             </PaymentInfo>
+
             
             <PaymentActions>
                 <ActionButton
@@ -694,6 +711,7 @@ export default function AdminUserPayments() {
                             {userContract.dataInicio ? formatDate(userContract.dataInicio) : 'N/A'} - {userContract.dataFim ? formatDate(userContract.dataFim) : 'Atual'}
                             </PaymentInfoValue>
                         </PaymentInfoRow>
+                        <Divider style={{ marginTop: -5, marginBottom: 5 }} />
                         
                         <PaymentInfoRow>
                             <PaymentInfoLabel>Recorrência:</PaymentInfoLabel>
@@ -701,6 +719,7 @@ export default function AdminUserPayments() {
                                 {userContract.tipoRecorrencia === 'semanal' ? 'Semanal' : 'Mensal'}
                             </PaymentInfoValue>
                         </PaymentInfoRow>
+                        <Divider style={{ marginTop: -5, marginBottom: 5 }} />
                         
                         <PaymentInfoRow>
                             <PaymentInfoLabel>
@@ -710,11 +729,13 @@ export default function AdminUserPayments() {
                                 {formatCurrency(userContract.tipoRecorrencia === 'semanal' ? userContract.valorSemanal : userContract.valorMensal)}
                             </PaymentInfoValue>
                         </PaymentInfoRow>
+                        <Divider style={{ marginTop: -5, marginBottom: 5 }} />
                         
                         <PaymentInfoRow>
                             <PaymentInfoLabel>Moto:</PaymentInfoLabel>
                             <PaymentInfoValue>{userContract.modeloMoto || 'N/A'} ({userContract.placaMoto || 'N/A'})</PaymentInfoValue>
                         </PaymentInfoRow>
+                        <Divider style={{ marginTop: -5, marginBottom: 5 }} />
                     </View>
                 )}
                 
@@ -763,7 +784,6 @@ export default function AdminUserPayments() {
                         paddingHorizontal: 16,
                         paddingBottom: 20
                     }}
-                    showsVerticalScrollIndicator={false}
                 />
             )}
         </Container>

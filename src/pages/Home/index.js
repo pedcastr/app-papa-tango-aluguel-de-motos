@@ -38,6 +38,8 @@ import {
     LogoutText,
     InfoLabel,
     LoadingContainer,
+    Divider,
+    Background,
 } from './styles';
 
 export default function Home() {
@@ -110,8 +112,7 @@ export default function Home() {
                 const contratoDoc = await getDoc(doc(db, 'contratos', userData.contratoId));
                 const contratoData = contratoDoc.data();
                 setContratoAtivo({
-                    ...contratoData,
-                    statusContrato: 'ativo'
+                    ...contratoData
                 });
             }
         } catch (error) {
@@ -260,6 +261,7 @@ export default function Home() {
     };
 
     return (
+        <Background>
         <Container>
             <ViewPadding>
                 <Header>
@@ -267,16 +269,16 @@ export default function Home() {
                     <View style={{ 
                         flexDirection: 'row', 
                         alignItems: 'center',
-                        justifyContent: 'flex-end' /* Garantir alinhamento à direita */
+                        justifyContent: 'flex-end'
                     }}>
                         {/* Componente de notificação */}
-                        <NotificationBell userType="client" />
+                        <NotificationBell userType="client" color='#FFFFFF' />
                         
                         <ProfileButton onPress={() => setModalVisible(true)}>
                         {userPhoto ? (
                             <ProfileImage source={{ uri: userPhoto }} />
                         ) : (
-                            <MaterialCommunityIcons name="account-circle" size={50} color="#1E1E1E" />
+                            <MaterialCommunityIcons name="account-circle" size={50} color="#fff" />
                         )}
                         </ProfileButton>
                     </View>
@@ -289,7 +291,7 @@ export default function Home() {
                 ) : (
                     <>
                         {contratoAtivo ? (
-                            contratoAtivo.statusContrato === 'ativo' ? (
+                            contratoAtivo.statusContrato === true ? (
                                 <MotoContainer>
                                     <TitleText>Moto Alugada</TitleText>
                                     <MotoImage source={{ uri: motoData?.fotoUrl }} />
@@ -337,7 +339,7 @@ export default function Home() {
                                 </MotoContainer>
                             ) : (
                                 <EmptyContainer>
-                                    <MaterialCommunityIcons name="emoticon-sad-outline" size={300} color="#CB2921" />
+                                    <MaterialCommunityIcons name="emoticon-sad-outline" size={300} color={Platform.OS === 'web' ? 'rgb(185, 187, 185)' : "#CB2921"} />
                                     <EmptyText>{userData?.nome}, seu contrato de locação está encerrado</EmptyText>
                                     <WhatsappButton 
                                     onPress={handleWhatsapp}
@@ -351,88 +353,89 @@ export default function Home() {
                                     </WhatsappButton>
                                 </EmptyContainer>
                             )
-                        ) : (
-                            <EmptyContainer>
-                                <MaterialCommunityIcons name="emoticon-sad-outline" size={300} color="#CB2921"/>
-                                <EmptyText>{userData?.nome}, você não possui nenhuma moto alugada na Papa Tango</EmptyText>
-                                <WhatsappButton 
-                                onPress={handleWhatsapp}
-                                activeOpacity={0.8}
-                                >
-                                    {loadingSupport ? (
-                                        <WhatsappText>Abrindo Whatsapp...</WhatsappText>
-                                    ) : (
-                                        <WhatsappText>Alugar Moto</WhatsappText>
-                                    )}
-                                </WhatsappButton>
-                            </EmptyContainer>
-                        )}
-                    </>
-                )}
-
-                <Modal visible={modalVisible} animationType="slide" transparent>
-                    <ProfileModal>
-                        <ProfileHeader>
-                            <CloseButton onPress={() => setModalVisible(false)}>
-                                <MaterialCommunityIcons name="close" size={24} color="#000" />
-                            </CloseButton>
-                        </ProfileHeader>
-                        <ProfileContent>
-                            <ProfilePhotoContainer>
-                                {uploadingPhoto ? (
-                                    <ActivityIndicator size="large" color="#CB2921" />
-                                ) : (
-                                    <>
-                                        {userPhoto ? (
-                                            <ProfileImage large source={{ uri: userPhoto }} />
+                            ) : (
+                                <EmptyContainer>
+                                    <MaterialCommunityIcons name="emoticon-sad-outline" size={300} color={Platform.OS === 'web' ? 'rgb(185, 187, 185)' : "#CB2921"} />
+                                    <EmptyText>{userData?.nome}, você não possui moto alugada na Papa Tango</EmptyText>
+                                    <WhatsappButton 
+                                    onPress={handleWhatsapp}
+                                    activeOpacity={0.8}
+                                    >
+                                        {loadingSupport ? (
+                                            <WhatsappText>Abrindo Whatsapp...</WhatsappText>
                                         ) : (
-                                            <MaterialCommunityIcons name="account-circle" size={100} color="#1E1E1E" />
+                                            <WhatsappText>Alugar Moto</WhatsappText>
                                         )}
-                                        <EditPhotoButton onPress={abrirSeletorFotos}>
-                                            <MaterialCommunityIcons name="camera" size={20} color="#fff" />
-                                        </EditPhotoButton>
-                                    </>
-                                )}
-                            </ProfilePhotoContainer>
-                            <ProfileInfo>
-                                <InfoText>
-                                    <InfoLabel>Nome:</InfoLabel> {userData?.nomeCompleto}
-                                </InfoText>
-                                <InfoText>
-                                    <InfoLabel>CPF:</InfoLabel> {userData?.cpf}
-                                </InfoText>
-                                <InfoText>
-                                    <InfoLabel>Email:</InfoLabel> {userData?.email}
-                                </InfoText>
-                                <InfoText>
-                                    <InfoLabel>Telefone:</InfoLabel> {userData?.telefone}
-                                </InfoText>
-                                <InfoText>
-                                    <InfoLabel>Data de abertura da conta:</InfoLabel> {userData?.dataCadastro}
-                                </InfoText>
-                            </ProfileInfo>
-                            <LogoutButton onPress={handleLogout}>
-                                <LogoutText>Sair do App</LogoutText>
-                            </LogoutButton>
-                        </ProfileContent>
-                    </ProfileModal>
-                </Modal>
-                {/* Modal para opções de escolha de foto na plataforma Android e web */}
-                {Platform.OS !== 'ios' && (
-                    <ImagePickerModal 
-                        visible={modalVisible2}
-                        onClose={() => setModalVisible2(false)}
-                        onGalleryPress={() => {
-                            setModalVisible2(false);
-                            abrirGaleria();
-                        }}
-                        onCameraPress={() => {
-                            setModalVisible2(false);
-                            abrirCamera();
-                        }}
-                    />
-                )}
+                                    </WhatsappButton>
+                                </EmptyContainer>
+                            )}
+                        </>
+                    )}
+
+                    <Modal visible={modalVisible} animationType="slide" transparent>
+                        <ProfileModal>
+                            <ProfileHeader>
+                                <CloseButton onPress={() => setModalVisible(false)}>
+                                    <MaterialCommunityIcons name="close" size={24} color="#000" />
+                                </CloseButton>
+                            </ProfileHeader>
+                            <ProfileContent>
+                                <ProfilePhotoContainer>
+                                    {uploadingPhoto ? (
+                                        <ActivityIndicator size="large" color="#CB2921" />
+                                    ) : (
+                                        <>
+                                            {userPhoto ? (
+                                                <ProfileImage large source={{ uri: userPhoto }} />
+                                            ) : (
+                                                <MaterialCommunityIcons name="account-circle" size={100} color= "#1E1E1E" />
+                                            )}
+                                            <EditPhotoButton onPress={abrirSeletorFotos}>
+                                                <MaterialCommunityIcons name="camera" size={20} color="#fff" />
+                                            </EditPhotoButton>
+                                        </>
+                                    )}
+                                </ProfilePhotoContainer>
+                                <ProfileInfo>
+                                    <InfoText>
+                                        <InfoLabel>Nome:</InfoLabel> {userData?.nomeCompleto}
+                                    </InfoText>
+                                    <InfoText>
+                                        <InfoLabel>CPF:</InfoLabel> {userData?.cpf}
+                                    </InfoText>
+                                    <InfoText>
+                                        <InfoLabel>Email:</InfoLabel> {userData?.email}
+                                    </InfoText>
+                                    <InfoText>
+                                        <InfoLabel>Telefone:</InfoLabel> {userData?.telefone}
+                                    </InfoText>
+                                    <InfoText>
+                                        <InfoLabel>Data de abertura da conta:</InfoLabel> {userData?.dataCadastro}
+                                    </InfoText>
+                                </ProfileInfo>
+                                <LogoutButton onPress={handleLogout}>
+                                    <LogoutText>Sair da Conta</LogoutText>
+                                </LogoutButton>
+                            </ProfileContent>
+                        </ProfileModal>
+                    </Modal>
+                    {/* Modal para opções de escolha de foto na plataforma Android e web */}
+                    {Platform.OS !== 'ios' && (
+                        <ImagePickerModal 
+                            visible={modalVisible2}
+                            onClose={() => setModalVisible2(false)}
+                            onGalleryPress={() => {
+                                setModalVisible2(false);
+                                abrirGaleria();
+                            }}
+                            onCameraPress={() => {
+                                setModalVisible2(false);
+                                abrirCamera();
+                            }}
+                        />
+                    )}
             </ViewPadding>
         </Container>
+        </Background>
     );
 }

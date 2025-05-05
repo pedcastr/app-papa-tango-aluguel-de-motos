@@ -3,6 +3,7 @@ import styled from 'styled-components/native';
 export const Container = styled.SafeAreaView`
   flex: 1;
   padding: 20px;
+  background-color: #FFFFFF;
 `;
 
 export const Header = styled.View`
@@ -110,8 +111,11 @@ export const PaymentInfoContainer = styled.View`
   padding: 15px;
   border-radius: 10px;
   margin-bottom: 20px;
-  border-width: 1px;
-  border-color: #e9ecef;
+  elevation: 3;
+  shadow-color: #000;
+  shadow-offset: 0px 2px;
+  shadow-opacity: 0.1;
+  shadow-radius: 3.84px;
 `;
 
 export const PaymentInfoTitle = styled.Text`
@@ -149,4 +153,11 @@ export const CountdownText = styled.Text`
   text-align: center;
   font-weight: bold;
   font-size: 14px;
+`;
+
+export const Divider = styled.View`
+  height: 1px;
+  background-color: #E0E0E0;
+  width: 100%;
+  margin: 15px 0;
 `;

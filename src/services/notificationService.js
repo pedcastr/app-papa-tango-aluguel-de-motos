@@ -47,8 +47,41 @@ export const configureNotifications = async () => {
       lightColor: '#CB2921',
     });
   }
+
+  // Canal específico para notificações com imagens
+  await Notifications.setNotificationChannelAsync('notifications_with_image', {
+    name: 'Notificações com Imagem',
+    description: 'Notificações que contêm imagens',
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: true,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#CB2921',
+    enableLights: true,
+  });
   
   return true;
+};
+
+// Registrar o handler para notificações recebidas em segundo plano
+export const registerBackgroundNotificationHandler = () => {
+  if (Platform.OS === 'web') return;
+  
+  // Configurar o handler para notificações recebidas em segundo plano
+  Notifications.setNotificationHandler({
+    handleNotification: async (notification) => {
+      const hasImage = notification.request.content.data?.image || 
+                       notification.request.content.attachments?.length > 0;
+      
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+        // Se tiver imagem, usar o canal específico para imagens no Android
+        channelId: hasImage ? 'notifications_with_image' : 'default',
+      };
+    },
+  });
 };
 
 // Solicitar permissões de notificação
@@ -167,6 +200,27 @@ export const registerForPushNotifications = async () => {
     if (!expoPushToken || !expoPushToken.data) {
       throw new Error("Não foi possível obter token de notificação");
     }
+
+    // Configurar canais para Android
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Padrão',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#CB2921',
+      });
+      
+      // Adicionar um canal específico para notificações com imagens
+      await Notifications.setNotificationChannelAsync('notifications_with_image', {
+        name: 'Notificações com Imagem',
+        description: 'Notificações que contêm imagens',
+        importance: Notifications.AndroidImportance.HIGH,
+        sound: true,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#CB2921',
+        enableLights: true,
+      });
+    }
     
     // Salvar o token no Firestore
     const userRef = doc(db, 'users', currentUser.email);
@@ -265,92 +319,110 @@ export const scheduleNonRegisteredUserNotifications = async () => {
       return false;
     }
     
-    // Verificar se já configuramos as notificações
-    const notificationsSet = await AsyncStorage.getItem('@PapaTango:notificationsSet');
-    if (notificationsSet === 'true') {
-      console.log('Notificações já configuradas anteriormente');
+    // Verificar se já configuramos as notificações recentemente
+    const lastSetupTime = await AsyncStorage.getItem('@PapaTango:notificationsSetupTime');
+    
+    if (lastSetupTime) {
+      const lastSetup = new Date(lastSetupTime);
+      const now = new Date();
+      const hoursSinceLastSetup = (now - lastSetup) / (1000 * 60 * 60);
       
-      // Verificar se as notificações ainda estão agendadas
-      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      if (scheduledNotifications.length > 0) {
-        console.log('Notificações já agendadas:', scheduledNotifications.length);
+      console.log(`Última configuração de notificações: ${hoursSinceLastSetup.toFixed(2)} horas atrás`);
+      
+      if (hoursSinceLastSetup < 24) {
+        console.log(`Notificações configuradas recentemente. Pulando.`);
         return true;
       }
-      
-      console.log('Notificações marcadas como configuradas, mas nenhuma encontrada. Reagendando...');
     }
     
-    // Cancelar notificações existentes antes de agendar novas
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    
-    // Salvar a data do primeiro acesso se ainda não existir
-    let firstOpenDate = await AsyncStorage.getItem('@PapaTango:firstOpenDate');
-    if (!firstOpenDate) {
-      firstOpenDate = new Date().toISOString();
-      await AsyncStorage.setItem('@PapaTango:firstOpenDate', firstOpenDate);
-    }
-    
-    const firstOpenDateTime = new Date(firstOpenDate);
-    
-    // 1. Agendar notificação para 24 horas após o primeiro acesso
-    const notification24h = new Date(firstOpenDateTime);
-    notification24h.setHours(notification24h.getHours() + 24);
-    
-    // Verificar se a data já passou
-    if (notification24h > new Date()) {
-      const id24h = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '🏍️ Sua moto está esperando por você!',
-          body: 'Falta pouco para você alugar sua moto dos sonhos. Complete seu cadastro agora!',
-          data: { screen: 'SignIn' },
-          android: { channelId: 'reminders' }
-        },
-        trigger: {
-          date: notification24h
-        },
-      });
-      
-      console.log('Notificação de 24h agendada para', notification24h.toLocaleString(), 'com ID:', id24h);
-    } else {
-      console.log('Data de 24h já passou, não agendando esta notificação');
-    }
-    
-    // 2. Agendar notificações semanais no mesmo dia da semana
-    const dayOfWeek = firstOpenDateTime.getDay(); // 0-6 (Domingo-Sábado)
-    const hours = 10; // 10:00 da manhã
-    const minutes = 0;
-    
-    // Agendar notificação semanal
-    const weeklyId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: '🔥 Não perca mais tempo!',
-        body: 'Vários usuários já estão aproveitando nossas motos. Venha você também!',
-        data: { screen: 'SignIn' },
-        android: { channelId: 'reminders' }
-      },
-      trigger: {
-        weekday: dayOfWeek,
-        hour: hours,
-        minute: minutes,
-        repeats: true
-      },
-    });
-    
-    console.log('Notificação semanal agendada para toda',
-      ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'][dayOfWeek],
-      `às ${hours}:${minutes < 10 ? '0' + minutes : minutes}`,
-      'com ID:', weeklyId);
-    
-    // Marcar que configuramos as notificações
+    // Marcar que configuramos as notificações e salvar o timestamp ANTES de agendar
     await AsyncStorage.setItem('@PapaTango:notificationsSet', 'true');
-    await AsyncStorage.setItem('@PapaTango:weeklyNotificationsSet', 'true');
+    await AsyncStorage.setItem('@PapaTango:notificationsSetupTime', new Date().toISOString());
+    
+    console.log('Configurando lembretes para usuário não registrado...');
+    
+    // Salvar as datas em que as notificações devem ser enviadas
+    const now = new Date();
+    
+    const reminder24h = new Date(now);
+    reminder24h.setHours(reminder24h.getHours() + 24);
+    
+    const reminderWeekly = new Date(now);
+    reminderWeekly.setDate(reminderWeekly.getDate() + 7);
+    reminderWeekly.setHours(10, 0, 0, 0);
+    
+    await AsyncStorage.setItem('@PapaTango:reminder24hDate', reminder24h.toISOString());
+    await AsyncStorage.setItem('@PapaTango:reminderWeeklyDate', reminderWeekly.toISOString());
+    
+    // Limpar flags de notificações mostradas
+    await AsyncStorage.removeItem('@PapaTango:reminder24hShown');
+    await AsyncStorage.removeItem('@PapaTango:reminderWeeklyShown');
+    
+    console.log(`Lembrete de 24h configurado para ${reminder24h.toLocaleString()}`);
+    console.log(`Lembrete semanal configurado para ${reminderWeekly.toLocaleString()}`);
     
     return true;
   } catch (error) {
-    console.error('Erro ao agendar notificações para usuário não registrado:', error);
+    console.error('Erro ao configurar lembretes para usuário não registrado:', error);
     return false;
   }
 };
+
+// checar e mostrar lembretes
+export const checkAndShowReminders = async () => {
+  try {
+    // Verificar se o usuário está registrado
+    const userRegistered = await isUserRegistered();
+    if (userRegistered) {
+      return;
+    }
+    
+    const now = new Date();
+    
+    // Verificar lembrete de 24h
+    const reminder24hDateStr = await AsyncStorage.getItem('@PapaTango:reminder24hDate');
+    if (reminder24hDateStr) {
+      const reminder24hDate = new Date(reminder24hDateStr);
+      const reminder24hShown = await AsyncStorage.getItem('@PapaTango:reminder24hShown');
+      
+      if (!reminder24hShown && now >= reminder24hDate) {
+        // Mostrar notificação de 24h
+        await Notifications.presentNotificationAsync({
+          title: '🏍️ Sua moto está esperando por você!',
+          body: 'Falta pouco para você alugar sua moto dos sonhos. Complete seu cadastro agora!',
+          data: { screen: 'SignIn' },
+        });
+        
+        await AsyncStorage.setItem('@PapaTango:reminder24hShown', 'true');
+        console.log('Notificação de 24h mostrada');
+      }
+    }
+    
+    // Verificar lembrete semanal
+    const reminderWeeklyDateStr = await AsyncStorage.getItem('@PapaTango:reminderWeeklyDate');
+    if (reminderWeeklyDateStr) {
+      const reminderWeeklyDate = new Date(reminderWeeklyDateStr);
+      const reminderWeeklyShown = await AsyncStorage.getItem('@PapaTango:reminderWeeklyShown');
+      
+      if (!reminderWeeklyShown && now >= reminderWeeklyDate) {
+        // Mostrar notificação semanal
+        await Notifications.presentNotificationAsync({
+          title: '🔥 Não perca mais tempo!',
+          body: 'Vários usuários já estão aproveitando nossas motos. Venha você também!',
+          data: { screen: 'SignIn' },
+        });
+        
+        await AsyncStorage.setItem('@PapaTango:reminderWeeklyShown', 'true');
+        console.log('Notificação semanal mostrada');
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao verificar lembretes:', error);
+  }
+};
+
+
+
 
 // Configurar o listener de notificações
 export const setupNotificationListener = (navigationRef) => {
@@ -368,30 +440,38 @@ export const setupNotificationListener = (navigationRef) => {
     // Navegar para a tela apropriada com base nos dados da notificação
     if (data.screen && navigationRef.isReady()) {
       console.log('Navegando para a tela:', data.screen);
+
+      // Tratando navegação aninhada
+      if (data.params && data.params.screen) {
+        navigationRef.navigate(data.screen, { screen: data.params.screen });
+      } else {
+        navigationRef.navigate(data.screen);
+      }
       
       // Verificar se temos dados adicionais para passar
       if (data.screen === 'PaymentSuccess' && data.paymentId) {
         // Buscar os dados do pagamento
-        getPaymentDetails(data.paymentId).then(paymentInfo => {
-          if (paymentInfo) {
-            navigationRef.navigate(data.screen, { paymentInfo });
-          } else {
+        getPaymentDetails(data.paymentId)
+          .then(paymentInfo => {
+            if (paymentInfo) {
+              navigationRef.navigate(data.screen, { paymentInfo });
+            } else {
+              navigationRef.navigate(data.screen, { paymentId: data.paymentId });
+            }
+          })
+          .catch(err => {
+            console.error("Erro ao buscar detalhes do pagamento:", err);
             navigationRef.navigate(data.screen, { paymentId: data.paymentId });
-          }
-        }).catch(err => {
-          console.error("Erro ao buscar detalhes do pagamento:", err);
-          navigationRef.navigate(data.screen, { paymentId: data.paymentId });
-        });
+          });
       } else if (data.screen === 'Financeiro') {
-        navigationRef.navigate(data.screen);
-      } else {
         navigationRef.navigate(data.screen);
       }
     }
   });
-  
+
   return subscription;
 };
+
 
 // Função para buscar detalhes de um pagamento
 const getPaymentDetails = async (paymentId) => {

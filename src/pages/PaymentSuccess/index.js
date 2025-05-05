@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Share, Alert, Linking, Image, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Share, Alert, Linking, Image, ActivityIndicator, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import { db } from '../../services/firebaseConfig';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -35,8 +32,14 @@ const PaymentSuccess = () => {
   const [processedData, setProcessedData] = useState(false);
   const [paymentData, setPaymentData] = useState(null);
 
-  const [refreshing, setRefreshing] = useState(false);
-  const [currentStatus, setCurrentStatus] = useState(paymentInfo?.status || 'pending');
+  // Função para mostrar mensagem de sucesso/erro
+  const showMessage = (title, message) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}: ${message}`);
+    } else {
+       Alert.alert(title, message);
+    }
+  };
   
   // Processar os dados apenas uma vez quando o componente montar
   useEffect(() => {
@@ -87,69 +90,6 @@ const PaymentSuccess = () => {
   
     return unsubscribe;
   }, [navigation, paymentData]);
-
-  // Verificar o status a cada 5 segundos se o pagamento estiver pendente
-  useEffect(() => {
-    // Verificar imediatamente ao montar o componente
-    checkPaymentStatus();
-    
-    // Configurar verificação periódica apenas se o pagamento estiver pendente
-    let interval;
-    if (currentStatus === 'pending') {
-      interval = setInterval(() => {
-        checkPaymentStatus();
-      }, 5000); // Verificar a cada 5 segundos
-    }
-    
-    // Limpar o intervalo ao desmontar
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [checkPaymentStatus, currentStatus]);
-
-  // Função para verificar o status do pagamento
-  const checkPaymentStatus = useCallback(async () => {
-    try {
-      if (!paymentInfo?.paymentId) {
-        console.log('ID de pagamento não disponível');
-        return;
-      }
-      
-      setRefreshing(true);
-      
-      // Verificar o status do pagamento usando a API
-      const response = await axios.get(
-        `https://checkpaymentstatus-q3zrn7ctxq-uc.a.run.app?paymentId=${paymentInfo.paymentId}`
-      );
-      
-      const { status } = response.data;
-      
-      // Se o status mudou, atualizar o estado
-      if (status !== currentStatus) {
-        setCurrentStatus(status);
-        
-        // Se o pagamento foi aprovado, mostrar uma mensagem
-        if (status === 'approved') {
-          Alert.alert(
-            'Pagamento Aprovado',
-            'Seu pagamento foi processado com sucesso!',
-            [{ text: 'OK' }]
-          );
-          
-          // Atualizar o documento no Firestore
-          const paymentRef = doc(db, 'payments', paymentInfo.id);
-          await updateDoc(paymentRef, {
-            status: 'approved',
-            updatedAt: serverTimestamp()
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao verificar status do pagamento:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [paymentInfo, currentStatus]);
     
   // Função para normalizar os dados do pagamento
   const normalizePaymentData = (rawData) => {
@@ -298,13 +238,8 @@ const PaymentSuccess = () => {
   const getBarcodeText = () => {
     const data = paymentData.originalData;
     
-    // Verificar em diferentes locais possíveis
-    if (data.transaction_details?.barcode?.content) {
-      return data.transaction_details.barcode.content;
-    }
-    
-    if (data.paymentDetails?.transaction_details?.barcode?.content) {
-      return data.paymentDetails.transaction_details.barcode.content;
+    if (data.paymentDetails?.transaction_details.digitable_line) {
+      return data.paymentDetails.transaction_details.digitable_line;
     }
     
     return 'Código de barras disponível apenas no boleto';
@@ -337,16 +272,16 @@ const PaymentSuccess = () => {
   // Função para copiar texto para a área de transferência
   const copyToClipboard = async (text) => {
     if (!text || text === 'Código de barras disponível apenas no boleto') {
-      Alert.alert('Informação', 'O código completo está disponível apenas no boleto. Por favor, use a opção "Abrir Boleto".');
+      showMessage('Informação', 'O código completo está disponível apenas no boleto. Por favor, use a opção "Abrir Boleto".');
       return;
     }
     
     try {
       await Clipboard.setStringAsync(text);
-      Alert.alert('Copiado!', 'Código copiado para a área de transferência.');
+      showMessage('Copiado!', 'Código copiado para a área de transferência.');
     } catch (error) {
       console.error('Erro ao copiar texto:', error);
-      Alert.alert('Erro', 'Não foi possível copiar o texto.');
+      showMessage('Erro', 'Não foi possível copiar o texto.'); 
     }
   };
   

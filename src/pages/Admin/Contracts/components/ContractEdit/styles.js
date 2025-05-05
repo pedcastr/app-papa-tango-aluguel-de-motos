@@ -6,17 +6,23 @@ const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
 export const Container = styled.ScrollView`
     flex: 1;
     background-color: #F5F5F5;
-`;
-
-export const Form = styled.View`
     padding: 20px;
 `;
 
+export const Form = styled.View`
+    width: 100%;
+`;
+
 export const Section = styled.View`
-    background-color: #FFF;
+    background-color: #FFFFFF;
     border-radius: 10px;
-    padding: 15px;
+    padding: 20px;
     margin-bottom: 20px;
+    shadow-color: #000;
+    shadow-offset: 0px 2px;
+    shadow-opacity: 0.1;
+    shadow-radius: 3.84px;
+    elevation: 5;
 `;
 
 export const Switch = styled.Switch`
@@ -32,7 +38,6 @@ export const SectionTitle = styled.Text`
 `;
 
 export const InputGroup = styled.View`
-    width: 100%;
     margin-bottom: 15px;
 `;
 
@@ -43,14 +48,12 @@ export const Label = styled.Text`
 `;
 
 export const Input = styled.TextInput`
-    width: 100%;
-    height: 50px;
     background-color: #F5F5F5;
-    border-radius: 8px;
-    padding: 0 15px;
+    padding: 12px;
+    border-radius: 5px;
+    border-width: 1px;
+    border-color: ${props => props.error ? '#FF3B30' : '#E0E0E0'};
     font-size: 16px;
-    color: #333;
-    border: 1px solid #E0E0E0;
 `;
 
 export const UpdateButton = styled.TouchableOpacity`
@@ -59,6 +62,7 @@ export const UpdateButton = styled.TouchableOpacity`
     border-radius: 25px;
     align-items: center;
     margin-top: 20px;
+    margin-bottom: 10px;
 `;
 
 export const UpdateButtonText = styled.Text`
@@ -80,11 +84,9 @@ export const PdfContainer = styled.View`
 
 export const DocumentTitle = styled.Text`
     font-size: 16px;
-    font-weight: 500;
     color: #333;
-    margin-vertical: 10px;
-    flex-direction: row;
-    align-items: center;
+    margin-bottom: 10px;
+    font-weight: bold;
 `;
 
 export const ContactIconButton = styled.TouchableOpacity`
@@ -102,23 +104,11 @@ export const PdfActionsContainer = styled.View`
 export const PdfActionButton = styled.TouchableOpacity`
     background-color: ${props => props.color || '#CB2921'};
     padding: 10px 15px;
-    border-radius: 8px;
+    border-radius: 5px;
     flex-direction: row;
     align-items: center;
     justify-content: center;
-    flex: 1;
-    margin-horizontal: 5px;
-
-    ${Platform.OS === 'web' 
-        ? `box-shadow: 0px 2px 3px rgba(0, 0, 0, 0.2);` 
-        : `
-            elevation: 2;
-            shadow-color: #000;
-            shadow-offset: 0px 2px;
-            shadow-opacity: 0.2;
-            shadow-radius: 3px;
-        `
-    }
+    margin: 5px;
 `;
 
 export const PdfActionButtonText = styled.Text`
@@ -126,4 +116,115 @@ export const PdfActionButtonText = styled.Text`
     font-size: 14px;
     font-weight: 500;
     margin-left: 5px;
+`;
+
+export const DeleteButton = styled.TouchableOpacity`
+    background-color: #FF3B30;
+    padding: 15px;
+    border-radius: 25px;
+    align-items: center;
+    margin-top: 20px;
+`;
+
+export const DeleteButtonText = styled.Text`
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: bold;
+`;
+
+export const SelectionList = styled.ScrollView`
+    max-height: 200px;
+    background-color: #F5F5F5;
+    border-radius: 5px;
+    border: 1px solid #E0E0E0;
+    margin-top: 5px;
+`;
+
+export const SelectionItem = styled.TouchableOpacity`
+    padding: 12px;
+    border-bottom-width: 1px;
+    border-bottom-color: #E0E0E0;
+    background-color: ${props => props.available === false ? '#FFF5F5' : '#FFFFFF'};
+    opacity: ${props => props.available === false ? 0.7 : 1};
+`;
+
+export const SelectionItemText = styled.Text`
+    font-size: 16px;
+    color: #333;
+    font-weight: bold;
+`;
+
+export const SelectionItemEmail = styled.Text`
+    font-size: 14px;
+    color: #666;
+    margin-top: 2px;
+`;
+
+export const SelectButton = styled.TouchableOpacity`
+    background-color: #007AFF;
+    padding: 12px;
+    border-radius: 5px;
+    align-items: center;
+`;
+
+export const SelectButtonText = styled.Text`
+    color: #FFFFFF;
+    font-size: 14px;
+    font-weight: bold;
+`;
+
+export const SelectedItemContainer = styled.View`
+    background-color: #F5F5F5;
+    padding: 12px;
+    border-radius: 5px;
+    border: 1px solid #E0E0E0;
+    margin-bottom: 10px;
+`;
+
+export const SelectedItemTitle = styled.Text`
+    font-size: 16px;
+    color: #333;
+    font-weight: bold;
+`;
+
+export const SelectedItemDetail = styled.Text`
+    font-size: 14px;
+    color: #666;
+    margin-top: 5px;
+    margin-bottom: 10px;
+`;
+
+export const CheckboxContainer = styled.View`
+    flex-direction: row;
+    align-items: center;
+    margin-top: 5px;
+`;
+
+export const CheckboxWrapper = styled.TouchableOpacity`
+    flex-direction: row;
+    align-items: center;
+    margin-right: 20px;
+`;
+
+export const Checkbox = styled.View`
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    border-width: 1px;
+    border-color: #CB2921;
+    justify-content: center;
+    align-items: center;
+`;
+
+export const CheckboxInner = styled.View`
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background-color: #CB2921;
+`;
+
+export const CheckboxLabel = styled.Text`
+    font-size: 16px;
+    color: #333;
+    margin-left: 8px;
 `;

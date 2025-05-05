@@ -21,7 +21,7 @@ import {
 
 export default function Telefone({ navigation }) {
     const route = useRoute();
-    const { email, nome, nomeCompleto, cpf } = route.params; 
+    const { email, nome, nomeCompleto, cpf, dataNascimento } = route.params; 
     const [telefone, setTelefone] = useState(''); 
     const [erros, setErros] = useState({ telefone: '' }); 
     const [loading, setLoading] = useState(false); 
@@ -124,6 +124,7 @@ export default function Telefone({ navigation }) {
                         nome,
                         nomeCompleto,
                         cpf,
+                        dataNascimento,
                     });
                 }, 1500);
             } catch (error) {

@@ -9,6 +9,7 @@ import {
     TextDataDetalhes,
     TextTitleDetalhes,
     ImageDetalhes,
+    Divider,
 } from './styles';
 
 export default function DetalhesTrocaOleo({ route, navigation }) {
@@ -75,18 +76,21 @@ export default function DetalhesTrocaOleo({ route, navigation }) {
                 source={{ uri: troca.fotoOleo }}
                 resizeMode="contain"
             />
+            <Divider />
             
             <TextTitleDetalhes>Nota Fiscal</TextTitleDetalhes>
             <ImageDetalhes
                 source={{ uri: troca.fotoNota }}
                 resizeMode="contain"
             />
+            <Divider />
             
             <TextTitleDetalhes>Quilometragem</TextTitleDetalhes>
             <ImageDetalhes
                 source={{ uri: troca.fotoKm }}
                 resizeMode="contain"
             />
+            <Divider />
             
             <TextTitleDetalhes>Vídeo da Troca</TextTitleDetalhes>
             <WebVideo/>

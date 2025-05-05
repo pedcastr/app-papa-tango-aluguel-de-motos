@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, ActivityIndicator, Linking } from 'react-native';
+import { Modal, ActivityIndicator } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { auth, db } from '../../services/firebaseConfig';
@@ -23,7 +23,7 @@ import {
   LoadingContainer
 } from './styles';
 
-const NotificationBell = ({ userType = 'client' }) => {
+const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) => {
   const navigation = useNavigation();
   
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
@@ -66,7 +66,8 @@ const NotificationBell = ({ userType = 'client' }) => {
       
       const querySnapshot = await getDocs(q);
       
-      const notificacoesArray = [];
+      // Usar um Map para evitar duplicatas, usando título+corpo como chave
+      const uniqueNotifications = new Map();
       let naoLidas = 0;
       
       querySnapshot.forEach((doc) => {
@@ -80,14 +81,23 @@ const NotificationBell = ({ userType = 'client' }) => {
           createdAt: docData.createdAt?.toDate() || new Date()
         };
         
-        notificacoesArray.push(notificacao);
+        // Criar uma chave única baseada no título e corpo
+        const key = `${notificacao.title}_${notificacao.body}`;
         
-        if (!notificacao.read) {
-          naoLidas++;
+        // Se já temos uma notificação com este título e corpo, verificar qual é mais recente
+        if (!uniqueNotifications.has(key) || 
+            notificacao.createdAt > uniqueNotifications.get(key).createdAt) {
+          uniqueNotifications.set(key, notificacao);
+          
+          // Atualizar contagem de não lidas apenas se esta for a notificação que vamos manter
+          if (!notificacao.read) {
+            naoLidas++;
+          }
         }
       });
       
-      // Ordenar manualmente por data de criação (mais recentes primeiro)
+      // Converter o Map para array e ordenar
+      const notificacoesArray = Array.from(uniqueNotifications.values());
       notificacoesArray.sort((a, b) => b.createdAt - a.createdAt);
       
       setNotifications(notificacoesArray);
@@ -261,11 +271,11 @@ const NotificationBell = ({ userType = 'client' }) => {
     <>
       <NotificationButton onPress={() => {
         setNotificationModalVisible(true);
-        // Opcionalmente, recarregar notificações ao abrir o modal
-        carregarNotificacoes();
+        // Recarregar notificações ao abrir o modal
+        carregarNotificacoes(); 
         
       }}>
-        <Feather name="bell" size={24} color="#1E1E1E" />
+        <Feather name="bell" size={24} color={color} />
         {unreadCount > 0 && (
           <NotificationBadge>
             <NotificationBadgeText>

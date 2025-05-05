@@ -3,7 +3,6 @@ import { Alert, ActivityIndicator, View, ScrollView, Platform } from 'react-nati
 import { db, storage } from '../../../../../services/firebaseConfig';
 import { doc, updateDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { WebView } from 'react-native-webview';
@@ -691,42 +690,6 @@ export default function UserEdit({ route, navigation }) {
     const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
     
     /**
-     * Função para excluir usuário
-     */
-    const handleDeleteUser = () => {
-        Alert.alert(
-            'Confirmação',
-            'Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.',
-            [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                    text: 'Sim, excluir',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            setLoading(true);
-                            
-                            // Chamar Cloud Function para excluir usuário
-                            const functions = getFunctions();
-                            const deleteUserFunction = httpsCallable(functions, 'deleteUser');
-                            
-                            await deleteUserFunction({ email: userData.email });
-                            
-                            Alert.alert('Sucesso', 'Usuário excluído com sucesso!');
-                            navigation.goBack();
-                        } catch (error) {
-                            console.error('Erro ao excluir usuário:', error);
-                            Alert.alert('Erro', 'Falha ao excluir usuário. Tente novamente.');
-                        } finally {
-                            setLoading(false);
-                        }
-                    }
-                }
-            ]
-        );
-    };
-    
-    /**
      * Função para atualizar dados do usuário
      */
     const handleUpdate = async () => {
@@ -954,6 +917,14 @@ export default function UserEdit({ route, navigation }) {
                             <Input
                                 value={userData.cpf}
                                 onChangeText={(text) => setUserData(prev => ({...prev, cpf: text}))}
+                                keyboardType="numeric"
+                            />
+                        </InputGroup>
+                        <InputGroup>
+                            <Label>Data de Nascimento</Label>
+                            <Input
+                                value={userData.dataNascimento}
+                                onChangeText={(text) => setUserData(prev => ({...prev, dataNascimento: text}))}
                                 keyboardType="numeric"
                             />
                         </InputGroup>
@@ -1212,10 +1183,6 @@ export default function UserEdit({ route, navigation }) {
                 {/* Botões de Ação */}
                 <Button onPress={handleUpdate}>
                     <ButtonText>Salvar Alterações</ButtonText>
-                </Button>
-                
-                <Button onPress={handleDeleteUser} style={{ backgroundColor: '#FF3B30', marginTop: 10 }}>
-                    <ButtonText>Excluir Usuário</ButtonText>
                 </Button>
             </Form>
         </ScrollView>

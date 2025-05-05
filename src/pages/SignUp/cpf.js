@@ -91,7 +91,7 @@ export default function CPF({ navigation }) {
         Keyboard.dismiss();
         setSucesso(true); // Mostra a animação json de sucesso
         setTimeout(() => {
-            navigation.navigate('Email', { nome, nomeCompleto, cpf }); // Passamos nome e cpf para a próxima tela
+            navigation.navigate('dataNascimento', { nome, nomeCompleto, cpf }); 
         }, 2000) // Aguarda 2.0 segundos antes de navegar
             
     };
