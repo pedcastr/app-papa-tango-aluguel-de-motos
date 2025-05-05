@@ -51,10 +51,17 @@ export default {
     infoPlist: {
       NSCameraUsageDescription: "Este aplicativo precisa de acesso à câmera.",
       NSPhotoLibraryUsageDescription: "Este aplicativo precisa de acesso à galeria.",
-      NSPhotoLibraryAddUsageDescription: "Este aplicativo precisa de permissão para salvar fotos na sua galeria"
+      NSPhotoLibraryAddUsageDescription: "Este aplicativo precisa de permissão para salvar fotos na sua galeria",
+      UIBackgroundModes: ["remote-notification"],
+      NSUserTrackingUsageDescription: "Este identificador será usado para entregar notificações personalizadas para você."
     },
     supportsTablet: true,
-    bundleIdentifier: "com.app.papa.motos"
+    bundleIdentifier: "com.app.papa.motos",
+    googleServicesFile: "./GoogleService-Info.plist",
+    buildNumber: "1",
+    config: {
+      usesNonExemptEncryption: false
+    }
   },
   android: {
     adaptiveIcon: {
@@ -67,8 +74,11 @@ export default {
     permissions: [
       "CAMERA",
       "READ_EXTERNAL_STORAGE",
-      "WRITE_EXTERNAL_STORAGE"
-    ]
+      "WRITE_EXTERNAL_STORAGE",
+      "INTERNET", 
+      "VIBRATE"  
+    ],
+    googleServicesFile: "./google-services.json",
   },
   web: {
     favicon: "./assets/favicon.png",

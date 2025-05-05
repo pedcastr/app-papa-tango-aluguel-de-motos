@@ -20,6 +20,8 @@ import * as notificationService from './src/services/notificationService';
 import { registerBackgroundNotificationHandler } from './src/services/notificationService';
 import * as Notifications from 'expo-notifications';
 
+console.log('App.js: Iniciando aplicativo');
+
 // Componente para exibir erros
 const ErrorDisplay = ({ error }) => (
   <SafeAreaView style={styles.errorContainer}>
@@ -42,6 +44,7 @@ try {
 }
 
 export default function App() {
+  console.log('App.js: Renderizando componente App');
   const [splashFinished, setSplashFinished] = useState(false);
   const [permissionChecking, setPermissionChecking] = useState(false);
   const [permissionChecked, setPermissionChecked] = useState(false);
@@ -208,6 +211,7 @@ export default function App() {
 
   // Renderizar o app normalmente após verificar permissões
   try {
+    console.log('App.js: Tentando renderizar o app principal');
     return (
       <AuthProvider>
         <AdminProvider>

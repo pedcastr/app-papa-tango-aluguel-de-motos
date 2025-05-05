@@ -6,6 +6,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
+const handleNotificationError = (error, context) => {
+  console.error(`Erro em notificationService (${context}):`, error);
+  // Não lançar o erro novamente, apenas registrá-lo
+  return null;
+};
+
 // Configuração inicial das notificações
 export const configureNotifications = async () => {
   if (Platform.OS === 'web') return false;
@@ -125,17 +131,27 @@ export const registerForPushNotifications = async () => {
     
     console.log("Iniciando registro para notificações push...");
     
+    // Verificar se estamos em um build standalone usando método moderno
+    const isStandalone = !__DEV__ || Constants.appOwnership === 'standalone';
+    console.log("Executando em modo standalone:", isStandalone);
+    
     // Solicitar permissões
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    
-    console.log("Status atual de permissão:", existingStatus);
-    
-    if (existingStatus !== 'granted') {
-      console.log("Solicitando permissão para notificações...");
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-      console.log("Novo status de permissão:", finalStatus);
+    let finalStatus;
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      finalStatus = existingStatus;
+      
+      console.log("Status atual de permissão:", existingStatus);
+      
+      if (existingStatus !== 'granted') {
+        console.log("Solicitando permissão para notificações...");
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+        console.log("Novo status de permissão:", finalStatus);
+      }
+    } catch (permError) {
+      console.error("Erro ao verificar/solicitar permissões:", permError);
+      finalStatus = 'error';
     }
     
     if (finalStatus !== 'granted') {
@@ -146,112 +162,135 @@ export const registerForPushNotifications = async () => {
     // Verificar o projectId
     let projectId;
     
-    // Tentar obter o projectId de várias fontes
-    if (Constants.expoConfig?.extra?.eas?.projectId) {
-      projectId = Constants.expoConfig.extra.eas.projectId;
-    } else if (Constants.manifest?.extra?.eas?.projectId) {
-      projectId = Constants.manifest.extra.eas.projectId;
-    } else if (Constants.expoConfig?.extra?.projectId) {
-      projectId = Constants.expoConfig.extra.projectId;
-    } else if (Constants.manifest?.extra?.projectId) {
-      projectId = Constants.manifest.extra.projectId;
-    }
-    
-    console.log("Project ID para token Expo:", projectId);
-    
-    if (!projectId) {
-      console.warn("Project ID não encontrado! Tentando obter token sem projectId...");
+    // Usar apenas Constants.expoConfig, que é a API recomendada
+    try {
+      projectId = Constants.expoConfig?.extra?.eas?.projectId || 
+                  Constants.expoConfig?.extra?.projectId;
+      
+      // Fallback para o projectId hardcoded do seu app.config.js
+      if (!projectId) {
+        projectId = '2d93efbd-1062-4051-bf44-18c916565fb7';
+      }
+      
+      console.log("Project ID para token Expo:", projectId);
+    } catch (projectIdError) {
+      console.error("Erro ao obter projectId:", projectIdError);
+      // Fallback para o projectId hardcoded
+      projectId = '2d93efbd-1062-4051-bf44-18c916565fb7';
     }
     
     // Obter token do Expo
     console.log("Obtendo token Expo...");
-    let expoPushToken;
+    let expoPushToken = null;
+    let tokenSuccess = false;
     
-    try {
-      // Tentar com projectId se disponível
-      if (projectId) {
+    // Tentativa 1: Com projectId
+    if (projectId) {
+      try {
         expoPushToken = await Notifications.getExpoPushTokenAsync({
           projectId: projectId,
         });
-      } else {
-        // Fallback para obter token sem projectId
-        expoPushToken = await Notifications.getExpoPushTokenAsync();
-      }
-      
-      console.log("Token Expo obtido:", expoPushToken.data);
-    } catch (tokenError) {
-      console.error("Erro ao obter token Expo:", tokenError);
-      
-      // Tentar novamente sem projectId se falhou com projectId
-      if (projectId) {
-        try {
-          console.log("Tentando obter token sem projectId...");
-          expoPushToken = await Notifications.getExpoPushTokenAsync();
-          console.log("Token Expo obtido sem projectId:", expoPushToken.data);
-        } catch (fallbackError) {
-          console.error("Erro ao obter token Expo sem projectId:", fallbackError);
-          throw fallbackError;
-        }
-      } else {
-        throw tokenError;
+        console.log("Token Expo obtido com projectId:", expoPushToken.data);
+        tokenSuccess = true;
+      } catch (tokenError) {
+        console.error("Erro ao obter token Expo com projectId:", tokenError);
+        // Não falhar aqui, tentar próxima abordagem
       }
     }
     
-    if (!expoPushToken || !expoPushToken.data) {
-      throw new Error("Não foi possível obter token de notificação");
+    // Tentativa 2: Sem projectId
+    if (!tokenSuccess) {
+      try {
+        console.log("Tentando obter token sem projectId...");
+        expoPushToken = await Notifications.getExpoPushTokenAsync();
+        console.log("Token Expo obtido sem projectId:", expoPushToken.data);
+        tokenSuccess = true;
+      } catch (fallbackError) {
+        console.error("Erro ao obter token Expo sem projectId:", fallbackError);
+        // Não falhar aqui, tentar próxima abordagem
+      }
     }
-
+    
+    // Tentativa 3: Com opções explícitas
+    if (!tokenSuccess) {
+      try {
+        console.log("Tentando obter token com opções explícitas...");
+        expoPushToken = await Notifications.getExpoPushTokenAsync({
+          experienceId: '@pedro_castro/papamotos',
+        });
+        console.log("Token Expo obtido com experienceId:", expoPushToken.data);
+        tokenSuccess = true;
+      } catch (explicitError) {
+        console.error("Erro ao obter token com opções explícitas:", explicitError);
+        // Última tentativa falhou
+      }
+    }
+    
+    // Se todas as tentativas falharam
+    if (!tokenSuccess || !expoPushToken || !expoPushToken.data) {
+      console.error("Todas as tentativas de obter token falharam");
+      // Não lançar erro, apenas retornar null
+      return null;
+    }
+    
     // Configurar canais para Android
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'Padrão',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#CB2921',
-      });
-      
-      // Adicionar um canal específico para notificações com imagens
-      await Notifications.setNotificationChannelAsync('notifications_with_image', {
-        name: 'Notificações com Imagem',
-        description: 'Notificações que contêm imagens',
-        importance: Notifications.AndroidImportance.HIGH,
-        sound: true,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#CB2921',
-        enableLights: true,
-      });
+      try {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'Padrão',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#CB2921',
+        });
+        
+        // Adicionar um canal específico para notificações com imagens
+        await Notifications.setNotificationChannelAsync('notifications_with_image', {
+          name: 'Notificações com Imagem',
+          description: 'Notificações que contêm imagens',
+          importance: Notifications.AndroidImportance.HIGH,
+          sound: true,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#CB2921',
+          enableLights: true,
+        });
+      } catch (channelError) {
+        console.error("Erro ao configurar canais de notificação:", channelError);
+        // Continuar mesmo se falhar a configuração de canais
+      }
     }
     
     // Salvar o token no Firestore
-    const userRef = doc(db, 'users', currentUser.email);
-    
-    // Verificar se o documento do usuário existe
-    const userDoc = await getDoc(userRef);
-    
-    if (userDoc.exists()) {
-      // Atualizar o documento existente
-      await updateDoc(userRef, {
+    try {
+      const userRef = doc(db, 'users', currentUser.email);
+      
+      // Verificar se o documento do usuário existe
+      const userDoc = await getDoc(userRef);
+      
+      const tokenData = {
         fcmToken: expoPushToken.data,
         tokenUpdatedAt: serverTimestamp(),
         tokenType: 'expo',
         platform: Platform.OS,
         deviceModel: Device.modelName || 'Unknown',
         appVersion: Constants.expoConfig?.version || 'Unknown'
-      });
-    } else {
-      // Criar um novo documento se não existir
-      await setDoc(userRef, {
-        email: currentUser.email,
-        fcmToken: expoPushToken.data,
-        tokenUpdatedAt: serverTimestamp(),
-        tokenType: 'expo',
-        platform: Platform.OS,
-        deviceModel: Device.modelName || 'Unknown',
-        appVersion: Constants.expoConfig?.version || 'Unknown'
-      });
+      };
+      
+      if (userDoc.exists()) {
+        // Atualizar o documento existente
+        await updateDoc(userRef, tokenData);
+      } else {
+        // Criar um novo documento se não existir
+        await setDoc(userRef, {
+          email: currentUser.email,
+          ...tokenData
+        });
+      }
+      
+      console.log("Token FCM atualizado com sucesso para o usuário:", currentUser.email);
+    } catch (firestoreError) {
+      console.error("Erro ao salvar token no Firestore:", firestoreError);
+      // Continuar mesmo se falhar o salvamento no Firestore
     }
-    
-    console.log("Token FCM atualizado com sucesso para o usuário:", currentUser.email);
     
     return expoPushToken.data;
   } catch (error) {
@@ -266,6 +305,7 @@ export const registerForPushNotifications = async () => {
     return null;
   }
 };
+
 
 // Verificar se o usuário está registrado
 export const isUserRegistered = async () => {
