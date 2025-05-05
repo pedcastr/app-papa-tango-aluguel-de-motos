@@ -44,6 +44,19 @@ export default {
         "supportsBackgroundPlayback": true,
         "supportsPictureInPicture": true
       }
+    ],
+    [
+      "expo-build-properties",
+      {
+        "android": {
+          "compileSdkVersion": 33,
+          "targetSdkVersion": 33,
+          "buildToolsVersion": "33.0.0"
+        },
+        "ios": {
+          "useFrameworks": "static"
+        }
+      }
     ]
   ],
   notification: {

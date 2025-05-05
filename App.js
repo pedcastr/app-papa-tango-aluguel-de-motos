@@ -5,6 +5,7 @@ import { useNavigationContainerRef } from '@react-navigation/native';
 import Routes from './src/routes';
 import { AuthProvider } from './src/context/AuthContext';
 import { AdminProvider } from './src/context/AdminContext';
+import { initCrashlytics } from './src/utils/crashlytics';
 import {
   SafeAreaView,
   StatusBar,
@@ -12,7 +13,9 @@ import {
   ActivityIndicator,
   Text,
   AppState,
-  StyleSheet
+  StyleSheet,
+  Platform,
+  TouchableOpacity
 } from 'react-native';
 
 // Importar o serviço de notificações completo
@@ -20,31 +23,61 @@ import * as notificationService from './src/services/notificationService';
 import { registerBackgroundNotificationHandler } from './src/services/notificationService';
 import * as Notifications from 'expo-notifications';
 
-console.log('App.js: Iniciando aplicativo');
+// Importar o logger
+import log, { exportLogs } from './src/utils/logger';
+import * as Sharing from 'expo-sharing';
+
+// Iniciar o logger
+log.info('App.js: Iniciando aplicativo', { version: '1.0.0', platform: Platform.OS });
+
+useEffect(() => {
+  initCrashlytics();
+}, []);
 
 // Componente para exibir erros
-const ErrorDisplay = ({ error }) => (
-  <SafeAreaView style={styles.errorContainer}>
-    <StatusBar backgroundColor='#CB2921' barStyle='light-content' />
-    <View style={styles.errorContent}>
-      <Text style={styles.errorTitle}>Ops! Algo deu errado</Text>
-      <Text style={styles.errorMessage}>{error.message || 'Erro desconhecido'}</Text>
-      <Text style={styles.errorDetail}>
-        Por favor, reinicie o aplicativo ou entre em contato com o suporte.
-      </Text>
-    </View>
-  </SafeAreaView>
-);
+const ErrorDisplay = ({ error }) => {
+  const handleShareLogs = async () => {
+    try {
+      const logFilePath = await exportLogs();
+      if (logFilePath && await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(logFilePath);
+      } else {
+        log.warn('Compartilhamento de logs não disponível');
+      }
+    } catch (e) {
+      log.error('Erro ao compartilhar logs:', e);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.errorContainer}>
+      <StatusBar backgroundColor='#CB2921' barStyle='light-content' />
+      <View style={styles.errorContent}>
+        <Text style={styles.errorTitle}>Ops! Algo deu errado</Text>
+        <Text style={styles.errorMessage}>{error.message || 'Erro desconhecido'}</Text>
+        <Text style={styles.errorDetail}>
+          Por favor, reinicie o aplicativo ou entre em contato com o suporte.
+        </Text>
+        {Platform.OS !== 'web' && (
+          <TouchableOpacity style={styles.shareButton} onPress={handleShareLogs}>
+            <Text style={styles.shareButtonText}>Compartilhar Logs</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </SafeAreaView>
+  );
+};
 
 // Registrar o handler de notificações em segundo plano
 try {
   registerBackgroundNotificationHandler();
 } catch (error) {
-  console.error('Erro ao registrar handler de notificações em segundo plano:', error);
+  log.error('Erro ao registrar handler de notificações em segundo plano:', error);
 }
 
 export default function App() {
-  console.log('App.js: Renderizando componente App');
+  log.info('App.js: Renderizando componente App');
+  
   const [splashFinished, setSplashFinished] = useState(false);
   const [permissionChecking, setPermissionChecking] = useState(false);
   const [permissionChecked, setPermissionChecked] = useState(false);
@@ -54,15 +87,19 @@ export default function App() {
   // Estado para controlar erros
   const [hasError, setHasError] = useState(false);
   const [error, setError] = useState(null);
-
+  
   // Configurar handler global de erros
   useEffect(() => {
     const errorHandler = (error, isFatal) => {
-      console.error('Erro capturado pelo handler global:', error);
+      log.error('Erro capturado pelo handler global:', { 
+        message: error.message,
+        stack: error.stack,
+        isFatal
+      });
       setHasError(true);
       setError(error);
     };
-
+    
     // Registrar handler global para erros não capturados
     if (global.ErrorUtils) {
       const originalGlobalHandler = global.ErrorUtils.getGlobalHandler();
@@ -71,7 +108,7 @@ export default function App() {
         originalGlobalHandler(error, isFatal);
       });
     }
-
+    
     return () => {
       // Limpar o handler se necessário
     };
@@ -88,12 +125,18 @@ export default function App() {
       // Verificar se o usuário está registrado
       const isRegistered = await notificationService.isUserRegistered();
       
+      log.info('Status de registro do usuário:', { isRegistered });
+      
       // Se não estiver registrado, agendar notificações
       if (!isRegistered) {
         await notificationService.scheduleNonRegisteredUserNotifications();
+        log.info('Notificações agendadas para usuário não registrado');
       }
     } catch (error) {
-      console.error('Erro ao inicializar notificações:', error);
+      log.error('Erro ao inicializar notificações:', { 
+        message: error.message,
+        stack: error.stack 
+      });
       // Não definimos hasError aqui porque não queremos interromper o fluxo do app
     } finally {
       setPermissionChecking(false);
@@ -112,7 +155,10 @@ export default function App() {
       
       return () => clearTimeout(timer);
     } catch (error) {
-      console.error('Erro no efeito de splash:', error);
+      log.error('Erro no efeito de splash:', {
+        message: error.message,
+        stack: error.stack
+      });
       setHasError(true);
       setError(error);
     }
@@ -127,16 +173,19 @@ export default function App() {
       if (navigationRef && navigationRef.isReady()) {
         // Listener para notificações recebidas em primeiro plano
         foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
-          console.log('NOTIFICAÇÃO RECEBIDA EM PRIMEIRO PLANO:', notification);
+          log.info('NOTIFICAÇÃO RECEBIDA EM PRIMEIRO PLANO:', notification);
         });
         
-        // Listener para quando o usuário interage com a notificação 
+        // Listener para quando o usuário interage com a notificação
         responseSubscription = notificationService.setupNotificationListener(navigationRef);
         
-        console.log('Listeners de notificação configurados com sucesso');
+        log.info('Listeners de notificação configurados com sucesso');
       }
     } catch (error) {
-      console.error('Erro ao configurar listeners de notificação:', error);
+      log.error('Erro ao configurar listeners de notificação:', {
+        message: error.message,
+        stack: error.stack
+      });
       // Não definimos hasError aqui porque não queremos interromper o fluxo do app
     }
     
@@ -149,7 +198,10 @@ export default function App() {
           responseSubscription.remove();
         }
       } catch (error) {
-        console.error('Erro ao remover listeners:', error);
+        log.error('Erro ao remover listeners:', {
+          message: error.message,
+          stack: error.stack
+        });
       }
     };
   }, [navigationRef]);
@@ -160,12 +212,12 @@ export default function App() {
       const handleAppStateChange = (nextAppState) => {
         if (appState.match(/inactive|background/) && nextAppState === 'active') {
           // App voltou para o primeiro plano
-          console.log('App voltou para o primeiro plano, verificando lembretes...');
+          log.info('App voltou para o primeiro plano, verificando lembretes...');
           notificationService.checkAndShowReminders();
         }
         setAppState(nextAppState);
       };
-
+      
       // Verificar lembretes na inicialização
       notificationService.checkAndShowReminders();
       
@@ -182,7 +234,10 @@ export default function App() {
         appStateSubscription.remove();
       };
     } catch (error) {
-      console.error('Erro no efeito de verificação de lembretes:', error);
+      log.error('Erro no efeito de verificação de lembretes:', {
+        message: error.message,
+        stack: error.stack
+      });
       // Não definimos hasError aqui porque não queremos interromper o fluxo do app
     }
   }, [appState]);
@@ -211,7 +266,7 @@ export default function App() {
 
   // Renderizar o app normalmente após verificar permissões
   try {
-    console.log('App.js: Tentando renderizar o app principal');
+    log.info('App.js: Tentando renderizar o app principal');
     return (
       <AuthProvider>
         <AdminProvider>
@@ -225,7 +280,10 @@ export default function App() {
       </AuthProvider>
     );
   } catch (error) {
-    console.error('Erro ao renderizar o app:', error);
+    log.error('Erro ao renderizar o app:', {
+      message: error.message,
+      stack: error.stack
+    });
     return <ErrorDisplay error={error} />;
   }
 }
@@ -258,5 +316,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'white',
     textAlign: 'center',
+  },
+  shareButton: {
+    marginTop: 20,
+    backgroundColor: 'white',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5,
+  },
+  shareButtonText: {
+    color: '#CB2921',
+    fontWeight: 'bold',
   }
 });
