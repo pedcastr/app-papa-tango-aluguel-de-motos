@@ -44,7 +44,3 @@ functions/.runtimeconfig.json
 # Logs e caches
 *.log
 .firebase/
-
-# Firebase config
-google-services.json
-GoogleService-Info.plist
