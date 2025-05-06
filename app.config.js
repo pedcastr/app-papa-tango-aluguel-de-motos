@@ -5,6 +5,12 @@ export default {
   slug: "papamotos",
   version: "1.0.0",
   orientation: "portrait",
+  updates: {
+    url: "https://u.expo.dev/2d93efbd-1062-4051-bf44-18c916565fb7"
+  },
+  runtimeVersion: {
+    policy: "appVersion"
+  },
   icon: "./assets/icon.png",
   userInterfaceStyle: "light",
   newArchEnabled: true,
