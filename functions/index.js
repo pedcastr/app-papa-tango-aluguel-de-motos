@@ -1,5 +1,6 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const serviceAccount = require("./service-account.json");
 const nodemailer = require("nodemailer");
 const axios = require("axios");
 const path = require("path");
@@ -8,7 +9,9 @@ const cors = require("cors")({origin: true});
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const mercadopago = require("mercadopago");
 
-admin.initializeApp();
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 const db = admin.firestore();
 
 // Configurar o Nodemailer para enviar e-mails diretamente pelo Gmail

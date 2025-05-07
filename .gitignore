@@ -44,3 +44,6 @@ functions/.runtimeconfig.json
 # Logs e caches
 *.log
 .firebase/
+
+# acconts.json
+functions/service-account.json

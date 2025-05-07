@@ -44,7 +44,8 @@ export default {
         "supportsBackgroundPlayback": true,
         "supportsPictureInPicture": true
       }
-    ]
+    ],
+    "expo-notifications",
   ],
   notification: {
     icon: "./assets/notification-icon.png",
@@ -85,6 +86,14 @@ export default {
       "VIBRATE"  
     ],
     googleServicesFile: "./google-services.json",
+    splash: {
+      backgroundColor: "#CB2921",
+      mdpi: "./assets/splash-icon.png",
+      hdpi: "./assets/splash-icon.png",
+      xhdpi: "./assets/splash-icon.png",
+      xxhdpi: "./assets/splash-icon.png",
+      xxxhdpi: "./assets/splash-icon.png"
+    },
   },
   web: {
     favicon: "./assets/favicon.png",
