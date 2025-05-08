@@ -464,7 +464,15 @@ exports.processPayment = functions.https.onRequest((req, res) => {
       const paymentClient = new mercadopago.Payment(mp);
 
       // Mapear os parâmetros recebidos para os nomes esperados pelo Mercado Pago
-      const {paymentType, transactionAmount, description, payer} = req.body;
+      const {
+        paymentType,
+        transactionAmount,
+        description,
+        payer,
+        externalReference,
+        statementDescriptor,
+        items,
+      } = req.body;
 
       // Garantir que o valor da transação seja um número válido
       const amount = Number(parseFloat(transactionAmount));
@@ -488,6 +496,27 @@ exports.processPayment = functions.https.onRequest((req, res) => {
         description: description,
         payer: payer,
       };
+
+      // Adicionar external_reference (obrigatório)
+      if (externalReference) {
+        paymentData.external_reference = externalReference;
+      } else if (req.body.externalReference) {
+        paymentData.external_reference = req.body.externalReference;
+      } else {
+        paymentData.external_reference = `payment_${Date.now()}`;
+      }
+
+      // Adicionar statement_descriptor (recomendado)
+      if (statementDescriptor) {
+        paymentData.statement_descriptor = statementDescriptor;
+      }
+
+      // Adicionar informações do item (recomendado)
+      if (items && items.length > 0) {
+        paymentData.additional_info = {
+          items: items,
+        };
+      }
 
       // Se for PIX, adicionar os parâmetros específicos
       if (paymentType === "pix") {
@@ -536,6 +565,7 @@ exports.processPayment = functions.https.onRequest((req, res) => {
         transaction_details: payment.transaction_details,
         payment_method: payment.payment_method,
         point_of_interaction: payment.point_of_interaction,
+        external_reference: payment.external_reference,
       });
     } catch (error) {
       console.error("Erro ao processar pagamento:", error);
@@ -571,6 +601,14 @@ async function sendPaymentNotification(userId, notification, isAdminNotification
   try {
     const db = admin.firestore();
 
+    // Garantir que notification.data seja um objeto
+    if (!notification.data || typeof notification.data !== "object") {
+      notification.data = {screen: "Financeiro"};
+    }
+
+    // Gerar um ID de grupo para relacionar notificações
+    const notificationGroupId = `payment_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+
     // Se for uma notificação de admin, não precisamos verificar o usuário específico
     if (!isAdminNotification) {
       const userDoc = await db.collection("users").doc(userId).get();
@@ -586,78 +624,52 @@ async function sendPaymentNotification(userId, notification, isAdminNotification
         console.warn(`Usuário ${userId} não tem token para notificações`);
         // Ainda assim, vamos salvar a notificação no Firestore
       } else {
-        let success = false;
+        // Criar solicitação de notificação no Firestore
+        const requestId = `payment_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+        await db.collection("notificationRequests").doc(requestId).set({
+          userEmail: userId,
+          title: notification.title,
+          body: notification.body,
+          data: notification.data || {},
+          status: "pending",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          notificationGroupId: notificationGroupId,
+        });
 
-        // Verificar se é um token Expo
-        if (fcmToken.startsWith("ExponentPushToken[")) {
-          // Enviar via API do Expo
-          const expoMessage = {
-            to: fcmToken,
+        console.log(`Solicitação de notificação criada para usuário ${userId} com ID: ${requestId}`);
+      }
+    } else {
+      // Para notificações de admin, enviar para todos os usuários com isAdmin=true
+      const adminUsersSnapshot = await db.collection("users")
+          .where("isAdmin", "==", true)
+          .get();
+
+      if (adminUsersSnapshot.empty) {
+        console.warn("Nenhum usuário admin encontrado para enviar notificação");
+        return;
+      }
+
+      for (const adminDoc of adminUsersSnapshot.docs) {
+        const adminId = adminDoc.id;
+        const adminData = adminDoc.data();
+
+        if (adminData.fcmToken) {
+          // Criar solicitação de notificação para cada admin
+          const requestId = `admin_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+          await db.collection("notificationRequests").doc(requestId).set({
+            userEmail: adminId,
             title: notification.title,
             body: notification.body,
             data: notification.data || {},
-            sound: "default",
-            priority: "high",
-            channelId: "default",
-          };
-
-          console.log(`Enviando notificação via Expo para usuário ${userId}:`, expoMessage);
-
-          try {
-            // Usando axios para fazer a solicitação POST
-            const axiosResponse = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
-              headers: {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-              },
-            });
-
-            // Com axios, a resposta já é um objeto JSON
-            const response = axiosResponse.data;
-            console.log(`Resposta da API Expo para usuário ${userId}:`, response);
-
-            if (response.data && Array.isArray(response.data) && response.data[0].status === "ok") {
-              success = true;
-              console.log(`Notificação Expo enviada com sucesso para usuário ${userId}`);
-            } else {
-              console.error(`Erro ao enviar notificação Expo para usuário ${userId}:`, response);
-            }
-          } catch (axiosError) {
-            console.error(`Erro na requisição para API do Expo (usuário ${userId}):`, axiosError);
-
-            // Capturar detalhes da resposta de erro, se disponíveis
-            if (axiosError.response) {
-              console.error("Detalhes da resposta de erro:", {
-                status: axiosError.response.status,
-                data: axiosError.response.data,
-              });
-            }
-          }
-        } else {
-          // Enviar via FCM diretamente
-          await admin.messaging().send({
-            token: fcmToken,
-            notification: {
-              title: notification.title,
-              body: notification.body,
-            },
-            data: notification.data || {},
+            status: "pending",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            notificationGroupId: notificationGroupId,
           });
 
-          success = true;
-          console.log(`Notificação FCM enviada para o usuário ${userId}`);
-        }
-
-        // Se não conseguimos enviar a notificação, ainda assim vamos salvá-la no Firestore
-        // para que o usuário possa vê-la quando abrir o app
-        if (!success) {
-          console.log(`Notificação não pôde ser entregue, mas será salva no Firestore para o usuário ${userId}`);
+          console.log(`Solicitação de notificação criada para admin ${adminId} com ID: ${requestId}`);
         }
       }
     }
-
-    // Gerar um ID de grupo para relacionar notificações
-    const notificationGroupId = `payment_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
     // Salvar a notificação no Firestore
     // Para notificações de admin, usamos userType = 'admin'
@@ -761,7 +773,7 @@ exports.processarNotificacoes = functions.firestore
         const requestId = event.params.requestId;
         console.log("Processando solicitação de notificação:", requestId, "com dados:", JSON.stringify(data));
 
-        if (!data || !data.userEmail || !data.title || !data.body) {
+        if (!data || !data.userEmail) {
           console.error("Dados de notificação inválidos:", data);
           await snapshot.ref.update({
             status: "error",
@@ -801,21 +813,45 @@ exports.processarNotificacoes = functions.firestore
 
         console.log("Token de notificação encontrado:", userData.fcmToken);
 
+        // Normalizar os dados da notificação
+        // Garantir que title e body sejam strings
+        const title = typeof data.title === "string" ? data.title :
+                     (data.title && data.title.transaction_amount ?
+                      `⚠️ Pagamento em Atraso ⚠️` : "Notificação");
+
+        const body = typeof data.body === "string" ? data.body :
+                    (data.data && typeof data.data === "string" ?
+                     data.data : "Você tem uma nova notificação");
+
+        // Garantir que data seja um objeto
+        const notificationData = typeof data.data === "object" ? data.data :
+                               (typeof data.data === "string" ?
+                                {message: data.data, screen: data.screen || "Financeiro"} :
+                                {screen: data.screen || "Financeiro"});
+
         let response;
         let success = false;
 
         // Verificar se é um token Expo (começa com ExponentPushToken)
         if (userData.fcmToken.startsWith("ExponentPushToken[")) {
           // Enviar via API do Expo
+          console.log("Tentando enviar via API Expo para usuário", data.userEmail);
+
           const expoMessage = {
             to: userData.fcmToken,
-            title: data.title,
-            body: data.body,
-            data: data.data || {},
+            title: title,
+            body: body,
+            data: notificationData,
             sound: "default",
             priority: "high",
-            channelId: "default", // ChannelId para Android
+            channelId: data.hasImage ? "notifications_with_image" : "default",
           };
+
+          // Adicionar imagem se fornecida
+          if (data.imageUrl) {
+            expoMessage.mutableContent = true;
+            expoMessage.data.imageUrl = data.imageUrl;
+          }
 
           console.log("Enviando mensagem via Expo:", JSON.stringify(expoMessage));
 
@@ -832,10 +868,13 @@ exports.processarNotificacoes = functions.firestore
             response = axiosResponse.data;
             console.log("Notificação enviada via Expo (resposta):", response);
 
-            // A API Expo pode retornar diferentes formatos de resposta
-            // Aceitar qualquer resposta que indique sucesso
-            success = true;
-            console.log("Notificação Expo enviada com sucesso para:", userData.fcmToken);
+            // Verificar se a resposta indica sucesso
+            if (response && response.data && response.data.status === "ok") {
+              success = true;
+              console.log("Notificação Expo enviada com sucesso para:", userData.fcmToken);
+            } else {
+              console.error("Resposta da API Expo não indica sucesso:", response);
+            }
           } catch (axiosError) {
             console.error("Erro na requisição para API do Expo:", axiosError);
 
@@ -850,25 +889,103 @@ exports.processarNotificacoes = functions.firestore
             throw axiosError;
           }
         } else {
-        // Enviar via FCM diretamente
-          const fcmMessage = {
-            token: userData.fcmToken,
-            notification: {
-              title: data.title,
-              body: data.body,
-            },
-            data: data.data || {},
-          };
+          // Enviar via FCM diretamente
+          console.log("Tentando enviar via FCM para usuário", data.userEmail);
 
-          response = await admin.messaging().send(fcmMessage);
-          console.log("Notificação enviada via FCM:", response);
-          success = true;
+          try {
+            const fcmMessage = {
+              token: userData.fcmToken,
+              notification: {
+                title: title,
+                body: body,
+              },
+              data: notificationData,
+              android: data.android || {
+                notification: {
+                  channelId: data.hasImage ? "notifications_with_image" : "default",
+                },
+              },
+              apns: data.apns || {
+                payload: {
+                  aps: {
+                    sound: "default",
+                  },
+                },
+              },
+            };
+
+            // Adicionar imagem se fornecida
+            if (data.imageUrl) {
+              if (!fcmMessage.android) fcmMessage.android = {};
+              if (!fcmMessage.android.notification) fcmMessage.android.notification = {};
+
+              fcmMessage.android.notification.imageUrl = data.imageUrl;
+
+              if (!fcmMessage.apns) fcmMessage.apns = {};
+              if (!fcmMessage.apns.payload) fcmMessage.apns.payload = {};
+              if (!fcmMessage.apns.payload.aps) fcmMessage.apns.payload.aps = {};
+
+              fcmMessage.apns.payload.aps["mutable-content"] = 1;
+              fcmMessage.apns.fcm_options = {image: data.imageUrl};
+            }
+
+            response = await admin.messaging().send(fcmMessage);
+            console.log("Notificação enviada via FCM:", response);
+            success = true;
+          } catch (fcmError) {
+            console.error("Erro ao enviar via FCM para usuário", data.userEmail, ":", fcmError);
+
+            // Se o token FCM for inválido, tentar via Expo como fallback
+            if (fcmError.code === "messaging/invalid-argument" ||
+                fcmError.code === "messaging/registration-token-not-registered") {
+              console.log("Tentando enviar via API Expo para usuário", data.userEmail);
+
+              try {
+                const expoMessage = {
+                  to: userData.fcmToken,
+                  title: title,
+                  body: body,
+                  data: notificationData,
+                  sound: "default",
+                  priority: "high",
+                  channelId: data.hasImage ? "notifications_with_image" : "default",
+                };
+
+                // Adicionar imagem se fornecida
+                if (data.imageUrl) {
+                  expoMessage.mutableContent = true;
+                  expoMessage.data.imageUrl = data.imageUrl;
+                }
+
+                const axiosResponse = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
+                  headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                  },
+                });
+
+                response = axiosResponse.data;
+                console.log("Notificação enviada via Expo (resposta):", response);
+
+                if (response && response.data && response.data.status === "ok") {
+                  success = true;
+                  console.log("Notificação Expo enviada com sucesso para:", userData.fcmToken);
+                }
+              } catch (expoError) {
+                console.error("Erro ao enviar via Expo como fallback:", expoError);
+                throw expoError;
+              }
+            } else {
+              throw fcmError;
+            }
+          }
         }
 
         // Atualizar o status da solicitação
         await snapshot.ref.update({
           status: success ? "sent" : "error",
-          response: response,
+          response: success ? response : null,
+          error: !success ? "Falha ao enviar notificação" : null,
           processedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -877,9 +994,9 @@ exports.processarNotificacoes = functions.firestore
           await admin.firestore().collection("notifications").add({
             userId: userDoc.id,
             email: data.userEmail,
-            title: data.title,
-            body: data.body,
-            data: data.data || {},
+            title: title,
+            body: body,
+            data: notificationData,
             sent: true,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             notificationGroupId: data.notificationGroupId || `auto_${Date.now()}`,
@@ -894,7 +1011,7 @@ exports.processarNotificacoes = functions.firestore
         console.error("Erro ao processar solicitação de notificação:", error);
 
         try {
-        // Atualizar o status da solicitação com o erro
+          // Atualizar o status da solicitação com o erro
           await event.data.ref.update({
             status: "error",
             error: error.message,
@@ -907,6 +1024,7 @@ exports.processarNotificacoes = functions.firestore
         return {success: false, error: error.message};
       }
     });
+
 
 // Função agendada para enviar lembretes de pagamento
 exports.sendPaymentReminders = onSchedule({
@@ -1139,26 +1257,32 @@ exports.sendPaymentReminders = onSchedule({
                   Abrir no Aplicativo
                 </a>
               </div>
-              <p>Caso prefira, você também pode entrar em contato com nosso suporte para mais informações.</p>
+              <p>Caso prefira, você também pode entrar em contato com nosso suporte para mais informações
+              através do WhatsApp (85)99268-4035.</p>
               <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
                 Este é um email automático. Por favor, não responda a este email.
               </p>
             </div>
           `;
 
-        // Criar um objeto de pagamento fictício para a função de notificação
-        const paymentInfo = {
-          id: `reminder_${Date.now()}`,
-          transaction_amount: valor,
+        // Enviar notificação push
+        const requestId = `payment_reminder_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+
+        // Criar objeto de dados estruturado para a notificação
+        const notificationData = {
+          screen: "Financeiro",
+          paymentAmount: valor.toFixed(2),
+          paymentDate: proximaData.toISOString(),
+          reminderType: tipoLembrete,
+          daysRemaining: diasRestantes,
+          daysOverdue: diasAtraso,
         };
 
-        // Enviar notificação push
-        const requestId = `payment_${paymentInfo.id}_${Date.now()}`;
         await db.collection("notificationRequests").doc(requestId).set({
           userEmail: userEmail,
           title: title,
           body: body,
-          data: {screen: "Financeiro"},
+          data: notificationData,
           status: "pending",
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
@@ -1351,13 +1475,24 @@ exports.sendBirthdayMessages = onSchedule({
         // Enviar notificação push
         try {
           const requestId = `birthday_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+
+          // Garantir que o objeto data seja válido
+          const notificationData = {
+            screen: "Inicio",
+            type: "birthday",
+            avatarUrl: avatarUrl || null,
+          };
+
           await db.collection("notificationRequests").doc(requestId).set({
             userEmail: userId,
             title: title,
             body: body,
-            data: {screen: "Inicio"},
+            data: notificationData,
             status: "pending",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            notificationType: "push",
+            // Adicionar notificationGroupId para agrupar notificações relacionadas
+            notificationGroupId: `birthday_${userId}_${hoje.toISOString().split("T")[0]}`,
           });
 
           console.log(`Solicitação de notificação de aniversário criada para ${userId}`);
@@ -1416,6 +1551,9 @@ exports.sendBirthdayMessages = onSchedule({
             html: emailBody,
             status: "pending",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            notificationType: "email",
+            // Adicionar notificationGroupId para agrupar notificações relacionadas
+            notificationGroupId: `birthday_${userId}_${hoje.toISOString().split("T")[0]}`,
           });
 
           console.log(`Solicitação de email de aniversário criada para ${userId}`);
@@ -1588,25 +1726,37 @@ exports.enviarMensagemEmMassaHttp = functions.https.onRequest(async (req, res) =
       let falhas = 0;
       const detalhes = [];
 
+      // Gerar um ID de grupo para todas as notificações desta campanha
+      const campaignId = `campaign_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+
       // Para cada usuário, enviar email e/ou notificação
       for (const userDoc of usersSnapshot.docs) {
         const usuario = userDoc.data();
         const userId = userDoc.id;
         const userEmail = usuario.email || userId;
 
-        const notificationGroupId = `group_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-
         try {
           // Enviar notificação push se solicitado
-          if (enviarNotificacao && usuario.fcmToken) {
+          if (enviarNotificacao) {
             // Criar um ID único para a solicitação
             const requestId = `mass_notification_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
-            // Dados adicionais para a notificação
+            // Dados adicionais para a notificação - garantir que seja um objeto válido
             const notificationData = {
               screen: "Inicio",
-              imagemUrl: imagemUrl || null,
+              campaignId: campaignId,
+              type: "massMessage",
             };
+
+            // Se tiver uma imagem, adicionar ao objeto data
+            if (imagemUrl) {
+              notificationData.imageUrl = imagemUrl;
+            }
+
+            // Se tiver um documento, adicionar ao objeto data
+            if (documentoUrl) {
+              notificationData.documentUrl = documentoUrl;
+            }
 
             // Configurações específicas para Android e iOS
             let androidConfig = {};
@@ -1636,7 +1786,7 @@ exports.enviarMensagemEmMassaHttp = functions.https.onRequest(async (req, res) =
               };
             }
 
-            // Criar um documento de solicitação de notificação no Firestore com configurações específicas de plataforma
+            // Criar um documento de solicitação de notificação no Firestore
             await db.collection("notificationRequests").doc(requestId).set({
               userEmail: userEmail,
               title: titulo,
@@ -1650,7 +1800,7 @@ exports.enviarMensagemEmMassaHttp = functions.https.onRequest(async (req, res) =
               // Flag para indicar que esta notificação tem imagem
               hasImage: !!imagemUrl,
               imageUrl: imagemUrl,
-              notificationGroupId: notificationGroupId,
+              notificationGroupId: campaignId,
               notificationType: "push",
             });
 
@@ -1663,7 +1813,7 @@ exports.enviarMensagemEmMassaHttp = functions.https.onRequest(async (req, res) =
               read: false,
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
               imageUrl: imagemUrl, // Salvar a URL da imagem para exibição no app
-              notificationGroupId: notificationGroupId,
+              notificationGroupId: campaignId,
               notificationType: "push",
             });
           }
@@ -1741,18 +1891,23 @@ exports.enviarMensagemEmMassaHttp = functions.https.onRequest(async (req, res) =
               html: conteudoHtml,
               status: "pending",
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              notificationGroupId: notificationGroupId,
+              notificationGroupId: campaignId,
               notificationType: "email",
             });
 
+            // Também salvar uma notificação no app para o email enviado
             await db.collection("notifications").add({
               userId: userId,
               title: titulo,
               body: mensagem.substring(0, 100) + (mensagem.length > 100 ? "..." : ""),
-              data: {},
+              data: {
+                screen: "Inicio",
+                campaignId: campaignId,
+                type: "email",
+              },
               read: false,
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              notificationGroupId: notificationGroupId,
+              notificationGroupId: campaignId,
               notificationType: "email",
               imageUrl: imagemUrl,
             });
@@ -1775,9 +1930,26 @@ exports.enviarMensagemEmMassaHttp = functions.https.onRequest(async (req, res) =
         }
       }
 
+      // Registrar a campanha para referência futura
+      await db.collection("messageCampaigns").doc(campaignId).set({
+        titulo: titulo,
+        mensagem: mensagem,
+        tipoUsuarios: tipoUsuarios,
+        enviarEmail: enviarEmail,
+        enviarNotificacao: enviarNotificacao,
+        imagemUrl: imagemUrl || null,
+        documentoUrl: documentoUrl || null,
+        createdBy: userEmail,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        sucessos: sucessos,
+        falhas: falhas,
+        total: sucessos + falhas,
+      });
+
       return res.json({
         success: true,
         message: `Mensagens enviadas com sucesso para ${sucessos} usuários. Falhas: ${falhas}.`,
+        campaignId: campaignId,
         detalhes: {
           sucessos,
           falhas,
@@ -2078,16 +2250,25 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
 
         // Enviar notificação se tivermos um ID de usuário
         if (userId) {
-          // Lógica de notificações
+          // Gerar um ID de grupo para relacionar notificações do mesmo pagamento
+          const notificationGroupId = `payment_${paymentId}_${Date.now()}`;
+
           // 1. Notificação de pagamento aprovado - enviar imediatamente
           if (status === "approved" && !notificationsSent.approved) {
             console.log(`Enviando notificação de pagamento aprovado para o usuário: ${userId}`);
 
-            // Enviar notificação push
+            // Usar a função sendPaymentNotification existente
             await sendPaymentNotification(userId, {
               title: "Pagamento Recebido 💰",
               body: `Seu pagamento de R$ ${transactionAmount.toFixed(2)} foi recebido com sucesso 🎉`,
-              data: {screen: "Financeiro"},
+              data: {
+                screen: "Financeiro",
+                paymentId: paymentId,
+                amount: transactionAmount,
+                status: status,
+                type: "payment_approved",
+                notificationGroupId: notificationGroupId,
+              },
             });
 
             // Enviar email de confirmação se tivermos o email do usuário
@@ -2096,7 +2277,7 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                 // Criar solicitação de email no Firestore para ser processada pela função processEmailRequests
                 await db.collection("emailRequests").add({
                   to: userEmail,
-                  subject: `Pagamento de ${transactionAmount.toFixed(2)} Recebido - Papa Tango`,
+                  subject: `Pagamento de R$ ${transactionAmount.toFixed(2)} Recebido - Papa Tango`,
                   html: `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; 
                     padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
@@ -2105,7 +2286,7 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                          style="width: 70px; margin-bottom: 20px;">
                       </div>
                       <h2>Pagamento Recebido!</h2>
-                      <p>Olá, ${paymentData.userName}</p>
+                      <p>Olá, ${paymentData.userName || "Cliente"}</p>
                       <p>Seu pagamento de <strong>R$ ${transactionAmount.toFixed(2)}</strong> 
                       foi recebido com sucesso.</p>
                       <p>Detalhes do pagamento:</p>
@@ -2114,6 +2295,12 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                         <li>Data: ${new Date(dateApproved || dateCreated).toLocaleString("pt-BR")}</li>
                         <li>Método: ${paymentMethodId || paymentData.paymentMethod || "Não especificado"}</li>
                       </ul>
+                      <div style="text-align: center; margin: 30px 0;">
+                        <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; 
+                        padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                          Abrir no Aplicativo
+                        </a>
+                      </div>
                       <p>Obrigado por utilizar nossos serviços!</p>
                       <p>Equipe Papa Tango</p>
                       <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
@@ -2128,6 +2315,8 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                     path: path.join(__dirname, "src/assets/Logo.png"),
                     cid: "Logo",
                   }],
+                  notificationGroupId: notificationGroupId,
+                  notificationType: "email",
                 });
 
                 console.log(`Solicitação de email de pagamento aprovado criada para ${userEmail}`);
@@ -2148,11 +2337,19 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
             // 2. Notificação de pagamento rejeitado/cancelado
             console.log(`Enviando notificação de pagamento não aprovado para o usuário: ${userId}`);
 
-            // Enviar notificação push
+            // Usar a função sendPaymentNotification existente
             await sendPaymentNotification(userId, {
               title: "⚠️ Atenção: Pagamento não aprovado ⚠️",
               body: `Seu pagamento de R$ ${transactionAmount.toFixed(2)} não foi aprovado.`,
-              data: {screen: "Financeiro"},
+              data: {
+                screen: "Financeiro",
+                paymentId: paymentId,
+                amount: transactionAmount,
+                status: status,
+                statusDetail: statusDetail,
+                type: "payment_rejected",
+                notificationGroupId: notificationGroupId,
+              },
             });
 
             // Enviar email se tivermos o email do usuário
@@ -2169,17 +2366,22 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                          style="width: 70px; margin-bottom: 20px;">
                       </div>
                       <h2>Pagamento Não Aprovado</h2>
-                      <p>Olá, ${paymentData.userName}</p>
+                      <p>Olá, ${paymentData.userName || "Cliente"}</p>
                       <p>Seu pagamento de <strong>R$ ${transactionAmount.toFixed(2)}</strong> 
                       não foi aprovado.</p>
                       <p>Motivo: ${statusDetail || "Não especificado"}</p>
                       <p>Por favor, tente novamente ou entre em contato com nosso suporte.</p>
-                      <br>
+                      <div style="text-align: center; margin: 30px 0;">
+                        <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; 
+                        padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                          Tentar Novamente
+                        </a>
+                      </div>
                       <br>
                       <div style="text-align: center;">
-                          <a href="https://wa.me/5585992684035?text=Quero%20falar%20com%20o%20suporte.%20
-                          Sobre%20o%20pagamento%20não%20aprovado%20de%20R$%20${transactionAmount.toFixed(2)}"
-                            style="background-color: #CB2921;
+                          <a href="https://wa.me/5585992684035?text=Quero%20falar%20com%20o%20suporte
+                          .%20Sobre%20o%20pagamento%20não%20aprovado%20de%20R$%20${transactionAmount.toFixed(2)}"
+                            style="background-color: #25D366;
                                     color: white;
                                     padding: 10px 20px;
                                     text-decoration: none;
@@ -2201,6 +2403,8 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                     path: path.join(__dirname, "src/assets/Logo.png"),
                     cid: "Logo",
                   }],
+                  notificationGroupId: notificationGroupId,
+                  notificationType: "email",
                 });
 
                 console.log(`Solicitação de email de pagamento não aprovado criada para ${userEmail}`);
@@ -2226,12 +2430,19 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
             if (minutesDiff >= 20 && !notificationsSent.pending) {
               console.log(`Pagamento pendente há mais de 20 minutos. Enviando notificação.`);
 
-              // Enviar notificação push
+              // Usar a função sendPaymentNotification existente
               await sendPaymentNotification(userId, {
                 title: "Pagamento Pendente",
                 body: `Seu pagamento de R$ ${transactionAmount.toFixed(2)} está pendente de confirmação.
                 \nSe você já realizou o pagamento, aguarde a confirmação do processamento.`,
-                data: {screen: "Financeiro"},
+                data: {
+                  screen: "Financeiro",
+                  paymentId: paymentId,
+                  amount: transactionAmount,
+                  status: status,
+                  type: "payment_pending",
+                  notificationGroupId: notificationGroupId,
+                },
               });
 
               // Enviar email se tivermos o email do usuário
@@ -2248,13 +2459,19 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                             style="width: 70px; margin-bottom: 20px;">
                           </div>
                         <h2>Pagamento Pendente</h2>
-                        <p>Olá, ${paymentData.userName}</p>
+                        <p>Olá, ${paymentData.userName || "Cliente"}</p>
                         <p>Seu pagamento de <strong>R$ ${transactionAmount.toFixed(2)}</strong> 
                         está pendente de confirmação.</p>
                         <p>Se você já realizou o pagamento, aguarde a confirmação do processamento.</p>
                         <p>Pagamentos realizados com boleto levam de 1 a 3 dias úteis para serem compensados</p>
                         <p>Caso não tenha realizado o pagamento, por favor, conclua-o para evitar o 
                         cancelamento da locação.</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                          <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; 
+                          padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                            Verificar no Aplicativo
+                          </a>
+                        </div>
                         <p>Equipe Papa Tango</p>
                         <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
                           Este é um email automático. Por favor, não responda a este email.
@@ -2268,6 +2485,8 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                       path: path.join(__dirname, "src/assets/Logo.png"),
                       cid: "Logo",
                     }],
+                    notificationGroupId: notificationGroupId,
+                    notificationType: "email",
                   });
 
                   console.log(`Solicitação de email de pagamento pendente criada para ${userEmail}`);
@@ -2282,8 +2501,60 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
               });
             }
           }
+
+          // 4. Notificação para administradores sobre mudanças de status
+          if (statusChanged) {
+            try {
+              // Enviar notificação para administradores sobre a mudança de status usando a função existente
+              await sendPaymentNotification(null, {
+                title: `Pagamento ${status === "approved" ? "Aprovado" :
+                        status === "rejected" ? "Rejeitado" :
+                        status === "cancelled" ? "Cancelado" : "Atualizado"}`,
+                body: `Pagamento de R$ ${transactionAmount.toFixed(2)} do usuário ${userEmail} foi ${
+                        status === "approved" ? "aprovado" :
+                        status === "rejected" ? "rejeitado" :
+                        status === "cancelled" ? "cancelado" :
+                        "atualizado para " + status}`,
+                data: {
+                  screen: "Admin",
+                  params: {screen: "Pagamentos"},
+                  paymentId: paymentId,
+                  amount: transactionAmount,
+                  previousStatus: previousStatus,
+                  newStatus: status,
+                  userEmail: userEmail,
+                  type: "admin_payment_status_change",
+                },
+              }, true); // true indica que é uma notificação para administradores
+
+              console.log(`Notificação de mudança de status enviada para administradores`);
+            } catch (adminNotificationError) {
+              console.error(`Erro ao enviar notificação para administradores: ${adminNotificationError.message}`);
+            }
+          }
         } else {
           console.log(`Não foi possível determinar o usuário para enviar notificação.`);
+          // Mesmo sem usuário identificado, notificar administradores sobre o pagamento
+          try {
+            await sendPaymentNotification(null, {
+              title: `Pagamento ${status} sem usuário identificado`,
+              body: `Pagamento de R$ ${transactionAmount.toFixed(2)} foi recebido, mas não foi possível identificar 
+              o usuário.`,
+              data: {
+                screen: "Admin",
+                params: {screen: "Payments"},
+                paymentId: paymentId,
+                amount: transactionAmount,
+                status: status,
+                type: "admin_payment_no_user",
+              },
+            }, true); // true indica que é uma notificação para administradores
+
+            console.log(`Notificação enviada para administradores sobre pagamento sem usuário identificado`);
+          } catch (error) {
+            console.error(`Erro ao enviar notificação para administradores 
+              sobre pagamento sem usuário: ${error.message}`);
+          }
         }
       } else {
         console.log(`Tipo de evento ignorado: ${type || action}`);

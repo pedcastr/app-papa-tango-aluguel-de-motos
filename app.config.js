@@ -4,6 +4,7 @@ export default {
   name: "Papa Tango",
   slug: "papamotos",
   version: "1.0.0",
+  scheme: "papamotors",
   orientation: "portrait",
   updates: {
     url: "https://u.expo.dev/2d93efbd-1062-4051-bf44-18c916565fb7"
@@ -68,7 +69,11 @@ export default {
     buildNumber: "1",
     config: {
       usesNonExemptEncryption: false
-    }
+    },
+    associatedDomains: [
+      "applinks:papatango.com.br", 
+      "applinks:www.papatango.com.br"
+    ],
   },
   android: {
     adaptiveIcon: {
@@ -94,6 +99,28 @@ export default {
       xxhdpi: "./assets/splash-icon.png",
       xxxhdpi: "./assets/splash-icon.png"
     },
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        data: [
+          {
+            scheme: "https",
+            host: "papatango.com.br",
+            pathPrefix: "/"
+          },
+          {
+            scheme: "https",
+            host: "www.papatango.com.br",
+            pathPrefix: "/"
+          },
+          {
+            scheme: "papamotors",
+          }
+        ],
+        category: ["BROWSABLE", "DEFAULT"],
+      },
+    ],
   },
   web: {
     favicon: "./assets/favicon.png",

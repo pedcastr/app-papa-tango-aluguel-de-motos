@@ -59,8 +59,14 @@ const Payment = () => {
   // Estado para o modal de confirmação
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
   const [confirmModalOption, setConfirmModalOption] = useState(null);
+
+  // Estado para armazenar os pagamentos pendentes
+  const [pendingPayments, setPendingPayments] = useState({
+    pix: null,
+    boleto: null
+  });
   
-  // Opções de pagamento - removida a opção de cartão de crédito
+  // Opções de pagamento - Pix e Boleto
   const paymentOptions = [
     {
       id: 'pix',
@@ -119,6 +125,75 @@ const Payment = () => {
     
     loadUserData();
   }, [userEmail]);
+
+  // Verifica pagamentos pendentes para usar os dados da rota
+  useEffect(() => {
+    const checkPendingPayments = async () => {
+      try {
+        // Verificar se já recebemos pagamentos pendentes da tela anterior
+        if (route.params?.pendingPayments) {
+          console.log('Usando pagamentos pendentes recebidos da rota:', route.params.pendingPayments);
+          setPendingPayments(route.params.pendingPayments);
+          return;
+        }
+        
+        // Se não, buscar do Firestore
+        const email = userEmail || auth.currentUser?.email;
+        if (!email) return;
+        
+        console.log('Verificando pagamentos pendentes para:', email);
+        
+        // Buscar pagamentos pendentes no Firestore
+        const paymentsQuery = query(
+          collection(db, 'payments'),
+          where('userEmail', '==', email),
+          where('status', '==', 'pending')
+        );
+        
+        const querySnapshot = await getDocs(paymentsQuery);
+        
+        // Objeto para armazenar pagamentos pendentes por tipo
+        const pending = {
+          pix: null,
+          boleto: null
+        };
+        
+        // Processar os resultados
+        querySnapshot.forEach((doc) => {
+          const payment = doc.data();
+          
+          // Verificar o método de pagamento
+          if (payment.paymentMethod === 'pix' && !pending.pix) {
+            pending.pix = {
+              id: doc.id,
+              ...payment,
+              date_created: payment.dateCreated?.toDate?.().toISOString() || new Date().toISOString(),
+              transaction_amount: payment.amount || 0,
+              status: payment.status || 'pending',
+              payment_type_id: payment.paymentMethod || 'pix'
+            };
+          } else if ((payment.paymentMethod === 'boleto' || payment.paymentMethod === 'ticket') && !pending.boleto) {
+            pending.boleto = {
+              id: doc.id,
+              ...payment,
+              date_created: payment.dateCreated?.toDate?.().toISOString() || new Date().toISOString(),
+              transaction_amount: payment.amount || 0,
+              status: payment.status || 'pending',
+              payment_type_id: payment.paymentMethod || 'boleto'
+            };
+          }
+        });
+        
+        console.log('Pagamentos pendentes encontrados:', pending);
+        setPendingPayments(pending);
+      } catch (error) {
+        console.error('Erro ao verificar pagamentos pendentes:', error);
+      }
+    };
+    
+    // Executar a verificação quando a tela carregar
+    checkPendingPayments();
+  }, [route.params, userEmail]);
   
   // Função para processar o pagamento
   const processPayment = async (paymentMethod) => {
@@ -151,6 +226,18 @@ const Payment = () => {
                     paymentMethod.type === 'bank_transfer' ? 'pix' : paymentMethod.type,
         transactionAmount: Number(amount), // Garante que é número
         description: description || 'Pagamento de serviço',
+        externalReference: `user_${auth.currentUser?.uid || 'guest'}_${Date.now()}`,
+        statementDescriptor: 'PAPA TANGO MOTOS',
+        // Adicionar informações do item (recomendado)
+        items: [
+          {
+            id: contratoId || `service_${Date.now()}`,
+            title: 'Aluguel de Motocicleta',
+            description: description || 'Pagamento de serviço Papa Tango',
+            quantity: 1,
+            unit_price: Number(amount)
+          }
+        ],
         payer: {
           email: email,
           first_name: name.split(' ')[0], // Primeiro nome
@@ -213,6 +300,7 @@ const Payment = () => {
             dateCreated: serverTimestamp(),
             contratoId: contratoId || userData.contratoId || null,
             aluguelId: aluguelId || userData.aluguelAtivoId || null,
+            externalReference: paymentData.externalReference,
             paymentDetails: result
           });
           
@@ -234,6 +322,7 @@ const Payment = () => {
             payment_type_id: paymentData.paymentType,
             userEmail: email,
             userName: name,
+            externalReference: paymentData.externalReference
           }
         });
       } else {
@@ -263,10 +352,23 @@ const Payment = () => {
     }
   };
   
-  // Função para confirmar a seleção do método de pagamento
+  // Função para veriificar se já existe um pagamento pendente, caso não, mostrar o modal para criar um novo
   const confirmPaymentMethod = (option) => {
-    setConfirmModalOption(option);
-    setConfirmModalVisible(true);
+    // Verificar se já existe um pagamento pendente deste tipo
+    const paymentType = option.id; // 'pix' ou 'boleto'
+    const pendingPayment = pendingPayments[paymentType];
+    
+    if (pendingPayment) {
+      // Se já existe um pagamento pendente deste tipo, navegar diretamente para a tela de sucesso
+      console.log(`Pagamento ${paymentType} pendente encontrado:`, pendingPayment);
+      navigation.navigate('PaymentSuccess', {
+        paymentInfo: pendingPayment
+      });
+    } else {
+      // Se não existe, mostrar o modal de confirmação para criar um novo
+      setConfirmModalOption(option);
+      setConfirmModalVisible(true);
+    }
   };
   
   // Função para processar o pagamento após confirmação
@@ -351,33 +453,57 @@ const Payment = () => {
                   key={option.id}
                   onPress={() => confirmPaymentMethod(option)}
                   style={{
-                    borderColor: selectedMethod?.id === option.id ? '#CB2921' : '#E0E0E0',
-                    backgroundColor: selectedMethod?.id === option.id ? '#FFF5F5' : '#FFFFFF',
+                    borderColor: selectedMethod?.id === option.id ? '#CB2921' : 
+                                pendingPayments[option.id] ? '#FFC107' : '#E0E0E0',
+                    backgroundColor: selectedMethod?.id === option.id ? '#FFF5F5' : 
+                                    pendingPayments[option.id] ? '#FFFBEB' : '#FFFFFF',
                   }}
                 >
                   <PaymentOptionIcon>
                     {option.icon === 'file-text' ? (
-                      <Feather name="file-text" size={24} color={selectedMethod?.id === option.id ? '#CB2921' : '#666'} />
+                      <Feather name="file-text" size={24} color={
+                        selectedMethod?.id === option.id ? '#CB2921' : 
+                        pendingPayments[option.id] ? '#FFC107' : '#666'
+                      } />
                     ) : (
-                      <MaterialIcons name={option.icon} size={24} color={selectedMethod?.id === option.id ? '#CB2921' : '#666'} />
+                      <MaterialIcons name={option.icon} size={24} color={
+                        selectedMethod?.id === option.id ? '#CB2921' : 
+                        pendingPayments[option.id] ? '#FFC107' : '#666'
+                      } />
                     )}
                   </PaymentOptionIcon>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <PaymentOptionText
                       style={{
                         fontWeight: 'bold',
-                        color: selectedMethod?.id === option.id ? '#CB2921' : '#333'
+                        color: selectedMethod?.id === option.id ? '#CB2921' : 
+                              pendingPayments[option.id] ? '#FFC107' : '#333'
                       }}
                     >
                       {option.name}
                     </PaymentOptionText>
                     <PaymentOptionText style={{
                       fontSize: 12,
-                      color: '#666'
+                      color: pendingPayments[option.id] ? '#FFC107' : '#666'
                     }}>
-                      {option.description}
+                      {pendingPayments[option.id] 
+                        ? 'Pagamento pendente disponível' 
+                        : option.description}
                     </PaymentOptionText>
                   </View>
+                  {pendingPayments[option.id] && (
+                    <View style={{ 
+                      backgroundColor: '#FFC107', 
+                      paddingHorizontal: 8, 
+                      paddingVertical: 4, 
+                      borderRadius: 12,
+                      marginLeft: 8
+                    }}>
+                      <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>
+                        PENDENTE
+                      </Text>
+                    </View>
+                  )}
                 </PaymentOption>
               ))}
               

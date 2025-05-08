@@ -5,6 +5,7 @@ import { useNavigationContainerRef } from '@react-navigation/native';
 import Routes from './src/routes';
 import { AuthProvider } from './src/context/AuthContext';
 import { AdminProvider } from './src/context/AdminContext';
+import * as Linking from 'expo-linking';
 import {
   SafeAreaView,
   StatusBar,
@@ -54,6 +55,172 @@ export default function App() {
   // Estado para controlar erros
   const [hasError, setHasError] = useState(false);
   const [error, setError] = useState(null);
+
+  // Configurar o manipulador de links
+  useEffect(() => {
+    // Configurar o manipulador de links
+    const handleDeepLink = (event) => {
+      try {
+        let data = Linking.parse(event.url);
+        console.log("Deep link recebido:", data);
+        
+        // Extrair a rota da URL
+        const route = data.path;
+        
+        // Navegar para a rota apropriada se o navigationRef estiver pronto
+        if (navigationRef && navigationRef.isReady()) {
+          // Rotas para usuários logados (app.routes.js -> tab.routes.js)
+          if (route === 'inicio' || route === 'home') {
+            navigationRef.navigate('Inicio');
+          } 
+          else if (route === 'financeiro') {
+            navigationRef.navigate('Financeiro');
+            
+            // Se tiver parâmetros adicionais para navegação dentro do Financeiro
+            if (data.queryParams) {
+              if (data.queryParams.screen === 'payment') {
+                // Navegar para a tela de pagamento dentro do FinanceiroStack
+                navigationRef.navigate('Financeiro', { 
+                  screen: 'Payment',
+                  params: data.queryParams
+                });
+              } else if (data.queryParams.screen === 'success') {
+                // Navegar para a tela de sucesso de pagamento
+                navigationRef.navigate('Financeiro', { 
+                  screen: 'PaymentSuccess',
+                  params: data.queryParams
+                });
+              }
+            }
+          } 
+          else if (route === 'manutencao') {
+            navigationRef.navigate('Manutenção');
+            
+            // Se tiver parâmetros adicionais para navegação dentro da Manutenção
+            if (data.queryParams) {
+              if (data.queryParams.screen === 'troca-oleo') {
+                // Navegar para a tela de troca de óleo
+                navigationRef.navigate('Manutenção', { 
+                  screen: 'TrocaOleo',
+                  params: data.queryParams
+                });
+              } else if (data.queryParams.screen === 'lista-trocas') {
+                // Navegar para a lista de trocas de óleo
+                navigationRef.navigate('Manutenção', { 
+                  screen: 'ListaTrocasOleo',
+                  params: data.queryParams
+                });
+              } else if (data.queryParams.screen === 'detalhes-troca' && data.queryParams.id) {
+                // Navegar para os detalhes de uma troca específica
+                navigationRef.navigate('Manutenção', { 
+                  screen: 'DetalhesTrocaOleo',
+                  params: { id: data.queryParams.id }
+                });
+              }
+            }
+          }
+          
+          // Rotas para admin (admin.routes.js)
+          else if (route === 'admin') {
+            // Navegar para o dashboard admin por padrão
+            let targetScreen = 'Dashboard';
+            let targetParams = {};
+            
+            // Se tiver parâmetros, navegar para a tela específica do admin
+            if (data.queryParams && data.queryParams.screen) {
+              targetScreen = data.queryParams.screen;
+              
+              // Se tiver parâmetros adicionais para a tela
+              if (data.queryParams.params) {
+                try {
+                  // Tentar parsear os parâmetros se estiverem em formato JSON
+                  if (typeof data.queryParams.params === 'string') {
+                    targetParams = JSON.parse(data.queryParams.params);
+                  } else {
+                    targetParams = data.queryParams.params;
+                  }
+                } catch (e) {
+                  console.error("Erro ao parsear parâmetros:", e);
+                }
+              }
+            }
+            
+            // Navegar para a tela admin específica
+            navigationRef.navigate('Admin', { screen: targetScreen, params: targetParams });
+          }
+          
+          // Rotas aninhadas de admin com sintaxe admin/screen
+          else if (route && route.startsWith('admin/')) {
+            const parts = route.split('/');
+            const adminScreen = parts[1]; // Dashboard, Users, Vehicles, etc.
+            
+            if (adminScreen) {
+              // Se houver uma terceira parte, é uma tela aninhada dentro do módulo admin
+              if (parts.length > 2) {
+                const nestedScreen = parts[2]; // UserList, UserForm, etc.
+                
+                // Construir os parâmetros para a navegação aninhada
+                const params = { screen: nestedScreen };
+                
+                // Se houver um ID na URL (admin/Users/UserDetails/123)
+                if (parts.length > 3) {
+                  params.params = { id: parts[3] };
+                }
+                
+                // Adicionar quaisquer query params
+                if (data.queryParams) {
+                  params.params = { ...params.params, ...data.queryParams };
+                }
+                
+                navigationRef.navigate('Admin', { 
+                  screen: adminScreen,
+                  params: params
+                });
+              } else {
+                // Apenas navegar para o módulo admin principal
+                navigationRef.navigate('Admin', { screen: adminScreen });
+              }
+            } else {
+              navigationRef.navigate('Admin');
+            }
+          }
+          
+          // Rotas para usuários deslogados (landing.routes.js)
+          else if (route === 'login' || route === 'signin') {
+            navigationRef.navigate('SignIn');
+          }
+          else if (route === 'signup' || route === 'cadastro') {
+            navigationRef.navigate('nome');
+          }
+          
+          // Fallback para a tela login se a rota não for reconhecida
+          else {
+            console.log("Rota não reconhecida:", route);
+            navigationRef.navigate('SignIn');
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao processar deep link:", error);
+      }
+    };
+  
+    // Adicionar listener para links quando o app já está aberto
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+    
+    // Verificar se o app foi aberto por um link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        console.log("App aberto por URL:", url);
+        handleDeepLink({ url });
+      }
+    }).catch(err => {
+      console.error("Erro ao obter URL inicial:", err);
+    });
+  
+    return () => {
+      subscription.remove();
+    };
+  }, [navigationRef]);
 
   // Configurar handler global de erros
   useEffect(() => {

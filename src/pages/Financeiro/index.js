@@ -573,18 +573,109 @@ const Financeiro = () => {
             }
           };
           
-          // Função para iniciar um novo pagamento
-          const startNewPayment = () => {
-            const paymentData = {
-              amount: proximoPagamento ? proximoPagamento.valor.toFixed(2) : '250.00',
-              description: proximoPagamento 
-                ? `Pagamento ${proximoPagamento.tipoRecorrencia === 'mensal' ? 'Mensal' : 'Semanal'}`
-                : 'Pagamento Papa Tango',
-              userEmail: auth.currentUser?.email || 'cliente@exemplo.com',
-              userName: userData?.nomeCompleto || 'Cliente'
-            };
-            
-            navigation.navigate('Payment', paymentData);
+          // Função para direcionar usuários para a tela de detalhes do pagamento ou para a tela de pagamento dependendo do status
+          const startNewPayment = async () => {
+            try {
+              // Verificar se existem pagamentos pendentes
+              const currentUser = auth.currentUser;
+              if (!currentUser) return;
+              
+              // Buscar pagamentos pendentes no Firestore
+              const paymentsQuery = query(
+                collection(db, 'payments'),
+                where('userEmail', '==', currentUser.email),
+                where('status', '==', 'pending')
+              );
+              
+              const querySnapshot = await getDocs(paymentsQuery);
+              
+              // Objeto para armazenar pagamentos pendentes por tipo
+              const pendingPayments = {
+                pix: null,
+                boleto: null
+              };
+              
+              // Processar os resultados
+              querySnapshot.forEach((doc) => {
+                const payment = doc.data();
+                
+                // Verificar o método de pagamento
+                if (payment.paymentMethod === 'pix' && !pendingPayments.pix) {
+                  pendingPayments.pix = {
+                    id: doc.id,
+                    ...payment,
+                    date_created: payment.dateCreated?.toDate?.().toISOString() || new Date().toISOString(),
+                    transaction_amount: payment.amount || 0,
+                    status: payment.status || 'pending',
+                    payment_type_id: payment.paymentMethod || 'pix'
+                  };
+                } else if ((payment.paymentMethod === 'boleto' || payment.paymentMethod === 'ticket') && !pendingPayments.boleto) {
+                  pendingPayments.boleto = {
+                    id: doc.id,
+                    ...payment,
+                    date_created: payment.dateCreated?.toDate?.().toISOString() || new Date().toISOString(),
+                    transaction_amount: payment.amount || 0,
+                    status: payment.status || 'pending',
+                    payment_type_id: payment.paymentMethod || 'boleto'
+                  };
+                }
+              });
+              
+              // Se tiver apenas um tipo de pagamento pendente e for o único método disponível, ir direto para a tela de sucesso
+              const hasPendingPix = pendingPayments.pix !== null;
+              const hasPendingBoleto = pendingPayments.boleto !== null;
+              
+              if (hasPendingPix && hasPendingBoleto) {
+                // Se tiver os dois tipos pendentes, ir para a tela de pagamento para escolher
+                const paymentData = {
+                  amount: proximoPagamento ? proximoPagamento.valor.toFixed(2) : '250.00',
+                  description: proximoPagamento 
+                    ? `Pagamento ${proximoPagamento.tipoRecorrencia === 'mensal' ? 'Mensal' : 'Semanal'}`
+                    : 'Pagamento Papa Tango',
+                  userEmail: auth.currentUser?.email || 'cliente@exemplo.com',
+                  userName: userData?.nomeCompleto || 'Cliente',
+                  pendingPayments: pendingPayments
+                };
+                
+                navigation.navigate('Payment', paymentData);
+              } else if (hasPendingPix) {
+                // Se tiver apenas PIX pendente, ir direto para a tela de sucesso com esse pagamento
+                navigation.navigate('PaymentSuccess', {
+                  paymentInfo: pendingPayments.pix
+                });
+              } else if (hasPendingBoleto) {
+                // Se tiver apenas boleto pendente, ir direto para a tela de sucesso com esse pagamento
+                navigation.navigate('PaymentSuccess', {
+                  paymentInfo: pendingPayments.boleto
+                });
+              } else {
+                // Se não tiver nenhum pagamento pendente, ir para a tela de pagamento normal
+                const paymentData = {
+                  amount: proximoPagamento ? proximoPagamento.valor.toFixed(2) : '250.00',
+                  description: proximoPagamento 
+                    ? `Pagamento ${proximoPagamento.tipoRecorrencia === 'mensal' ? 'Mensal' : 'Semanal'}`
+                    : 'Pagamento Papa Tango',
+                  userEmail: auth.currentUser?.email || 'cliente@exemplo.com',
+                  userName: userData?.nomeCompleto || 'Cliente'
+                };
+                
+                navigation.navigate('Payment', paymentData);
+              }
+            } catch (error) {
+              console.error('Erro ao verificar pagamentos pendentes:', error);
+              
+              // Em caso de erro, seguir com o fluxo normal
+              const paymentData = {
+                amount: proximoPagamento ? proximoPagamento.valor.toFixed(2) : '250.00',
+                description: proximoPagamento 
+                  ? `Pagamento ${proximoPagamento.tipoRecorrencia === 'mensal' ? 'Mensal' : 'Semanal'}`
+                  : 'Pagamento Papa Tango',
+                userEmail: auth.currentUser?.email || 'cliente@exemplo.com',
+                userName: userData?.nomeCompleto || 'Cliente'
+              };
+              
+              navigation.navigate('Payment', paymentData);
+            }
           };
           
           // Função para ver detalhes de um pagamento 

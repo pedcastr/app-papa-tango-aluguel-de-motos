@@ -307,6 +307,7 @@ export const registerForPushNotifications = async () => {
 };
 
 
+
 // Verificar se o usuário está registrado
 export const isUserRegistered = async () => {
   try {
