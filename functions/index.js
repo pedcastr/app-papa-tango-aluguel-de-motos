@@ -2,7 +2,6 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const serviceAccount = require("./service-account.json");
 const nodemailer = require("nodemailer");
-const axios = require("axios");
 const path = require("path");
 const env = require("./env.json");
 const cors = require("cors")({origin: true});
@@ -609,22 +608,132 @@ async function sendPaymentNotification(userId, notification, isAdminNotification
     // Gerar um ID de grupo para relacionar notificações
     const notificationGroupId = `payment_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
-    // Se for uma notificação de admin, não precisamos verificar o usuário específico
-    if (!isAdminNotification) {
-      const userDoc = await db.collection("users").doc(userId).get();
-      if (!userDoc.exists) {
-        console.warn(`Usuário ${userId} não encontrado para enviar notificação`);
-        return;
+    // Se for uma notificação de admin, buscar todos os admins
+    if (isAdminNotification) {
+      // Para notificações de admin, enviar para todos os usuários com isAdmin=true
+      const adminUsersSnapshot = await db.collection("users")
+          .where("isAdmin", "==", true)
+          .get();
+
+      if (adminUsersSnapshot.empty) {
+        console.warn("Nenhum usuário admin encontrado para enviar notificação");
+      } else {
+        // Para cada admin, enviar notificação diretamente via FCM
+        for (const adminDoc of adminUsersSnapshot.docs) {
+          const adminId = adminDoc.id;
+          const adminData = adminDoc.data();
+
+          if (adminData.fcmToken) {
+            try {
+              // Enviar via FCM diretamente
+              const message = {
+                token: adminData.fcmToken,
+                notification: {
+                  title: notification.title,
+                  body: notification.body,
+                },
+                data: notification.data || {},
+                android: {
+                  priority: "high",
+                  notification: {
+                    channelId: "default",
+                  },
+                },
+              };
+
+              await admin.messaging().send(message);
+              console.log(`Notificação enviada diretamente para admin ${adminId}`);
+            } catch (fcmError) {
+              console.error(`Erro ao enviar notificação para admin ${adminId}:`, fcmError);
+
+              // Se o token for inválido, criar uma solicitação de notificação
+              if (fcmError.code === "messaging/invalid-registration-token" ||
+                  fcmError.code === "messaging/registration-token-not-registered") {
+                console.log(`Token inválido para admin ${adminId}, criando solicitação de notificação`);
+
+                // Criar solicitação de notificação para processamento posterior
+                const requestId = `admin_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+                await db.collection("notificationRequests").doc(requestId).set({
+                  userEmail: adminId,
+                  title: notification.title,
+                  body: notification.body,
+                  data: notification.data || {},
+                  status: "pending",
+                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                  notificationGroupId: notificationGroupId,
+                });
+              }
+            }
+          } else {
+            // Se o admin não tiver token, criar uma solicitação de notificação
+            const requestId = `admin_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+            await db.collection("notificationRequests").doc(requestId).set({
+              userEmail: adminId,
+              title: notification.title,
+              body: notification.body,
+              data: notification.data || {},
+              status: "pending",
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              notificationGroupId: notificationGroupId,
+            });
+            console.log(`Solicitação de notificação criada para admin ${adminId} com ID: ${requestId}`);
+          }
+        }
       }
 
-      const user = userDoc.data();
-      const fcmToken = user.fcmToken;
+      // Salvar a notificação no Firestore para admins
+      await db.collection("notifications").add({
+        userType: "admin",
+        title: notification.title,
+        body: notification.body,
+        data: notification.data || {},
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        notificationGroupId: notificationGroupId,
+        notificationType: "push",
+      });
 
-      if (!fcmToken) {
-        console.warn(`Usuário ${userId} não tem token para notificações`);
-        // Ainda assim, vamos salvar a notificação no Firestore
-      } else {
-        // Criar solicitação de notificação no Firestore
+      console.log(`Notificação de admin salva no Firestore`);
+      return;
+    }
+
+    // Para notificações de usuário normal
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (!userDoc.exists) {
+      console.warn(`Usuário ${userId} não encontrado para enviar notificação`);
+      return;
+    }
+
+    const user = userDoc.data();
+    const fcmToken = user.fcmToken;
+
+    if (!fcmToken) {
+      console.warn(`Usuário ${userId} não tem token para notificações`);
+      // Ainda assim, vamos salvar a notificação no Firestore
+    } else {
+      try {
+        // Tentar enviar diretamente via FCM
+        const message = {
+          token: fcmToken,
+          notification: {
+            title: notification.title,
+            body: notification.body,
+          },
+          data: notification.data || {},
+          android: {
+            priority: "high",
+            notification: {
+              channelId: "default",
+            },
+          },
+        };
+
+        await admin.messaging().send(message);
+        console.log(`Notificação enviada diretamente para usuário ${userId}`);
+      } catch (fcmError) {
+        console.error(`Erro ao enviar notificação diretamente para ${userId}:`, fcmError);
+
+        // Criar solicitação de notificação para processamento posterior
         const requestId = `payment_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
         await db.collection("notificationRequests").doc(requestId).set({
           userEmail: userId,
@@ -638,71 +747,26 @@ async function sendPaymentNotification(userId, notification, isAdminNotification
 
         console.log(`Solicitação de notificação criada para usuário ${userId} com ID: ${requestId}`);
       }
-    } else {
-      // Para notificações de admin, enviar para todos os usuários com isAdmin=true
-      const adminUsersSnapshot = await db.collection("users")
-          .where("isAdmin", "==", true)
-          .get();
-
-      if (adminUsersSnapshot.empty) {
-        console.warn("Nenhum usuário admin encontrado para enviar notificação");
-        return;
-      }
-
-      for (const adminDoc of adminUsersSnapshot.docs) {
-        const adminId = adminDoc.id;
-        const adminData = adminDoc.data();
-
-        if (adminData.fcmToken) {
-          // Criar solicitação de notificação para cada admin
-          const requestId = `admin_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-          await db.collection("notificationRequests").doc(requestId).set({
-            userEmail: adminId,
-            title: notification.title,
-            body: notification.body,
-            data: notification.data || {},
-            status: "pending",
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            notificationGroupId: notificationGroupId,
-          });
-
-          console.log(`Solicitação de notificação criada para admin ${adminId} com ID: ${requestId}`);
-        }
-      }
     }
 
-    // Salvar a notificação no Firestore
-    // Para notificações de admin, usamos userType = 'admin'
-    // Para notificações de usuário, usamos userId
-    if (isAdminNotification) {
-      await db.collection("notifications").add({
-        userType: "admin",
-        title: notification.title,
-        body: notification.body,
-        data: notification.data || {},
-        read: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        notificationGroupId: notificationGroupId,
-        notificationType: "push",
-      });
-      console.log(`Notificação de admin salva no Firestore`);
-    } else {
-      await db.collection("notifications").add({
-        userId,
-        title: notification.title,
-        body: notification.body,
-        data: notification.data || {},
-        read: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        notificationGroupId: notificationGroupId,
-        notificationType: "push",
-      });
-      console.log(`Notificação salva no Firestore para o usuário ${userId}`);
-    }
+    // Salvar a notificação no Firestore para o usuário
+    await db.collection("notifications").add({
+      userId,
+      title: notification.title,
+      body: notification.body,
+      data: notification.data || {},
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      notificationGroupId: notificationGroupId,
+      notificationType: "push",
+    });
+
+    console.log(`Notificação salva no Firestore para o usuário ${userId}`);
   } catch (error) {
     console.error(`Erro ao enviar notificação para o usuário ${userId}:`, error);
   }
 }
+
 
 // Função para enviar notificações para usuários pelo Email
 exports.processEmailRequests = functions.firestore
@@ -816,9 +880,8 @@ exports.processarNotificacoes = functions.firestore
         // Normalizar os dados da notificação
         // Garantir que title e body sejam strings
         const title = typeof data.title === "string" ? data.title :
-                     (data.title && data.title.transaction_amount ?
-                      `⚠️ Pagamento em Atraso ⚠️` : "Notificação");
-
+                    (data.title && typeof data.title.toString === "function" ?
+                      data.title.toString() : "Notificação");
         const body = typeof data.body === "string" ? data.body :
                     (data.data && typeof data.data === "string" ?
                      data.data : "Você tem uma nova notificação");
@@ -832,153 +895,83 @@ exports.processarNotificacoes = functions.firestore
         let response;
         let success = false;
 
-        // Verificar se é um token Expo (começa com ExponentPushToken)
-        if (userData.fcmToken.startsWith("ExponentPushToken[")) {
-          // Enviar via API do Expo
-          console.log("Tentando enviar via API Expo para usuário", data.userEmail);
+        try {
+          // Enviar via FCM diretamente (API V1)
+          console.log("Enviando via FCM para usuário", data.userEmail);
 
-          const expoMessage = {
-            to: userData.fcmToken,
-            title: title,
-            body: body,
+          const fcmMessage = {
+            token: userData.fcmToken,
+            notification: {
+              title: title,
+              body: body,
+            },
             data: notificationData,
-            sound: "default",
-            priority: "high",
-            channelId: data.hasImage ? "notifications_with_image" : "default",
+            android: {
+              priority: "high",
+              notification: {
+                channelId: data.hasImage ? "notifications_with_image" : "default",
+              },
+            },
+            apns: {
+              payload: {
+                aps: {
+                  sound: "default",
+                },
+              },
+            },
           };
 
           // Adicionar imagem se fornecida
           if (data.imageUrl) {
-            expoMessage.mutableContent = true;
-            expoMessage.data.imageUrl = data.imageUrl;
+            // Configuração para Android
+            if (!fcmMessage.android) fcmMessage.android = {};
+            if (!fcmMessage.android.notification) fcmMessage.android.notification = {};
+            fcmMessage.android.notification.imageUrl = data.imageUrl;
+
+            // Configuração para iOS
+            if (!fcmMessage.apns) fcmMessage.apns = {};
+            if (!fcmMessage.apns.payload) fcmMessage.apns.payload = {};
+            if (!fcmMessage.apns.payload.aps) fcmMessage.apns.payload.aps = {};
+            fcmMessage.apns.payload.aps["mutable-content"] = 1;
+            fcmMessage.apns.fcm_options = {image: data.imageUrl};
           }
 
-          console.log("Enviando mensagem via Expo:", JSON.stringify(expoMessage));
-
-          try {
-            // Usando axios para fazer a requisição
-            const axiosResponse = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
-              headers: {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-              },
-            });
-
-            // Com axios, a resposta já é um objeto JSON
-            response = axiosResponse.data;
-            console.log("Notificação enviada via Expo (resposta):", response);
-
-            // Verificar se a resposta indica sucesso
-            if (response && response.data && response.data.status === "ok") {
-              success = true;
-              console.log("Notificação Expo enviada com sucesso para:", userData.fcmToken);
-            } else {
-              console.error("Resposta da API Expo não indica sucesso:", response);
-            }
-          } catch (axiosError) {
-            console.error("Erro na requisição para API do Expo:", axiosError);
-
-            // Capturar detalhes da resposta de erro, se disponíveis
-            if (axiosError.response) {
-              console.error("Detalhes da resposta de erro:", {
-                status: axiosError.response.status,
-                data: axiosError.response.data,
-              });
-            }
-
-            throw axiosError;
-          }
-        } else {
-          // Enviar via FCM diretamente
-          console.log("Tentando enviar via FCM para usuário", data.userEmail);
-
-          try {
-            const fcmMessage = {
-              token: userData.fcmToken,
-              notification: {
-                title: title,
-                body: body,
-              },
-              data: notificationData,
-              android: data.android || {
-                notification: {
-                  channelId: data.hasImage ? "notifications_with_image" : "default",
-                },
-              },
-              apns: data.apns || {
-                payload: {
-                  aps: {
-                    sound: "default",
-                  },
-                },
-              },
+          // Adicionar configurações específicas para Android se fornecidas
+          if (data.android) {
+            fcmMessage.android = {
+              ...fcmMessage.android,
+              ...data.android,
             };
+          }
 
-            // Adicionar imagem se fornecida
-            if (data.imageUrl) {
-              if (!fcmMessage.android) fcmMessage.android = {};
-              if (!fcmMessage.android.notification) fcmMessage.android.notification = {};
+          // Adicionar configurações específicas para iOS se fornecidas
+          if (data.apns) {
+            fcmMessage.apns = {
+              ...fcmMessage.apns,
+              ...data.apns,
+            };
+          }
 
-              fcmMessage.android.notification.imageUrl = data.imageUrl;
+          response = await admin.messaging().send(fcmMessage);
+          console.log("Notificação enviada via FCM:", response);
+          success = true;
+        } catch (fcmError) {
+          console.error("Erro ao enviar via FCM para usuário", data.userEmail, ":", fcmError);
 
-              if (!fcmMessage.apns) fcmMessage.apns = {};
-              if (!fcmMessage.apns.payload) fcmMessage.apns.payload = {};
-              if (!fcmMessage.apns.payload.aps) fcmMessage.apns.payload.aps = {};
-
-              fcmMessage.apns.payload.aps["mutable-content"] = 1;
-              fcmMessage.apns.fcm_options = {image: data.imageUrl};
-            }
-
-            response = await admin.messaging().send(fcmMessage);
-            console.log("Notificação enviada via FCM:", response);
-            success = true;
-          } catch (fcmError) {
-            console.error("Erro ao enviar via FCM para usuário", data.userEmail, ":", fcmError);
-
-            // Se o token FCM for inválido, tentar via Expo como fallback
-            if (fcmError.code === "messaging/invalid-argument" ||
-                fcmError.code === "messaging/registration-token-not-registered") {
-              console.log("Tentando enviar via API Expo para usuário", data.userEmail);
-
-              try {
-                const expoMessage = {
-                  to: userData.fcmToken,
-                  title: title,
-                  body: body,
-                  data: notificationData,
-                  sound: "default",
-                  priority: "high",
-                  channelId: data.hasImage ? "notifications_with_image" : "default",
-                };
-
-                // Adicionar imagem se fornecida
-                if (data.imageUrl) {
-                  expoMessage.mutableContent = true;
-                  expoMessage.data.imageUrl = data.imageUrl;
-                }
-
-                const axiosResponse = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
-                  headers: {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                  },
-                });
-
-                response = axiosResponse.data;
-                console.log("Notificação enviada via Expo (resposta):", response);
-
-                if (response && response.data && response.data.status === "ok") {
-                  success = true;
-                  console.log("Notificação Expo enviada com sucesso para:", userData.fcmToken);
-                }
-              } catch (expoError) {
-                console.error("Erro ao enviar via Expo como fallback:", expoError);
-                throw expoError;
-              }
-            } else {
-              throw fcmError;
+          // Se o token for inválido, remover do Firestore
+          if (fcmError.code === "messaging/invalid-registration-token" ||
+              fcmError.code === "messaging/registration-token-not-registered") {
+            try {
+              await admin.firestore().collection("users").doc(userDoc.id).update({
+                fcmToken: admin.firestore.FieldValue.delete(),
+              });
+              console.log(`Token inválido removido para usuário ${data.userEmail}`);
+            } catch (updateError) {
+              console.error(`Erro ao remover token inválido:`, updateError);
             }
           }
+
+          throw fcmError;
         }
 
         // Atualizar o status da solicitação
@@ -1001,6 +994,7 @@ exports.processarNotificacoes = functions.firestore
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             notificationGroupId: data.notificationGroupId || `auto_${Date.now()}`,
             notificationType: "push",
+            imageUrl: data.imageUrl,
           });
 
           console.log(`Notificação enviada com sucesso para ${data.userEmail}`);
