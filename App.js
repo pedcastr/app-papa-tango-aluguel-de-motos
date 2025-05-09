@@ -61,11 +61,28 @@ export default function App() {
     // Configurar o manipulador de links
     const handleDeepLink = (event) => {
       try {
+        // Verificar se temos uma URL válida
+        if (!event || !event.url) {
+          console.log("URL inválida recebida");
+          return;
+        }
+
+        console.log("Deep link recebido:", event.url);
+
         let data = Linking.parse(event.url);
-        console.log("Deep link recebido:", data);
+        console.log("URL parseada:", data);
         
         // Extrair a rota da URL
-        const route = data.path;
+        // Para URLs como papamotors://financeiro, o path será 'financeiro'
+        // Para URLs como https://papatango.com.br/financeiro, o path também será 'financeiro'
+        const route = data.path || '';
+        console.log("Rota extraída:", route);
+
+        // Verificar se o navigationRef está pronto
+        if (!navigationRef || !navigationRef.isReady()) {
+          console.log("Navigation ref não está pronto");
+          return;
+        }
         
         // Navegar para a rota apropriada se o navigationRef estiver pronto
         if (navigationRef && navigationRef.isReady()) {
@@ -208,14 +225,19 @@ export default function App() {
     const subscription = Linking.addEventListener('url', handleDeepLink);
     
     // Verificar se o app foi aberto por um link
-    Linking.getInitialURL().then((url) => {
-      if (url) {
-        console.log("App aberto por URL:", url);
-        handleDeepLink({ url });
+    const checkInitialLink = async () => {
+      try {
+        const url = await Linking.getInitialURL();
+        if (url) {
+          console.log("App aberto por URL inicial:", url);
+          handleDeepLink({ url });
+        }
+      } catch (err) {
+        console.error("Erro ao obter URL inicial:", err);
       }
-    }).catch(err => {
-      console.error("Erro ao obter URL inicial:", err);
-    });
+    };
+    
+    checkInitialLink();
   
     return () => {
       subscription.remove();

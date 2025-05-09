@@ -6,7 +6,7 @@ export const Container = styled.View`
 `;
 
 export const SuccessIcon = styled.View`
-  margin-top: 30px;
+  margin-top: 10px;
   margin-bottom: 20px;
   align-items: center;
 `;

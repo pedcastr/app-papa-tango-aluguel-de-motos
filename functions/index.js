@@ -1,5 +1,6 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const axios = require("axios");
 const serviceAccount = require("./service-account.json");
 const nodemailer = require("nodemailer");
 const path = require("path");
@@ -608,67 +609,65 @@ async function sendPaymentNotification(userId, notification, isAdminNotification
     // Gerar um ID de grupo para relacionar notificações
     const notificationGroupId = `payment_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
-    // Se for uma notificação de admin, buscar todos os admins
-    if (isAdminNotification) {
-      // Para notificações de admin, enviar para todos os usuários com isAdmin=true
-      const adminUsersSnapshot = await db.collection("users")
-          .where("isAdmin", "==", true)
-          .get();
+    // Se for uma notificação de admin, não precisamos verificar o usuário específico
+    if (!isAdminNotification) {
+      const userDoc = await db.collection("users").doc(userId).get();
+      if (!userDoc.exists) {
+        console.warn(`Usuário ${userId} não encontrado para enviar notificação`);
+        return;
+      }
 
-      if (adminUsersSnapshot.empty) {
-        console.warn("Nenhum usuário admin encontrado para enviar notificação");
+      const user = userDoc.data();
+      const fcmToken = user.fcmToken;
+
+      if (!fcmToken) {
+        console.warn(`Usuário ${userId} não tem token para notificações`);
+        // Ainda assim, vamos salvar a notificação no Firestore
       } else {
-        // Para cada admin, enviar notificação diretamente via FCM
-        for (const adminDoc of adminUsersSnapshot.docs) {
-          const adminId = adminDoc.id;
-          const adminData = adminDoc.data();
+        // Verificar se é um token Expo
+        const isExpoToken = fcmToken.startsWith("ExponentPushToken[");
 
-          if (adminData.fcmToken) {
-            try {
-              // Enviar via FCM diretamente
-              const message = {
-                token: adminData.fcmToken,
+        if (isExpoToken) {
+          // Para tokens Expo, criar uma solicitação de notificação
+          const requestId = `payment_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+          await db.collection("notificationRequests").doc(requestId).set({
+            userEmail: userId,
+            title: notification.title,
+            body: notification.body,
+            data: notification.data || {},
+            status: "pending",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            notificationGroupId: notificationGroupId,
+          });
+
+          console.log(`Solicitação de notificação criada para usuário ${userId} com ID: ${requestId}`);
+        } else {
+          // Para tokens FCM, tentar enviar diretamente
+          try {
+            const message = {
+              token: fcmToken,
+              notification: {
+                title: notification.title,
+                body: notification.body,
+              },
+              data: notification.data || {},
+              android: {
+                priority: "high",
                 notification: {
-                  title: notification.title,
-                  body: notification.body,
+                  channelId: "default",
                 },
-                data: notification.data || {},
-                android: {
-                  priority: "high",
-                  notification: {
-                    channelId: "default",
-                  },
-                },
-              };
+              },
+            };
 
-              await admin.messaging().send(message);
-              console.log(`Notificação enviada diretamente para admin ${adminId}`);
-            } catch (fcmError) {
-              console.error(`Erro ao enviar notificação para admin ${adminId}:`, fcmError);
+            await admin.messaging().send(message);
+            console.log(`Notificação enviada diretamente para usuário ${userId}`);
+          } catch (fcmError) {
+            console.error(`Erro ao enviar notificação diretamente para ${userId}:`, fcmError);
 
-              // Se o token for inválido, criar uma solicitação de notificação
-              if (fcmError.code === "messaging/invalid-registration-token" ||
-                  fcmError.code === "messaging/registration-token-not-registered") {
-                console.log(`Token inválido para admin ${adminId}, criando solicitação de notificação`);
-
-                // Criar solicitação de notificação para processamento posterior
-                const requestId = `admin_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-                await db.collection("notificationRequests").doc(requestId).set({
-                  userEmail: adminId,
-                  title: notification.title,
-                  body: notification.body,
-                  data: notification.data || {},
-                  status: "pending",
-                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                  notificationGroupId: notificationGroupId,
-                });
-              }
-            }
-          } else {
-            // Se o admin não tiver token, criar uma solicitação de notificação
-            const requestId = `admin_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+            // Criar solicitação de notificação para processamento posterior
+            const requestId = `payment_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
             await db.collection("notificationRequests").doc(requestId).set({
-              userEmail: adminId,
+              userEmail: userId,
               title: notification.title,
               body: notification.body,
               data: notification.data || {},
@@ -676,12 +675,52 @@ async function sendPaymentNotification(userId, notification, isAdminNotification
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
               notificationGroupId: notificationGroupId,
             });
-            console.log(`Solicitação de notificação criada para admin ${adminId} com ID: ${requestId}`);
+
+            console.log(`Solicitação de notificação criada para usuário ${userId} com ID: ${requestId}`);
           }
         }
       }
+    } else {
+      // Para notificações de admin, enviar para todos os usuários com isAdmin=true
+      const adminUsersSnapshot = await db.collection("users")
+          .where("isAdmin", "==", true)
+          .get();
 
-      // Salvar a notificação no Firestore para admins
+      if (adminUsersSnapshot.empty) {
+        console.warn("Nenhum usuário admin encontrado para enviar notificação");
+        return;
+      }
+
+      for (const adminDoc of adminUsersSnapshot.docs) {
+        const adminId = adminDoc.id;
+        const adminData = adminDoc.data();
+
+        if (adminData.fcmToken) {
+          // Verificar se é um token Expo (apenas para logging)
+          const isExpoToken = adminData.fcmToken.startsWith("ExponentPushToken[");
+          console.log(`Token para admin ${adminId} é do tipo: ${isExpoToken ? "Expo" : "FCM"}`);
+
+          // Criar solicitação de notificação para cada admin (sempre)
+          const requestId = `admin_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+          await db.collection("notificationRequests").doc(requestId).set({
+            userEmail: adminId,
+            title: notification.title,
+            body: notification.body,
+            data: notification.data || {},
+            status: "pending",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            notificationGroupId: notificationGroupId,
+          });
+
+          console.log(`Solicitação de notificação criada para admin ${adminId} com ID: ${requestId}`);
+        }
+      }
+    }
+
+    // Salvar a notificação no Firestore
+    // Para notificações de admin, usamos userType = 'admin'
+    // Para notificações de usuário, usamos userId
+    if (isAdminNotification) {
       await db.collection("notifications").add({
         userType: "admin",
         title: notification.title,
@@ -692,76 +731,20 @@ async function sendPaymentNotification(userId, notification, isAdminNotification
         notificationGroupId: notificationGroupId,
         notificationType: "push",
       });
-
       console.log(`Notificação de admin salva no Firestore`);
-      return;
-    }
-
-    // Para notificações de usuário normal
-    const userDoc = await db.collection("users").doc(userId).get();
-    if (!userDoc.exists) {
-      console.warn(`Usuário ${userId} não encontrado para enviar notificação`);
-      return;
-    }
-
-    const user = userDoc.data();
-    const fcmToken = user.fcmToken;
-
-    if (!fcmToken) {
-      console.warn(`Usuário ${userId} não tem token para notificações`);
-      // Ainda assim, vamos salvar a notificação no Firestore
     } else {
-      try {
-        // Tentar enviar diretamente via FCM
-        const message = {
-          token: fcmToken,
-          notification: {
-            title: notification.title,
-            body: notification.body,
-          },
-          data: notification.data || {},
-          android: {
-            priority: "high",
-            notification: {
-              channelId: "default",
-            },
-          },
-        };
-
-        await admin.messaging().send(message);
-        console.log(`Notificação enviada diretamente para usuário ${userId}`);
-      } catch (fcmError) {
-        console.error(`Erro ao enviar notificação diretamente para ${userId}:`, fcmError);
-
-        // Criar solicitação de notificação para processamento posterior
-        const requestId = `payment_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-        await db.collection("notificationRequests").doc(requestId).set({
-          userEmail: userId,
-          title: notification.title,
-          body: notification.body,
-          data: notification.data || {},
-          status: "pending",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          notificationGroupId: notificationGroupId,
-        });
-
-        console.log(`Solicitação de notificação criada para usuário ${userId} com ID: ${requestId}`);
-      }
+      await db.collection("notifications").add({
+        userId,
+        title: notification.title,
+        body: notification.body,
+        data: notification.data || {},
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        notificationGroupId: notificationGroupId,
+        notificationType: "push",
+      });
+      console.log(`Notificação salva no Firestore para o usuário ${userId}`);
     }
-
-    // Salvar a notificação no Firestore para o usuário
-    await db.collection("notifications").add({
-      userId,
-      title: notification.title,
-      body: notification.body,
-      data: notification.data || {},
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      notificationGroupId: notificationGroupId,
-      notificationType: "push",
-    });
-
-    console.log(`Notificação salva no Firestore para o usuário ${userId}`);
   } catch (error) {
     console.error(`Erro ao enviar notificação para o usuário ${userId}:`, error);
   }
@@ -880,11 +863,12 @@ exports.processarNotificacoes = functions.firestore
         // Normalizar os dados da notificação
         // Garantir que title e body sejam strings
         const title = typeof data.title === "string" ? data.title :
-                    (data.title && typeof data.title.toString === "function" ?
-                      data.title.toString() : "Notificação");
+                     (typeof data.title === "object" && data.title !== null ?
+                      JSON.stringify(data.title) : "Notificação");
+
         const body = typeof data.body === "string" ? data.body :
-                    (data.data && typeof data.data === "string" ?
-                     data.data : "Você tem uma nova notificação");
+                    (typeof data.body === "object" && data.body !== null ?
+                     JSON.stringify(data.body) : "Você tem uma nova notificação");
 
         // Garantir que data seja um objeto
         const notificationData = typeof data.data === "object" ? data.data :
@@ -895,83 +879,130 @@ exports.processarNotificacoes = functions.firestore
         let response;
         let success = false;
 
-        try {
-          // Enviar via FCM diretamente (API V1)
-          console.log("Enviando via FCM para usuário", data.userEmail);
+        // Verificar se é um token Expo (começa com ExponentPushToken)
+        const isExpoToken = userData.fcmToken.startsWith("ExponentPushToken[");
 
-          const fcmMessage = {
-            token: userData.fcmToken,
-            notification: {
-              title: title,
-              body: body,
-            },
+        if (isExpoToken) {
+          // Enviar via API do Expo
+          console.log("Enviando via API Expo para usuário", data.userEmail);
+
+          const expoMessage = {
+            to: userData.fcmToken,
+            title: title,
+            body: body,
             data: notificationData,
-            android: {
-              priority: "high",
-              notification: {
-                channelId: data.hasImage ? "notifications_with_image" : "default",
-              },
-            },
-            apns: {
-              payload: {
-                aps: {
-                  sound: "default",
-                },
-              },
-            },
+            sound: "default",
+            priority: "high",
+            channelId: data.hasImage ? "notifications_with_image" : "default",
           };
 
           // Adicionar imagem se fornecida
           if (data.imageUrl) {
-            // Configuração para Android
-            if (!fcmMessage.android) fcmMessage.android = {};
-            if (!fcmMessage.android.notification) fcmMessage.android.notification = {};
-            fcmMessage.android.notification.imageUrl = data.imageUrl;
-
-            // Configuração para iOS
-            if (!fcmMessage.apns) fcmMessage.apns = {};
-            if (!fcmMessage.apns.payload) fcmMessage.apns.payload = {};
-            if (!fcmMessage.apns.payload.aps) fcmMessage.apns.payload.aps = {};
-            fcmMessage.apns.payload.aps["mutable-content"] = 1;
-            fcmMessage.apns.fcm_options = {image: data.imageUrl};
+            expoMessage.mutableContent = true;
+            expoMessage.data.imageUrl = data.imageUrl;
           }
 
-          // Adicionar configurações específicas para Android se fornecidas
-          if (data.android) {
-            fcmMessage.android = {
-              ...fcmMessage.android,
-              ...data.android,
-            };
-          }
+          console.log("Enviando mensagem via Expo:", JSON.stringify(expoMessage));
 
-          // Adicionar configurações específicas para iOS se fornecidas
-          if (data.apns) {
-            fcmMessage.apns = {
-              ...fcmMessage.apns,
-              ...data.apns,
-            };
-          }
+          try {
+            // Usando axios para fazer a requisição
+            const axiosResponse = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
+              headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+              },
+            });
 
-          response = await admin.messaging().send(fcmMessage);
-          console.log("Notificação enviada via FCM:", response);
-          success = true;
-        } catch (fcmError) {
-          console.error("Erro ao enviar via FCM para usuário", data.userEmail, ":", fcmError);
+            // Com axios, a resposta já é um objeto JSON
+            response = axiosResponse.data;
+            console.log("Notificação enviada via Expo (resposta):", response);
 
-          // Se o token for inválido, remover do Firestore
-          if (fcmError.code === "messaging/invalid-registration-token" ||
-              fcmError.code === "messaging/registration-token-not-registered") {
-            try {
-              await admin.firestore().collection("users").doc(userDoc.id).update({
-                fcmToken: admin.firestore.FieldValue.delete(),
-              });
-              console.log(`Token inválido removido para usuário ${data.userEmail}`);
-            } catch (updateError) {
-              console.error(`Erro ao remover token inválido:`, updateError);
+            // A API Expo pode retornar diferentes formatos de resposta
+            // Aceitar qualquer resposta que não indique erro explícito
+            if (response && !response.errors) {
+              success = true;
+              console.log("Notificação Expo enviada com sucesso para:", userData.fcmToken);
+            } else {
+              console.error("Resposta da API Expo indica erro:", response.errors || response);
+              throw new Error("Falha ao enviar via Expo: " + JSON.stringify(response.errors || response));
             }
-          }
+          } catch (axiosError) {
+            console.error("Erro na requisição para API do Expo:", axiosError);
 
-          throw fcmError;
+            // Capturar detalhes da resposta de erro, se disponíveis
+            if (axiosError.response) {
+              console.error("Detalhes da resposta de erro:", {
+                status: axiosError.response.status,
+                data: axiosError.response.data,
+              });
+            }
+
+            throw axiosError;
+          }
+        } else {
+          // Enviar via FCM diretamente (API V1)
+          console.log("Enviando via FCM para usuário", data.userEmail);
+
+          try {
+            const fcmMessage = {
+              token: userData.fcmToken,
+              notification: {
+                title: title,
+                body: body,
+              },
+              data: notificationData,
+              android: {
+                priority: "high",
+                notification: {
+                  channelId: data.hasImage ? "notifications_with_image" : "default",
+                },
+              },
+              apns: {
+                payload: {
+                  aps: {
+                    sound: "default",
+                  },
+                },
+              },
+            };
+
+            // Adicionar imagem se fornecida
+            if (data.imageUrl) {
+              // Configuração para Android
+              if (!fcmMessage.android) fcmMessage.android = {};
+              if (!fcmMessage.android.notification) fcmMessage.android.notification = {};
+              fcmMessage.android.notification.imageUrl = data.imageUrl;
+
+              // Configuração para iOS
+              if (!fcmMessage.apns) fcmMessage.apns = {};
+              if (!fcmMessage.apns.payload) fcmMessage.apns.payload = {};
+              if (!fcmMessage.apns.payload.aps) fcmMessage.apns.payload.aps = {};
+              fcmMessage.apns.payload.aps["mutable-content"] = 1;
+              fcmMessage.apns.fcm_options = {image: data.imageUrl};
+            }
+
+            response = await admin.messaging().send(fcmMessage);
+            console.log("Notificação enviada via FCM:", response);
+            success = true;
+          } catch (fcmError) {
+            console.error("Erro ao enviar via FCM para usuário", data.userEmail, ":", fcmError);
+
+            // Se o token for inválido, remover do Firestore
+            if (fcmError.code === "messaging/invalid-argument" ||
+                fcmError.code === "messaging/registration-token-not-registered" ||
+                fcmError.code === "messaging/invalid-registration-token") {
+              try {
+                await admin.firestore().collection("users").doc(userDoc.id).update({
+                  fcmToken: admin.firestore.FieldValue.delete(),
+                });
+                console.log(`Token inválido removido para usuário ${data.userEmail}`);
+              } catch (updateError) {
+                console.error(`Erro ao remover token inválido:`, updateError);
+              }
+            }
+
+            throw fcmError;
+          }
         }
 
         // Atualizar o status da solicitação
@@ -1135,7 +1166,6 @@ exports.sendPaymentReminders = onSchedule({
       if (tipoRecorrencia === "semanal") {
         // Para pagamento semanal
         proximaData.setDate(proximaData.getDate() + 7);
-
         // Ajustar para encontrar a data correta
         while (proximaData <= dataBase) {
           proximaData.setDate(proximaData.getDate() + 7);
@@ -1143,7 +1173,6 @@ exports.sendPaymentReminders = onSchedule({
       } else {
         // Para pagamento mensal
         proximaData.setMonth(proximaData.getMonth() + 1);
-
         // Ajustar para encontrar a data correta
         while (proximaData <= dataBase) {
           proximaData.setMonth(proximaData.getMonth() + 1);
@@ -1192,6 +1221,122 @@ exports.sendPaymentReminders = onSchedule({
       if (deveEnviarLembrete) {
         console.log(`Enviando lembrete para ${userEmail}: ${tipoLembrete}, dias restantes: ${diasRestantes}`);
 
+        // Verificar se já existe um pagamento PIX pendente para este usuário
+        let pixPayment = null;
+        let pixQrCodeBase64 = null;
+        let pixQrCodeText = null;
+
+        try {
+          const pendingPixQuery = await db.collection("payments")
+              .where("userEmail", "==", userEmail)
+              .where("status", "==", "pending")
+              .where("paymentMethod", "==", "pix")
+              .orderBy("dateCreated", "desc")
+              .limit(1)
+              .get();
+
+          if (!pendingPixQuery.empty) {
+            // Já existe um pagamento PIX pendente
+            const pixDoc = pendingPixQuery.docs[0];
+            pixPayment = pixDoc.data();
+
+            // Extrair QR code e código PIX
+            if (pixPayment.paymentDetails &&
+                pixPayment.paymentDetails.point_of_interaction &&
+                pixPayment.paymentDetails.point_of_interaction.transaction_data) {
+              const transactionData = pixPayment.paymentDetails.point_of_interaction.transaction_data;
+              pixQrCodeBase64 = transactionData.qr_code_base64;
+              pixQrCodeText = transactionData.qr_code;
+            }
+
+            console.log(`Usando pagamento PIX pendente existente: ${pixDoc.id}`);
+          } else {
+            // Não existe pagamento PIX pendente, vamos criar um novo
+            console.log(`Gerando novo pagamento PIX para ${userEmail}`);
+
+            // Preparar dados para o pagamento
+            const paymentData = {
+              paymentType: "pix",
+              transactionAmount: valor,
+              description: `Pagamento ${tipoRecorrencia === "mensal" ? "Mensal" : "Semanal"}`,
+              externalReference: `reminder_${userEmail}_${Date.now()}`,
+              statementDescriptor: "PAPA TANGO MOTOS",
+              items: [
+                {
+                  id: contratoId,
+                  title: "Aluguel de Motocicleta",
+                  description: `Pagamento ${tipoRecorrencia === "mensal" ? "Mensal" : "Semanal"}`,
+                  quantity: 1,
+                  unit_price: valor,
+                },
+              ],
+              payer: {
+                email: userEmail,
+                first_name: userData.nome ? userData.nome.split(" ")[0] : "Cliente",
+                last_name: userData.nome ? userData.nome.split(" ").slice(1).join(" ") : "PapaMotos",
+                identification: {
+                  type: "CPF",
+                  number: userData.cpf ? userData.cpf.replace(/[^\d]/g, "") : "12345678909",
+                },
+              },
+            };
+
+            // Chamar a API do Mercado Pago para criar o pagamento
+            const mp = new mercadopago.MercadoPagoConfig({
+              accessToken: env.mercadopago.accessToken,
+            });
+
+            const paymentClient = new mercadopago.Payment(mp);
+
+            // Formatar os dados para o Mercado Pago
+            const mpPaymentData = {
+              transaction_amount: paymentData.transactionAmount,
+              description: paymentData.description,
+              payment_method_id: "pix",
+              payer: paymentData.payer,
+              external_reference: paymentData.externalReference,
+              statement_descriptor: paymentData.statementDescriptor,
+              additional_info: {
+                items: paymentData.items,
+              },
+            };
+
+            // Criar o pagamento
+            const payment = await paymentClient.create({body: mpPaymentData});
+
+            // Extrair QR code e código PIX
+            if (payment &&
+                payment.point_of_interaction &&
+                payment.point_of_interaction.transaction_data) {
+              pixQrCodeBase64 = payment.point_of_interaction.transaction_data.qr_code_base64;
+              pixQrCodeText = payment.point_of_interaction.transaction_data.qr_code;
+            }
+
+            // Salvar o pagamento no Firestore
+            const paymentId = payment.id.toString();
+            await db.collection("payments").doc(paymentId).set({
+              userEmail: userEmail,
+              userName: userData.nome || "Cliente",
+              amount: valor,
+              description: paymentData.description,
+              status: payment.status || "pending",
+              paymentMethod: "pix",
+              paymentId: payment.id,
+              dateCreated: admin.firestore.FieldValue.serverTimestamp(),
+              contratoId: contratoId,
+              aluguelId: contrato.aluguelId || null,
+              externalReference: paymentData.externalReference,
+              paymentDetails: payment,
+            });
+
+            console.log(`Novo pagamento PIX criado com ID: ${paymentId}`);
+            pixPayment = payment;
+          }
+        } catch (error) {
+          console.error(`Erro ao processar pagamento PIX para ${userEmail}:`, error);
+          // Continuar mesmo sem o pagamento PIX
+        }
+
         // Preparar mensagens com base no tipo de lembrete
         let title; let body; let emailSubject; let emailContent; let emailH2Title;
 
@@ -1202,9 +1347,10 @@ exports.sendPaymentReminders = onSchedule({
           emailH2Title = "Lembrete de Pagamento"; // sem "Papa Tango"
           emailContent = `
               <p>Olá, <strong>${userData.nome || "Cliente"}</strong>,</p>
-              <p>Gostaríamos de lembrá-lo(a) que seu pagamento no valor de <strong>R$ ${valor.toFixed(2)}</strong> 
+              <p>Gostaríamos de lembrá-lo(a) que seu pagamento no valor de <strong>R$ ${valor.toFixed(2)}</strong>
               vence hoje.</p>
-              <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo Papa Tango.</p>
+              <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo Papa Tango ou
+              utilizando o QR Code PIX abaixo ou copiando o código PIX.</p>
             `;
         } else if (tipoLembrete === "antecipado") {
           title = "📅 Lembrete de Pagamento 📅";
@@ -1214,9 +1360,10 @@ exports.sendPaymentReminders = onSchedule({
           emailH2Title = "Lembrete de Pagamento"; // sem "Papa Tango"
           emailContent = `
               <p>Olá, <strong>${userData.nome || "Cliente"}</strong>,</p>
-              <p>Gostaríamos de lembrá-lo(a) que seu pagamento no valor de <strong>R$ ${valor.toFixed(2)}</strong> 
+              <p>Gostaríamos de lembrá-lo(a) que seu pagamento no valor de <strong>R$ ${valor.toFixed(2)}</strong>
               vencerá em ${diasRestantes} ${diasRestantes === 1 ? "dia" : "dias"}.</p>
-              <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo Papa Tango.</p>
+              <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo Papa Tango ou
+              utilizando o QR Code PIX abaixo ou copiando o código PIX.</p>
             `;
         } else if (tipoLembrete === "atraso") {
           title = "⚠️ Pagamento em Atraso ⚠️";
@@ -1226,35 +1373,84 @@ exports.sendPaymentReminders = onSchedule({
           emailH2Title = "Pagamento em Atraso"; // sem "Papa Tango"
           emailContent = `
               <p>Olá, <strong>${userData.nome || "Cliente"}</strong>,</p>
-              <p>Notamos que seu pagamento no valor de <strong>R$ ${valor.toFixed(2)}</strong> está 
+              <p>Notamos que seu pagamento no valor de <strong>R$ ${valor.toFixed(2)}</strong> está
               atrasado há ${diasAtraso} ${diasAtraso === 1 ? "dia" : "dias"}.</p>
-              <p>Para regularizar sua situação, você pode realizar o pagamento diretamente 
-              pelo aplicativo Papa Tango.</p>
+              <p>Para regularizar sua situação, você pode realizar o pagamento diretamente
+              pelo aplicativo Papa Tango ou utilizando o QR Code PIX abaixo ou copiando o código PIX.</p>
             `;
         }
 
         const logoUrl = "https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/" +
                         "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
 
+        const imageWhatsApp = "https://upload.wikimedia.org/wikipedia/" +
+                              "commons/thumb/6/6b/WhatsApp.svg/512px-WhatsApp.svg.png";
+
+        // Adicionar seção de QR Code PIX se disponível
+        let pixSection = "";
+        if (pixQrCodeBase64 && pixQrCodeText) {
+          pixSection = `
+            <div style="margin: 20px 0; padding: 15px; border: 1px solid #e0e0e0; border-radius: 5px; 
+            background-color: #f9f9f9;">
+              <h3 style="color: #333; text-align: center; margin-bottom: 15px;">Pague com PIX</h3>
+              
+              <div style="text-align: center; margin-bottom: 15px;">
+                <img src="data:image/png;base64,${pixQrCodeBase64}" alt="QR Code PIX" 
+                style="width: 200px; height: 200px;">
+              </div>
+              
+              <div style="margin-bottom: 15px;">
+                <p style="font-weight: bold; margin-bottom: 5px;">Código PIX Copia e Cola:</p>
+                <div style="background-color: #fff; border: 1px solid #ddd; border-radius: 4px; 
+                padding: 10px; font-size: 12px; word-break: break-all;">
+                  ${pixQrCodeText}
+                </div>
+              </div>
+              
+              <p style="font-size: 12px; color: #666; text-align: center;">
+                Abra o aplicativo do seu banco, escolha a opção PIX, e escaneie o QR Code ou cole o código acima.
+              </p>
+            </div>
+          `;
+        }
+
+        // Adicionar botão para WhatsApp para pagamento com boleto
+        const whatsappSection = `
+          <div style="margin: 20px 0; text-align: center;">
+            <p style="margin-bottom: 10px;">Se preferir pagar com boleto, entre em contato com o 
+            setor de boletos 👇</p>
+            <a href="https://wa.me/5585913729940?text=Gerar%20boleto." 
+               style="color: #25D366; text-decoration: none; display: inline-block; border: 1px solid #25D366;
+                border-radius: 5px; padding: 8px 15px;">
+              <span style="display: flex; align-items: center; justify-content: center;">
+                <img src="${imageWhatsApp}" 
+                     alt="WhatsApp" style="width: 20px; height: 20px; margin-right: 8px;">
+                Falar com Setor de Boletos
+              </span>
+            </a>
+          </div>
+        `;
+
         // Preparar corpo completo do email
         const emailBody = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; 
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;
             padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
               <div style="text-align: center; margin-bottom: 20px;">
                 <img src="${logoUrl}" alt="Logo Papa Tango" style="width: 70px; margin-bottom: 20px;">
               </div>
+              
               <h2 style="color: #CB2921; text-align: center;">${emailH2Title}</h2>
+              
               ${emailContent}
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; 
-                padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                  Abrir no Aplicativo
-                </a>
-              </div>
-              <p>Caso prefira, você também pode entrar em contato com nosso suporte para mais informações
-              através do WhatsApp (85)99268-4035.</p>
+              
+              ${pixSection}
+              
+              ${whatsappSection}
+              
               <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
-                Este é um email automático. Por favor, não responda a este email.
+                Caso já tenha realizado o pagamento, por favor, desconsidere este E-mail.\n\n
+                Este é um email automático. Por favor, não responda a este email.\n
+                Em caso de dúvidas, entre em contato com um dos números: (85) 99268-4035 ou (85) 99137-2994
               </p>
             </div>
           `;
@@ -1271,6 +1467,11 @@ exports.sendPaymentReminders = onSchedule({
           daysRemaining: diasRestantes,
           daysOverdue: diasAtraso,
         };
+
+        // Se temos um pagamento PIX, adicionar o ID para navegação direta
+        if (pixPayment && pixPayment.id) {
+          notificationData.paymentId = pixPayment.id;
+        }
 
         await db.collection("notificationRequests").doc(requestId).set({
           userEmail: userEmail,
@@ -1300,6 +1501,7 @@ exports.sendPaymentReminders = onSchedule({
           diasAtraso: diasAtraso,
           tipoLembrete: tipoLembrete,
           sentAt: admin.firestore.FieldValue.serverTimestamp(),
+          pixPaymentId: pixPayment ? pixPayment.id : null,
         });
 
         console.log(`Lembrete enviado com sucesso para ${userEmail}`);
@@ -1313,6 +1515,7 @@ exports.sendPaymentReminders = onSchedule({
     return null;
   }
 });
+
 
 // Função agendada para enviar mensagens de aniversário
 exports.sendBirthdayMessages = onSchedule({
@@ -1498,7 +1701,7 @@ exports.sendBirthdayMessages = onSchedule({
         try {
           // Preparar o corpo completo do email
           const logoUrl = "https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/" +
-                          "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
+                        "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
 
           let avatarHtml = "";
           if (avatarUrl) {
@@ -1523,17 +1726,11 @@ exports.sendBirthdayMessages = onSchedule({
               
               ${emailContent}
               
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="papamotors://inicio" style="background-color: #CB2921; color: white; 
-                padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                  Abrir o Aplicativo
-                </a>
-              </div>
-              
               <p>Atenciosamente,</p>
               <p>Equipe Papa Tango - Aluguel de Motos</p>
               <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
-                Este é um email automático. Por favor, não responda a este email.
+                Este é um email automático. Por favor, não responda a este email.\n\n
+                Em caso de dúvidas, entre em contato com um dos números: (85) 99268-4035 ou (85) 99137-2994
               </p>
             </div>
           `;
@@ -1816,7 +2013,7 @@ exports.enviarMensagemEmMassaHttp = functions.https.onRequest(async (req, res) =
           if (enviarEmail) {
             // Preparar o conteúdo do email
             const logoUrl = "https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/" +
-                          "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
+                        "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
 
             let conteudoHtml = `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;
@@ -2298,7 +2495,8 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                       <p>Obrigado por utilizar nossos serviços!</p>
                       <p>Equipe Papa Tango</p>
                       <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
-                        Este é um email automático. Por favor, não responda a este email.
+                        Este é um email automático. Por favor, não responda a este email.\n\n
+                        Em caso de dúvidas, entre em contato com um dos números: (85) 99268-4035 ou (85) 99137-2994
                       </p>
                     </div>
                   `,
@@ -2386,7 +2584,8 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                       </div>
                       <p>Equipe Papa Tango</p>
                       <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
-                        Este é um email automático. Por favor, não responda a este email.
+                        Este é um email automático. Por favor, não responda a este email.\n\n
+                        Em caso de dúvidas, entre em contato com um dos números: (85) 99268-4035 ou (85) 99137-2994
                       </p>
                     </div>
                   `,
@@ -2469,6 +2668,7 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                         <p>Equipe Papa Tango</p>
                         <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
                           Este é um email automático. Por favor, não responda a este email.
+                          Em caso de dúvidas, entre em contato com um dos números: (85) 99268-4035 ou (85) 99137-2994
                         </p>
                       </div>
                     `,

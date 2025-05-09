@@ -15,7 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Feather } from '@expo/vector-icons'; 
 import axios from 'axios';
 import { auth, db } from '../../services/firebaseConfig';
-import { doc, getDoc, addDoc, collection, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, addDoc, collection, serverTimestamp, setDoc, query, where, getDocs } from 'firebase/firestore';
 
 import {
   Container,

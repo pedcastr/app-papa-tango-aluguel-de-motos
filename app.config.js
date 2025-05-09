@@ -61,7 +61,12 @@ export default {
       NSPhotoLibraryUsageDescription: "Este aplicativo precisa de acesso à galeria.",
       NSPhotoLibraryAddUsageDescription: "Este aplicativo precisa de permissão para salvar fotos na sua galeria",
       UIBackgroundModes: ["remote-notification"],
-      NSUserTrackingUsageDescription: "Este identificador será usado para entregar notificações personalizadas para você."
+      NSUserTrackingUsageDescription: "Este identificador será usado para entregar notificações personalizadas para você.",
+      CFBundleURLTypes: [
+        {
+          CFBundleURLSchemes: ["papamotors"],
+        },
+      ],
     },
     supportsTablet: true,
     bundleIdentifier: "com.app.papa.motos",

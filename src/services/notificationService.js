@@ -159,93 +159,76 @@ export const registerForPushNotifications = async () => {
       return null;
     }
     
-    // Obter token de push - Tentando obter token FCM nativo primeiro
-    let pushToken = null;
-    let tokenSuccess = false;
+    // Verificar o projectId
+    let projectId;
     
-    // Verificar o projectId para uso com Expo
-    let projectId = Constants.expoConfig?.extra?.eas?.projectId || 
-                    '2d93efbd-1062-4051-bf44-18c916565fb7';
-    
-    console.log("Project ID para token:", projectId);
-    
-    // Tentativa 1: Obter token FCM nativo (para API FCM V1)
     try {
-      console.log("Tentando obter token FCM nativo...");
+      projectId = Constants.expoConfig?.extra?.eas?.projectId || 
+                  Constants.expoConfig?.extra?.projectId;
       
-      // Usar a API de Device Token do Expo para obter um token FCM nativo
-      const deviceToken = await Notifications.getDevicePushTokenAsync();
-      
-      if (deviceToken && deviceToken.type === 'fcm' && deviceToken.data) {
-        pushToken = deviceToken;
-        console.log("Token FCM nativo obtido:", deviceToken.data);
-        tokenSuccess = true;
-      } else {
-        console.log("Não foi possível obter token FCM nativo, tipo:", deviceToken?.type);
+      // Fallback para o projectId hardcoded do seu app.config.js
+      if (!projectId) {
+        projectId = '2d93efbd-1062-4051-bf44-18c916565fb7';
       }
-    } catch (nativeTokenError) {
-      console.error("Erro ao obter token FCM nativo:", nativeTokenError);
-      // Não falhar aqui, tentar próxima abordagem
+      
+      console.log("Project ID para token Expo:", projectId);
+    } catch (projectIdError) {
+      console.error("Erro ao obter projectId:", projectIdError);
+      // Fallback para o projectId hardcoded
+      projectId = '2d93efbd-1062-4051-bf44-18c916565fb7';
     }
     
-    // Tentativa 2: Obter token Expo com projectId
-    if (!tokenSuccess) {
+    // Obter token do Expo
+    console.log("Obtendo token Expo...");
+    let expoPushToken = null;
+    let tokenSuccess = false;
+    
+    // Tentativa 1: Com projectId
+    if (projectId) {
       try {
-        console.log("Tentando obter token Expo com projectId...");
-        const expoPushToken = await Notifications.getExpoPushTokenAsync({
+        expoPushToken = await Notifications.getExpoPushTokenAsync({
           projectId: projectId,
         });
-        
-        if (expoPushToken && expoPushToken.data) {
-          pushToken = expoPushToken;
-          console.log("Token Expo obtido com projectId:", expoPushToken.data);
-          tokenSuccess = true;
-        }
+        console.log("Token Expo obtido com projectId:", expoPushToken.data);
+        tokenSuccess = true;
       } catch (tokenError) {
         console.error("Erro ao obter token Expo com projectId:", tokenError);
         // Não falhar aqui, tentar próxima abordagem
       }
     }
     
-    // Tentativa 3: Obter token Expo sem projectId
+    // Tentativa 2: Sem projectId
     if (!tokenSuccess) {
       try {
-        console.log("Tentando obter token Expo sem projectId...");
-        const expoPushToken = await Notifications.getExpoPushTokenAsync();
-        
-        if (expoPushToken && expoPushToken.data) {
-          pushToken = expoPushToken;
-          console.log("Token Expo obtido sem projectId:", expoPushToken.data);
-          tokenSuccess = true;
-        }
+        console.log("Tentando obter token sem projectId...");
+        expoPushToken = await Notifications.getExpoPushTokenAsync();
+        console.log("Token Expo obtido sem projectId:", expoPushToken.data);
+        tokenSuccess = true;
       } catch (fallbackError) {
         console.error("Erro ao obter token Expo sem projectId:", fallbackError);
         // Não falhar aqui, tentar próxima abordagem
       }
     }
     
-    // Tentativa 4: Com experienceId explícito
+    // Tentativa 3: Com opções explícitas
     if (!tokenSuccess) {
       try {
-        console.log("Tentando obter token com experienceId explícito...");
-        const expoPushToken = await Notifications.getExpoPushTokenAsync({
+        console.log("Tentando obter token com opções explícitas...");
+        expoPushToken = await Notifications.getExpoPushTokenAsync({
           experienceId: '@pedro_castro/papamotos',
         });
-        
-        if (expoPushToken && expoPushToken.data) {
-          pushToken = expoPushToken;
-          console.log("Token Expo obtido com experienceId:", expoPushToken.data);
-          tokenSuccess = true;
-        }
+        console.log("Token Expo obtido com experienceId:", expoPushToken.data);
+        tokenSuccess = true;
       } catch (explicitError) {
-        console.error("Erro ao obter token com experienceId:", explicitError);
+        console.error("Erro ao obter token com opções explícitas:", explicitError);
         // Última tentativa falhou
       }
     }
     
     // Se todas as tentativas falharam
-    if (!tokenSuccess || !pushToken || !pushToken.data) {
+    if (!tokenSuccess || !expoPushToken || !expoPushToken.data) {
       console.error("Todas as tentativas de obter token falharam");
+      // Não lançar erro, apenas retornar null
       return null;
     }
     
@@ -259,6 +242,7 @@ export const registerForPushNotifications = async () => {
           lightColor: '#CB2921',
         });
         
+        // Adicionar um canal específico para notificações com imagens
         await Notifications.setNotificationChannelAsync('notifications_with_image', {
           name: 'Notificações com Imagem',
           description: 'Notificações que contêm imagens',
@@ -270,6 +254,7 @@ export const registerForPushNotifications = async () => {
         });
       } catch (channelError) {
         console.error("Erro ao configurar canais de notificação:", channelError);
+        // Continuar mesmo se falhar a configuração de canais
       }
     }
     
@@ -281,9 +266,9 @@ export const registerForPushNotifications = async () => {
       const userDoc = await getDoc(userRef);
       
       const tokenData = {
-        fcmToken: pushToken.data,
+        fcmToken: expoPushToken.data,
         tokenUpdatedAt: serverTimestamp(),
-        tokenType: pushToken.type,
+        tokenType: 'expo',
         platform: Platform.OS,
         deviceModel: Device.modelName || 'Unknown',
         appVersion: Constants.expoConfig?.version || 'Unknown'
@@ -300,17 +285,26 @@ export const registerForPushNotifications = async () => {
         });
       }
       
-      console.log("Token de push atualizado com sucesso para o usuário:", currentUser.email);
+      console.log("Token FCM atualizado com sucesso para o usuário:", currentUser.email);
     } catch (firestoreError) {
       console.error("Erro ao salvar token no Firestore:", firestoreError);
+      // Continuar mesmo se falhar o salvamento no Firestore
     }
     
-    return pushToken.data;
+    return expoPushToken.data;
   } catch (error) {
     console.error("Erro ao registrar para notificações push:", error);
+    // Registrar detalhes do erro para depuração
+    if (error.code) {
+      console.error("Código do erro:", error.code);
+    }
+    if (error.message) {
+      console.error("Mensagem do erro:", error.message);
+    }
     return null;
   }
 }
+
 
 
 // Verificar se o usuário está registrado
