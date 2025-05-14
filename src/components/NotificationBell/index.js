@@ -25,7 +25,7 @@ import {
 
 const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) => {
   const navigation = useNavigation();
-  
+
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -41,15 +41,15 @@ const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) =>
     try {
       setLoadingNotifications(true);
       const currentUser = auth.currentUser;
-      
+
       if (!currentUser) return;
-      
+
       // Buscar notificações do usuário no Firestore
       const notificationsRef = collection(db, 'notifications');
-      
+
       // Query diferente dependendo do tipo de usuário
       let q;
-      
+
       if (userType === 'admin') {
         // Para administradores, buscar notificações marcadas como admin
         q = query(
@@ -63,13 +63,13 @@ const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) =>
           where('userId', '==', currentUser.email)
         );
       }
-      
+
       const querySnapshot = await getDocs(q);
-      
+
       // Usar um Map para evitar duplicatas, usando título+corpo como chave
       const uniqueNotifications = new Map();
       let naoLidas = 0;
-      
+
       querySnapshot.forEach((doc) => {
         const docData = doc.data();
         const notificacao = {
@@ -80,26 +80,26 @@ const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) =>
           // Converter timestamp para Date se existir
           createdAt: docData.createdAt?.toDate() || new Date()
         };
-        
+
         // Criar uma chave única baseada no título e corpo
         const key = `${notificacao.title}_${notificacao.body}`;
-        
+
         // Se já temos uma notificação com este título e corpo, verificar qual é mais recente
-        if (!uniqueNotifications.has(key) || 
-            notificacao.createdAt > uniqueNotifications.get(key).createdAt) {
+        if (!uniqueNotifications.has(key) ||
+          notificacao.createdAt > uniqueNotifications.get(key).createdAt) {
           uniqueNotifications.set(key, notificacao);
-          
+
           // Atualizar contagem de não lidas apenas se esta for a notificação que vamos manter
           if (!notificacao.read) {
             naoLidas++;
           }
         }
       });
-      
+
       // Converter o Map para array e ordenar
       const notificacoesArray = Array.from(uniqueNotifications.values());
       notificacoesArray.sort((a, b) => b.createdAt - a.createdAt);
-      
+
       setNotifications(notificacoesArray);
       setUnreadCount(naoLidas);
     } catch (error) {
@@ -116,14 +116,14 @@ const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) =>
       await updateDoc(doc(db, 'notifications', notificationId), {
         read: true
       });
-      
+
       // Atualizar estado local
-      setNotifications(prevNotifications => 
-        prevNotifications.map(notif => 
+      setNotifications(prevNotifications =>
+        prevNotifications.map(notif =>
           notif.id === notificationId ? { ...notif, read: true } : notif
         )
       );
-      
+
       // Atualizar contador de não lidas
       setUnreadCount(prevCount => Math.max(0, prevCount - 1));
     } catch (error) {
@@ -134,28 +134,28 @@ const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) =>
   // Função para formatar data da notificação
   const formatarDataNotificacao = (data) => {
     if (!data) return '';
-    
+
     const agora = new Date();
     const diff = agora - data;
-    
+
     // Menos de 24 horas
     if (diff < 24 * 60 * 60 * 1000) {
       const horas = Math.floor(diff / (60 * 60 * 1000));
-      
+
       if (horas < 1) {
         const minutos = Math.floor(diff / (60 * 1000));
         return minutos <= 1 ? 'Agora mesmo' : `${minutos} minutos atrás`;
       }
-      
+
       return horas === 1 ? '1 hora atrás' : `${horas} horas atrás`;
     }
-    
+
     // Menos de 7 dias
     if (diff < 7 * 24 * 60 * 60 * 1000) {
       const dias = Math.floor(diff / (24 * 60 * 60 * 1000));
       return dias === 1 ? 'Ontem' : `${dias} dias atrás`;
     }
-    
+
     // Mais de 7 dias
     return data.toLocaleDateString('pt-BR', {
       day: '2-digit',
@@ -166,17 +166,17 @@ const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) =>
 
   // Renderizar item da lista de notificações
   const renderNotificationItem = ({ item }) => (
-    <NotificationItem 
+    <NotificationItem
       read={item.read}
       onPress={() => {
-        
+
         if (!item.read) {
           marcarComoLida(item.id);
         }
-        
+
         // Se a notificação tiver dados de navegação
         if (item.data && item.data.screen) {
-          
+
           // Verificar se a tela é PaymentSuccess
           if (item.data.screen === "PaymentSuccess" && item.data.paymentId) {
             // Buscar os dados do pagamento primeiro
@@ -187,8 +187,8 @@ const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) =>
                   const paymentInfo = paymentDoc.data();
                   // Navegar com os dados completos do pagamento
                   // Usar o caminho completo para a navegação aninhada
-                  navigation.navigate("Financeiro", { 
-                    screen: "PaymentSuccess", 
+                  navigation.navigate("Financeiro", {
+                    screen: "Detalhes do Pagamento",
                     params: { paymentInfo }
                   });
                 } else {
@@ -201,42 +201,41 @@ const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) =>
                 navigation.navigate("Financeiro");
               }
             };
-            
+
             fetchPaymentData();
           } else {
             // Para outras telas, tentar navegação baseada na estrutura
             try {
               // Determinar a navegação com base na tela de destino
               switch (item.data.screen) {
-                case "FinanceiroScreen":
-                case "Payment":
-                case "PaymentSuccess":
+                case "Financeiro Screen":
+                case "Pagamento":
+                case "Detalhes do Pagamento":
                   // Telas dentro do FinanceiroStack
                   navigation.navigate("Financeiro", {
                     screen: item.data.screen,
                     params: item.data
                   });
                   break;
-                
-                case "Home":
-                case "Profile":
-                case "Settings":
-                  // Telas dentro do HomeStack
-                  navigation.navigate("Inicio", {
+
+                case "Início":
+                  navigation.navigate("Início", {
                     screen: item.data.screen,
                     params: item.data
                   });
                   break;
-                
-                case "Manutencao":
-                case "ManutencaoDetail":
+
+                case "Manutenção Screen":
+                case "Lista de Trocas de Óleo":
+                case "Troca de Óleo":
+                case "Detalhes da Troca de Óleo":
                   // Telas dentro do ManutencaoStack
                   navigation.navigate("Manutenção", {
                     screen: item.data.screen,
                     params: item.data
                   });
                   break;
-                
+
                 default:
                   // Tentar navegação direta para outras telas
                   navigation.navigate(item.data.screen, item.data);
@@ -244,10 +243,10 @@ const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) =>
             } catch (error) {
               console.error("Erro na navegação:", error);
               // Se falhar, tentar navegar para a tela principal
-              navigation.navigate("Inicio");
+              navigation.navigate("Início");
             }
           }
-          
+
           // Fechar o modal após clicar na notificação
           setNotificationModalVisible(false);
         }
@@ -272,8 +271,8 @@ const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) =>
       <NotificationButton onPress={() => {
         setNotificationModalVisible(true);
         // Recarregar notificações ao abrir o modal
-        carregarNotificacoes(); 
-        
+        carregarNotificacoes();
+
       }}>
         <Feather name="bell" size={24} color={color} />
         {unreadCount > 0 && (
@@ -296,10 +295,10 @@ const NotificationBell = ({ userType = 'client', color = 'rgb(43, 42, 42)' }) =>
           <NotificationHeader>
             <NotificationTitle>Notificações</NotificationTitle>
             <CloseButton onPress={() => setNotificationModalVisible(false)}>
-              <MaterialCommunityIcons name="close" size={24} color="#000" />
+              <MaterialCommunityIcons name="close" size={24} color="#FFF" />
             </CloseButton>
           </NotificationHeader>
-          
+
           {loadingNotifications ? (
             <LoadingContainer>
               <ActivityIndicator size="large" color="#CB2921" />

@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { View } from "react-native";
 import { useFocusEffect } from '@react-navigation/native'; 
 import { Keyboard, Platform, ActivityIndicator, Alert, Pressable } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -55,46 +56,6 @@ export default function Telefone({ navigation }) {
         return numeroFormatado;
     };
 
-    // Função que envia o código via WhatsApp usando a API local
-    const enviarCodigoWhatsApp = async (numero) => {
-        const codigo = Math.floor(100000 + Math.random() * 900000).toString(); // Gera um código aleatório de 6 dígitos e trasforma em string
-        
-        // Remove todos os caracteres especiais e espaços
-        let numeroLimpo = numero
-            .replace('+', '') // Remove o sinal de mais
-            .replace(/\s/g, '') // Remove espaços
-            .replace(/\D/g, ''); // Remove caracteres não numéricos
-        
-        // número no formato: 5585999999999
-        if (numeroLimpo.length === 11) {
-            numeroLimpo = '55' + numeroLimpo;
-        }
-        
-        console.log('Número enviado:', numeroLimpo); // Para consulta
-        
-        try {
-            const response = await fetch('http://192.168.100.89:3000/enviar-codigo', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    numero: numeroLimpo,
-                    codigo: codigo.toString()
-                })
-            });
-    
-            const data = await response.json();
-            if (data.success) {
-                return codigo;
-            }
-            throw new Error('Falha ao enviar código'); // Lança um erro se a resposta não for bem-sucedida
-        } catch (error) {
-            console.log('Erro no envio:', error);
-            throw error;
-        }
-    };
-
     // Função principal de validação e envio do código
     const telefoneContinuar = async () => {
         Keyboard.dismiss();
@@ -110,15 +71,11 @@ export default function Telefone({ navigation }) {
             try {
                 // Formata o número com +55
                 const numeroFormatado = `+55${numeroLimpo}`;
-
-                // Envia o código via WhatsApp
-                const codigoVerificacao = await enviarCodigoWhatsApp(numeroFormatado);
                 
                 // Mostra animação de sucesso e navega para tela de verificação
                 setSucesso(true);
                 setTimeout(() => {
-                    navigation.navigate("VerifyPhone", {
-                        codigo: codigoVerificacao,
+                    navigation.navigate("Endereço", {
                         phoneNumber: numeroFormatado,
                         email,
                         nome,
@@ -129,7 +86,6 @@ export default function Telefone({ navigation }) {
                 }, 1500);
             } catch (error) {
                 console.log('Erro:', error);
-                Alert.alert("Erro", "Falha ao enviar o código de verificação");
             } finally {
                 setLoading(false);
             }
@@ -154,15 +110,16 @@ export default function Telefone({ navigation }) {
                     </ViewAnimacao>
             ) : (
                 <Background>
-                    <Container>
-                        <MaterialIcons
-                            name="arrow-back"
-                            size={28}
+                    <View style={{padding: 16}}>
+                        <MaterialIcons 
+                            name="arrow-back" 
+                            size={28} 
                             color="#fff"
-                            style={{ marginTop: 10 }}
-                            onPress={() => navigation.goBack()} // Navega para a tela anterior
+                            style={{ marginTop: 10}}
+                            onPress={() => navigation.goBack()} 
                         />
-
+                    </View>
+                    <Container>
                         <AreaInput>
                             <TextPage>Digite o seu número de WhatsApp com DDD</TextPage>
                             <Input

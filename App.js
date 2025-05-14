@@ -5,7 +5,6 @@ import { useNavigationContainerRef } from '@react-navigation/native';
 import Routes from './src/routes';
 import { AuthProvider } from './src/context/AuthContext';
 import { AdminProvider } from './src/context/AdminContext';
-import * as Linking from 'expo-linking';
 import {
   SafeAreaView,
   StatusBar,
@@ -16,7 +15,7 @@ import {
   StyleSheet
 } from 'react-native';
 
-// Importar o serviço de notificações completo
+// Serviço de notificações completo
 import * as notificationService from './src/services/notificationService';
 import { registerBackgroundNotificationHandler } from './src/services/notificationService';
 import * as Notifications from 'expo-notifications';
@@ -31,7 +30,7 @@ const ErrorDisplay = ({ error }) => (
       <Text style={styles.errorTitle}>Ops! Algo deu errado</Text>
       <Text style={styles.errorMessage}>{error.message || 'Erro desconhecido'}</Text>
       <Text style={styles.errorDetail}>
-        Por favor, reinicie o aplicativo ou entre em contato com o suporte.
+        Por favor, reinicie o aplicativo ou entre em contato com o suporte no número (85) 99268-4035.
       </Text>
     </View>
   </SafeAreaView>
@@ -45,204 +44,15 @@ try {
 }
 
 export default function App() {
-  console.log('App.js: Renderizando componente App');
   const [splashFinished, setSplashFinished] = useState(false);
   const [permissionChecking, setPermissionChecking] = useState(false);
   const [permissionChecked, setPermissionChecked] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
   const navigationRef = useNavigationContainerRef();
-  
+
   // Estado para controlar erros
   const [hasError, setHasError] = useState(false);
   const [error, setError] = useState(null);
-
-  // Configurar o manipulador de links
-  useEffect(() => {
-    // Configurar o manipulador de links
-    const handleDeepLink = (event) => {
-      try {
-        // Verificar se temos uma URL válida
-        if (!event || !event.url) {
-          console.log("URL inválida recebida");
-          return;
-        }
-
-        console.log("Deep link recebido:", event.url);
-
-        let data = Linking.parse(event.url);
-        console.log("URL parseada:", data);
-        
-        // Extrair a rota da URL
-        // Para URLs como papamotors://financeiro, o path será 'financeiro'
-        // Para URLs como https://papatango.com.br/financeiro, o path também será 'financeiro'
-        const route = data.path || '';
-        console.log("Rota extraída:", route);
-
-        // Verificar se o navigationRef está pronto
-        if (!navigationRef || !navigationRef.isReady()) {
-          console.log("Navigation ref não está pronto");
-          return;
-        }
-        
-        // Navegar para a rota apropriada se o navigationRef estiver pronto
-        if (navigationRef && navigationRef.isReady()) {
-          // Rotas para usuários logados (app.routes.js -> tab.routes.js)
-          if (route === 'inicio' || route === 'home') {
-            navigationRef.navigate('Inicio');
-          } 
-          else if (route === 'financeiro') {
-            navigationRef.navigate('Financeiro');
-            
-            // Se tiver parâmetros adicionais para navegação dentro do Financeiro
-            if (data.queryParams) {
-              if (data.queryParams.screen === 'payment') {
-                // Navegar para a tela de pagamento dentro do FinanceiroStack
-                navigationRef.navigate('Financeiro', { 
-                  screen: 'Payment',
-                  params: data.queryParams
-                });
-              } else if (data.queryParams.screen === 'success') {
-                // Navegar para a tela de sucesso de pagamento
-                navigationRef.navigate('Financeiro', { 
-                  screen: 'PaymentSuccess',
-                  params: data.queryParams
-                });
-              }
-            }
-          } 
-          else if (route === 'manutencao') {
-            navigationRef.navigate('Manutenção');
-            
-            // Se tiver parâmetros adicionais para navegação dentro da Manutenção
-            if (data.queryParams) {
-              if (data.queryParams.screen === 'troca-oleo') {
-                // Navegar para a tela de troca de óleo
-                navigationRef.navigate('Manutenção', { 
-                  screen: 'TrocaOleo',
-                  params: data.queryParams
-                });
-              } else if (data.queryParams.screen === 'lista-trocas') {
-                // Navegar para a lista de trocas de óleo
-                navigationRef.navigate('Manutenção', { 
-                  screen: 'ListaTrocasOleo',
-                  params: data.queryParams
-                });
-              } else if (data.queryParams.screen === 'detalhes-troca' && data.queryParams.id) {
-                // Navegar para os detalhes de uma troca específica
-                navigationRef.navigate('Manutenção', { 
-                  screen: 'DetalhesTrocaOleo',
-                  params: { id: data.queryParams.id }
-                });
-              }
-            }
-          }
-          
-          // Rotas para admin (admin.routes.js)
-          else if (route === 'admin') {
-            // Navegar para o dashboard admin por padrão
-            let targetScreen = 'Dashboard';
-            let targetParams = {};
-            
-            // Se tiver parâmetros, navegar para a tela específica do admin
-            if (data.queryParams && data.queryParams.screen) {
-              targetScreen = data.queryParams.screen;
-              
-              // Se tiver parâmetros adicionais para a tela
-              if (data.queryParams.params) {
-                try {
-                  // Tentar parsear os parâmetros se estiverem em formato JSON
-                  if (typeof data.queryParams.params === 'string') {
-                    targetParams = JSON.parse(data.queryParams.params);
-                  } else {
-                    targetParams = data.queryParams.params;
-                  }
-                } catch (e) {
-                  console.error("Erro ao parsear parâmetros:", e);
-                }
-              }
-            }
-            
-            // Navegar para a tela admin específica
-            navigationRef.navigate('Admin', { screen: targetScreen, params: targetParams });
-          }
-          
-          // Rotas aninhadas de admin com sintaxe admin/screen
-          else if (route && route.startsWith('admin/')) {
-            const parts = route.split('/');
-            const adminScreen = parts[1]; // Dashboard, Users, Vehicles, etc.
-            
-            if (adminScreen) {
-              // Se houver uma terceira parte, é uma tela aninhada dentro do módulo admin
-              if (parts.length > 2) {
-                const nestedScreen = parts[2]; // UserList, UserForm, etc.
-                
-                // Construir os parâmetros para a navegação aninhada
-                const params = { screen: nestedScreen };
-                
-                // Se houver um ID na URL (admin/Users/UserDetails/123)
-                if (parts.length > 3) {
-                  params.params = { id: parts[3] };
-                }
-                
-                // Adicionar quaisquer query params
-                if (data.queryParams) {
-                  params.params = { ...params.params, ...data.queryParams };
-                }
-                
-                navigationRef.navigate('Admin', { 
-                  screen: adminScreen,
-                  params: params
-                });
-              } else {
-                // Apenas navegar para o módulo admin principal
-                navigationRef.navigate('Admin', { screen: adminScreen });
-              }
-            } else {
-              navigationRef.navigate('Admin');
-            }
-          }
-          
-          // Rotas para usuários deslogados (landing.routes.js)
-          else if (route === 'login' || route === 'signin') {
-            navigationRef.navigate('SignIn');
-          }
-          else if (route === 'signup' || route === 'cadastro') {
-            navigationRef.navigate('nome');
-          }
-          
-          // Fallback para a tela login se a rota não for reconhecida
-          else {
-            console.log("Rota não reconhecida:", route);
-            navigationRef.navigate('SignIn');
-          }
-        }
-      } catch (error) {
-        console.error("Erro ao processar deep link:", error);
-      }
-    };
-  
-    // Adicionar listener para links quando o app já está aberto
-    const subscription = Linking.addEventListener('url', handleDeepLink);
-    
-    // Verificar se o app foi aberto por um link
-    const checkInitialLink = async () => {
-      try {
-        const url = await Linking.getInitialURL();
-        if (url) {
-          console.log("App aberto por URL inicial:", url);
-          handleDeepLink({ url });
-        }
-      } catch (err) {
-        console.error("Erro ao obter URL inicial:", err);
-      }
-    };
-    
-    checkInitialLink();
-  
-    return () => {
-      subscription.remove();
-    };
-  }, [navigationRef]);
 
   // Configurar handler global de erros
   useEffect(() => {
@@ -270,13 +80,13 @@ export default function App() {
   const initializeNotifications = async () => {
     try {
       setPermissionChecking(true);
-      
+
       // Configurar notificações
       await notificationService.configureNotifications();
-      
+
       // Verificar se o usuário está registrado
       const isRegistered = await notificationService.isUserRegistered();
-      
+
       // Se não estiver registrado, agendar notificações
       if (!isRegistered) {
         await notificationService.scheduleNonRegisteredUserNotifications();
@@ -298,7 +108,7 @@ export default function App() {
         // Após o splash, inicializamos as notificações
         initializeNotifications();
       }, 3000);
-      
+
       return () => clearTimeout(timer);
     } catch (error) {
       console.error('Erro no efeito de splash:', error);
@@ -311,24 +121,23 @@ export default function App() {
   useEffect(() => {
     let foregroundSubscription;
     let responseSubscription;
-    
+
     try {
       if (navigationRef && navigationRef.isReady()) {
         // Listener para notificações recebidas em primeiro plano
         foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
           console.log('NOTIFICAÇÃO RECEBIDA EM PRIMEIRO PLANO:', notification);
         });
-        
+
         // Listener para quando o usuário interage com a notificação 
         responseSubscription = notificationService.setupNotificationListener(navigationRef);
-        
+
         console.log('Listeners de notificação configurados com sucesso');
       }
     } catch (error) {
       console.error('Erro ao configurar listeners de notificação:', error);
-      // Não definimos hasError aqui porque não queremos interromper o fluxo do app
     }
-    
+
     return () => {
       try {
         if (foregroundSubscription) {
@@ -348,8 +157,6 @@ export default function App() {
     try {
       const handleAppStateChange = (nextAppState) => {
         if (appState.match(/inactive|background/) && nextAppState === 'active') {
-          // App voltou para o primeiro plano
-          console.log('App voltou para o primeiro plano, verificando lembretes...');
           notificationService.checkAndShowReminders();
         }
         setAppState(nextAppState);
@@ -357,22 +164,21 @@ export default function App() {
 
       // Verificar lembretes na inicialização
       notificationService.checkAndShowReminders();
-      
+
       // Configurar intervalo para verificar lembretes a cada 15 minutos
       const checkRemindersInterval = setInterval(() => {
         notificationService.checkAndShowReminders();
       }, 15 * 60 * 1000); // 15 minutos
-      
+
       // Adicionar listener para mudanças de estado do app
       const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-      
+
       return () => {
         clearInterval(checkRemindersInterval);
         appStateSubscription.remove();
       };
     } catch (error) {
       console.error('Erro no efeito de verificação de lembretes:', error);
-      // Não definimos hasError aqui porque não queremos interromper o fluxo do app
     }
   }, [appState]);
 
@@ -389,9 +195,9 @@ export default function App() {
   // Mostrar indicador de carregamento enquanto verifica permissões
   if (permissionChecking) {
     return (
-      <SafeAreaView style={{flex: 1, backgroundColor: '#CB2921'}}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#CB2921' }}>
         <StatusBar backgroundColor='#CB2921' barStyle='light-content' />
-        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#FFFFFF" />
         </View>
       </SafeAreaView>
@@ -400,11 +206,10 @@ export default function App() {
 
   // Renderizar o app normalmente após verificar permissões
   try {
-    console.log('App.js: Tentando renderizar o app principal');
     return (
       <AuthProvider>
         <AdminProvider>
-          <SafeAreaView style={{flex: 1, backgroundColor: '#CB2921'}}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#CB2921' }}>
             <StatusBar backgroundColor='#CB2921' barStyle='light-content' />
             <NavigationContainer ref={navigationRef}>
               <Routes />

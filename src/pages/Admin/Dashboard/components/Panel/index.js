@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, ActivityIndicator, Dimensions, Platform } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, ActivityIndicator, Dimensions, Platform } from 'react-native';
 import { db, auth } from '../../../../../services/firebaseConfig';
-import { collection, query, where, onSnapshot, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore';
-import { useNavigation, useFocusEffect, CommonActions } from '@react-navigation/native';
+import { collection, query, where, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import NotificationBell from '../../../../../components/NotificationBell';
+
 import {
     Container,
     Header,
@@ -92,8 +93,6 @@ export default function DashboardScreen() {
         ]
     });
 
-    const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
-
     // Função para atualizar os dados
     const refreshData = useCallback(() => {
         setRefreshing(true);
@@ -104,7 +103,7 @@ export default function DashboardScreen() {
     useFocusEffect(
         useCallback(() => {
             fetchAllData();
-            return () => {};
+            return () => { };
         }, [])
     );
 
@@ -112,13 +111,13 @@ export default function DashboardScreen() {
     const fetchAllData = async () => {
         try {
             setLoading(true);
-            
+
             // Configurar listeners para estatísticas básicas
             setupBasicStatsListeners();
-            
+
             // Buscar dados financeiros
             await fetchFinancialData();
-            
+
         } catch (error) {
             console.error('Erro ao carregar dados do dashboard:', error);
         } finally {
@@ -133,7 +132,7 @@ export default function DashboardScreen() {
             const totalUsers = snapshot.size;
             const approvedUsers = snapshot.docs.filter(doc => doc.data().aprovado === true).length;
             const notApprovedUsers = snapshot.docs.filter(doc => doc.data().aprovado !== true).length;
-            
+
             setStats(prev => ({
                 ...prev,
                 totalUsers,
@@ -183,14 +182,14 @@ export default function DashboardScreen() {
             const now = new Date();
             const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             today.setHours(0, 0, 0, 0);
-            
+
             // Calcular o início da semana (segunda-feira)
             const startOfWeek = new Date(today);
             const dayOfWeek = today.getDay(); // 0 = domingo, 1 = segunda, ...
             const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Se for domingo, voltar 6 dias, senão calcular dias até segunda
             startOfWeek.setDate(today.getDate() + diff);
             startOfWeek.setHours(0, 0, 0, 0);
-            
+
             const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
             const startOfPrevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
             const endOfPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
@@ -198,51 +197,51 @@ export default function DashboardScreen() {
             // Buscar todos os pagamentos
             const paymentsRef = collection(db, "payments");
             const paymentsSnapshot = await getDocs(paymentsRef);
-            
+
             // Calcular receitas
             let totalRevenue = 0;
             let monthlyRevenue = 0;
             let weeklyRevenue = 0;
             let prevMonthRevenue = 0;
-            
+
             // Dados para gráfico de receita mensal (últimos 6 meses)
             const monthlyRevenueData = Array(6).fill(0);
-            
+
             // Processar pagamentos
             paymentsSnapshot.forEach(doc => {
                 const payment = doc.data();
-                
+
                 // Considerar apenas pagamentos aprovados
                 if (payment.status === 'approved') {
                     // Verificar se temos a data de criação e o valor
-                    const paymentDate = payment.dateCreated?.toDate ? payment.dateCreated.toDate() : 
-                                    (payment.dateCreated instanceof Date ? payment.dateCreated : null);
-                    
+                    const paymentDate = payment.dateCreated?.toDate ? payment.dateCreated.toDate() :
+                        (payment.dateCreated instanceof Date ? payment.dateCreated : null);
+
                     // Obter o valor do pagamento - verificar diferentes campos possíveis
                     const amount = payment.amount || payment.transaction_amount || 0;
-                    
+
                     if (paymentDate && amount) {
                         // Receita total
                         totalRevenue += amount;
-                        
+
                         // Receita do mês atual
                         if (paymentDate >= startOfMonth) {
                             monthlyRevenue += amount;
                         }
-                        
+
                         // Receita da semana atual (a partir de segunda-feira)
                         if (paymentDate >= startOfWeek) {
                             weeklyRevenue += amount;
                         }
-                        
+
                         // Receita do mês anterior
                         if (paymentDate >= startOfPrevMonth && paymentDate <= endOfPrevMonth) {
                             prevMonthRevenue += amount;
                         }
-                        
+
                         // Dados para gráfico de receita mensal
-                        const monthDiff = today.getMonth() - paymentDate.getMonth() + 
-                                        (today.getFullYear() - paymentDate.getFullYear()) * 12;
+                        const monthDiff = today.getMonth() - paymentDate.getMonth() +
+                            (today.getFullYear() - paymentDate.getFullYear()) * 12;
                         if (monthDiff >= 0 && monthDiff < 6) {
                             monthlyRevenueData[5 - monthDiff] += amount;
                         }
@@ -251,70 +250,70 @@ export default function DashboardScreen() {
             });
 
             // Calcular crescimento de receita (comparação com mês anterior)
-            const revenueGrowth = prevMonthRevenue > 0 
-                ? ((monthlyRevenue - prevMonthRevenue) / prevMonthRevenue) * 100 
+            const revenueGrowth = prevMonthRevenue > 0
+                ? ((monthlyRevenue - prevMonthRevenue) / prevMonthRevenue) * 100
                 : 0;
 
             // Buscar contratos ativos para verificar pagamentos atrasados e do dia
             let overduePayments = 0;
             let dueTodayPayments = 0;
             let onTimePayments = 0;
-            
+
             // Buscar contratos ativos
             const contratosRef = collection(db, "contratos");
             const contratosQuery = query(contratosRef, where("statusContrato", "==", true));
             const contratosSnapshot = await getDocs(contratosQuery);
-            
+
             // Processar contratos para verificar pagamentos
             for (const contratoDoc of contratosSnapshot.docs) {
                 const contratoData = contratoDoc.data();
-                
+
                 if (!contratoData.cliente) continue;
-                
+
                 const userEmail = contratoData.cliente;
-                
+
                 // Buscar o aluguel associado ao contrato
                 let valorMensal = 0;
                 let valorSemanal = 0;
                 let tipoRecorrencia = contratoData.tipoRecorrenciaPagamento || 'mensal';
-                
+
                 if (contratoData.aluguelId) {
                     const aluguelRef = doc(db, "alugueis", contratoData.aluguelId);
                     const aluguelSnapshot = await getDoc(aluguelRef);
-                    
+
                     if (aluguelSnapshot.exists()) {
                         const aluguelData = aluguelSnapshot.data();
                         valorMensal = aluguelData.valorMensal || 0;
                         valorSemanal = aluguelData.valorSemanal || 0;
                     }
                 }
-                
+
                 // Buscar pagamentos do usuário
                 const userPaymentsQuery = query(
                     collection(db, "payments"),
                     where("userEmail", "==", userEmail),
                     where("status", "==", "approved")
                 );
-                
+
                 const userPaymentsSnapshot = await getDocs(userPaymentsQuery);
                 const userPayments = userPaymentsSnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
-                
+
                 // Ordenar pagamentos por data (mais recente primeiro)
                 userPayments.sort((a, b) => {
                     const dateA = a.dateCreated?.toDate ? a.dateCreated.toDate() : new Date(0);
                     const dateB = b.dateCreated?.toDate ? b.dateCreated.toDate() : new Date(0);
                     return dateB - dateA;
                 });
-                
+
                 // Verificar se existe algum pagamento aprovado
                 const ultimoPagamentoAprovado = userPayments.length > 0 ? userPayments[0] : null;
-                
+
                 let dataBase;
                 let proximaData;
-                
+
                 // Se tiver pagamento aprovado, calcular a partir dele
                 if (ultimoPagamentoAprovado) {
                     const ultimoPagamentoData = ultimoPagamentoAprovado.dateCreated?.toDate();
@@ -327,25 +326,25 @@ export default function DashboardScreen() {
                     }
                 } else {
                     // Se não tiver pagamento aprovado, usar a data de início do contrato
-                    dataBase = contratoData.dataInicio?.toDate ? 
-                            new Date(contratoData.dataInicio.toDate()) : 
-                            new Date();
+                    dataBase = contratoData.dataInicio?.toDate ?
+                        new Date(contratoData.dataInicio.toDate()) :
+                        new Date();
                     dataBase.setHours(0, 0, 0, 0);
                 }
-                
+
                 // Calcular a próxima data de pagamento com base no tipo de recorrência
                 proximaData = new Date(dataBase);
-                
+
                 if (tipoRecorrencia.toLowerCase() === 'semanal') {
                     // Para pagamento semanal
                     proximaData.setDate(proximaData.getDate() + 7);
-                    
+
                     // Se não houver pagamento aprovado e a data de início for anterior à data atual,
                     // precisamos encontrar a data de pagamento mais próxima (que pode estar no passado)
                     if (!ultimoPagamentoAprovado) {
                         // Ajustar para encontrar a data de pagamento correta
                         proximaData = new Date(dataBase);
-                        
+
                         // Avançar de 7 em 7 dias até encontrar a primeira data após a data base
                         while (proximaData <= dataBase) {
                             proximaData.setDate(proximaData.getDate() + 7);
@@ -354,23 +353,23 @@ export default function DashboardScreen() {
                 } else {
                     // Para pagamento mensal
                     proximaData.setMonth(proximaData.getMonth() + 1);
-                    
+
                     // Se não houver pagamento aprovado e a data de início for anterior à data atual,
                     // precisamos encontrar a data de pagamento mais próxima (que pode estar no passado)
                     if (!ultimoPagamentoAprovado) {
                         // Ajustar para encontrar a data de pagamento correta
                         proximaData = new Date(dataBase);
-                        
+
                         // Avançar de mês em mês até encontrar a primeira data após a data base
                         while (proximaData <= dataBase) {
                             proximaData.setMonth(proximaData.getMonth() + 1);
                         }
                     }
                 }
-                
+
                 // Calcular dias restantes
                 const diasRestantes = Math.floor((proximaData - today) / (1000 * 60 * 60 * 24));
-                
+
                 // Verificar status do pagamento
                 if (diasRestantes < 0) {
                     overduePayments++;
@@ -438,17 +437,17 @@ export default function DashboardScreen() {
                 } else {
                     // Na web, continuar com a abordagem atual
                     sessionStorage.setItem('userListFilter', filter);
-                    
+
                     try {
-                        const event = new CustomEvent('applyUserFilter', { 
-                            detail: { filter, timestamp: Date.now() } 
+                        const event = new CustomEvent('applyUserFilter', {
+                            detail: { filter, timestamp: Date.now() }
                         });
                         document.dispatchEvent(event);
                     } catch (error) {
                         console.log('CustomEvent não suportado nesta plataforma');
                     }
                 }
-                
+
                 // Navegar para a tab Usuários
                 navigation.navigate('Usuários');
             } catch (error) {
@@ -456,7 +455,7 @@ export default function DashboardScreen() {
                 navigation.navigate('Usuários');
             }
         };
-        
+
         saveFilter();
     };
 
@@ -469,24 +468,24 @@ export default function DashboardScreen() {
                     await AsyncStorage.setItem('paymentListFilterTimestamp', Date.now().toString());
                 } else {
                     sessionStorage.setItem('paymentListFilter', filter);
-                    
+
                     try {
-                        const event = new CustomEvent('applyPaymentFilter', { 
-                            detail: { filter, timestamp: Date.now() } 
+                        const event = new CustomEvent('applyPaymentFilter', {
+                            detail: { filter, timestamp: Date.now() }
                         });
                         document.dispatchEvent(event);
                     } catch (error) {
                         console.log('CustomEvent não suportado nesta plataforma');
                     }
                 }
-                
+
                 navigation.navigate('Pagamentos');
             } catch (error) {
                 console.error('Erro ao salvar filtro de pagamentos:', error);
                 navigation.navigate('Pagamentos');
             }
         };
-        
+
         saveFilter();
     };
 
@@ -499,24 +498,24 @@ export default function DashboardScreen() {
                     await AsyncStorage.setItem('contractListFilterTimestamp', Date.now().toString());
                 } else {
                     sessionStorage.setItem('contractListFilter', filter);
-                    
+
                     try {
-                        const event = new CustomEvent('applyContractFilter', { 
-                            detail: { filter, timestamp: Date.now() } 
+                        const event = new CustomEvent('applyContractFilter', {
+                            detail: { filter, timestamp: Date.now() }
                         });
                         document.dispatchEvent(event);
                     } catch (error) {
                         console.log('CustomEvent não suportado nesta plataforma');
                     }
                 }
-                
+
                 navigation.navigate('Contratos');
             } catch (error) {
                 console.error('Erro ao salvar filtro de contratos:', error);
                 navigation.navigate('Contratos');
             }
         };
-        
+
         saveFilter();
     };
 
@@ -574,9 +573,9 @@ export default function DashboardScreen() {
         <Container>
             <Header>
                 <HeaderTitle>Dashboard</HeaderTitle>
-                <NotificationBell userType="admin" color="#FFFFFF"/>
+                <NotificationBell userType="admin" color="#FFFFFF" />
             </Header>
-            <DashboardScrollView 
+            <DashboardScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 30 }}
             >
@@ -749,8 +748,8 @@ export default function DashboardScreen() {
                     {isMobile ? (
                         // Layout para dispositivos móveis (uma coluna)
                         <>
-                            <View style={{marginBottom: 10}}>
-                                <FinancialCard style={{width: '100%'}}>
+                            <View style={{ marginBottom: 10 }}>
+                                <FinancialCard style={{ width: '100%' }}>
                                     <FinancialCardHeader>
                                         <MaterialIcons name="account-balance-wallet" size={24} color="#2ecc71" />
                                         <FinancialCardTitle>Receita Total</FinancialCardTitle>
@@ -762,8 +761,8 @@ export default function DashboardScreen() {
                                 </FinancialCard>
                             </View>
 
-                            <View style={{marginBottom: 10}}>
-                                <FinancialCard style={{width: '100%'}}>
+                            <View style={{ marginBottom: 10 }}>
+                                <FinancialCard style={{ width: '100%' }}>
                                     <FinancialCardHeader>
                                         <MaterialIcons name="date-range" size={24} color="#3498db" />
                                         <FinancialCardTitle>Receita Mensal</FinancialCardTitle>
@@ -794,8 +793,8 @@ export default function DashboardScreen() {
                                 </FinancialCard>
                             </View>
 
-                            <View style={{marginBottom: 10}}>
-                                <FinancialCard style={{width: '100%'}}>
+                            <View style={{ marginBottom: 10 }}>
+                                <FinancialCard style={{ width: '100%' }}>
                                     <FinancialCardHeader>
                                         <MaterialIcons name="today" size={24} color="#9b59b6" />
                                         <FinancialCardTitle>Receita Semanal</FinancialCardTitle>
@@ -803,12 +802,12 @@ export default function DashboardScreen() {
                                     <FinancialCardValue>
                                         {formatCurrency(financialStats.weeklyRevenue)}
                                     </FinancialCardValue>
-                                    <FinancialCardSubtitle>Semana atual (desde segunda)</FinancialCardSubtitle>
+                                    <FinancialCardSubtitle>Semana atual</FinancialCardSubtitle>
                                 </FinancialCard>
                             </View>
 
-                            <StatCardTouchable onPress={() => navigateToPayments('atrasados')} style={{width: '100%', marginBottom: 10}}>
-                                <StatCard color="#e74c3c" style={{width: '100%'}}>
+                            <StatCardTouchable onPress={() => navigateToPayments('atrasados')} style={{ width: '100%', marginBottom: 10 }}>
+                                <StatCard color="#e74c3c" style={{ width: '100%' }}>
                                     <StatIconContainer>
                                         <MaterialIcons name="warning" size={24} color="#fff" />
                                     </StatIconContainer>
@@ -819,8 +818,8 @@ export default function DashboardScreen() {
                                 </StatCard>
                             </StatCardTouchable>
 
-                            <StatCardTouchable onPress={() => navigateToPayments('hoje')} style={{width: '100%', marginBottom: 10}}>
-                                <StatCard color="#f39c12" style={{width: '100%'}}>
+                            <StatCardTouchable onPress={() => navigateToPayments('hoje')} style={{ width: '100%', marginBottom: 10 }}>
+                                <StatCard color="#f39c12" style={{ width: '100%' }}>
                                     <StatIconContainer>
                                         <MaterialIcons name="event" size={24} color="#fff" />
                                     </StatIconContainer>
@@ -831,13 +830,13 @@ export default function DashboardScreen() {
                                 </StatCard>
                             </StatCardTouchable>
 
-                            <RefreshButton onPress={refreshData} style={{width: '100%'}}>
+                            <RefreshButton onPress={refreshData} style={{ width: '100%' }}>
                                 <MaterialIcons name="refresh" size={20} color="#fff" />
                                 <RefreshButtonText>Atualizar Dados</RefreshButtonText>
                             </RefreshButton>
                         </>
                     ) : (
-                        // Layout para web (duas colunas, reorganizado)
+                        // Layout para web 
                         <>
                             <CardRow>
                                 <FinancialCard>
@@ -891,7 +890,7 @@ export default function DashboardScreen() {
                                     <FinancialCardValue>
                                         {formatCurrency(financialStats.weeklyRevenue)}
                                     </FinancialCardValue>
-                                    <FinancialCardSubtitle>Semana atual (desde segunda)</FinancialCardSubtitle>
+                                    <FinancialCardSubtitle>Semana atual</FinancialCardSubtitle>
                                 </FinancialCard>
 
                                 <View style={{ width: '48%' }} />
@@ -1015,7 +1014,7 @@ export default function DashboardScreen() {
                         <MaterialIcons name="send" size={20} color="#FFFFFF" />
                         <ActionButtonText>Enviar Mensagens em Massa</ActionButtonText>
                     </ActionButton>
-                    
+
                     <LogoutButton onPress={handleLogout}>
                         <MaterialIcons name="exit-to-app" size={20} color="#FFFFFF" />
                         <LogoutText>Sair da Conta</LogoutText>

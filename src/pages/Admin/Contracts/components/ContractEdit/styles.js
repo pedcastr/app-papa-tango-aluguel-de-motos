@@ -124,6 +124,7 @@ export const DeleteButton = styled.TouchableOpacity`
     border-radius: 25px;
     align-items: center;
     margin-top: 20px;
+    margin-bottom: 30px;
 `;
 
 export const DeleteButtonText = styled.Text`

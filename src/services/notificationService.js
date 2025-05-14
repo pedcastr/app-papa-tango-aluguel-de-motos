@@ -6,12 +6,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-const handleNotificationError = (error, context) => {
-  console.error(`Erro em notificationService (${context}):`, error);
-  // Não lançar o erro novamente, apenas registrá-lo
-  return null;
-};
-
 // Configuração inicial das notificações
 export const configureNotifications = async () => {
   if (Platform.OS === 'web') return false;
@@ -125,13 +119,11 @@ export const registerForPushNotifications = async () => {
     
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      console.log("Usuário não autenticado para registrar notificações");
       return null;
     }
     
-    console.log("Iniciando registro para notificações push...");
     
-    // Verificar se estamos em um build standalone usando método moderno
+    // Verificar se estamos em um build standalone
     const isStandalone = !__DEV__ || Constants.appOwnership === 'standalone';
     console.log("Executando em modo standalone:", isStandalone);
     
@@ -140,8 +132,7 @@ export const registerForPushNotifications = async () => {
     try {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       finalStatus = existingStatus;
-      
-      console.log("Status atual de permissão:", existingStatus);
+    
       
       if (existingStatus !== 'granted') {
         console.log("Solicitando permissão para notificações...");
@@ -171,7 +162,6 @@ export const registerForPushNotifications = async () => {
         projectId = '2d93efbd-1062-4051-bf44-18c916565fb7';
       }
       
-      console.log("Project ID para token Expo:", projectId);
     } catch (projectIdError) {
       console.error("Erro ao obter projectId:", projectIdError);
       // Fallback para o projectId hardcoded
@@ -179,7 +169,6 @@ export const registerForPushNotifications = async () => {
     }
     
     // Obter token do Expo
-    console.log("Obtendo token Expo...");
     let expoPushToken = null;
     let tokenSuccess = false;
     
@@ -189,7 +178,6 @@ export const registerForPushNotifications = async () => {
         expoPushToken = await Notifications.getExpoPushTokenAsync({
           projectId: projectId,
         });
-        console.log("Token Expo obtido com projectId:", expoPushToken.data);
         tokenSuccess = true;
       } catch (tokenError) {
         console.error("Erro ao obter token Expo com projectId:", tokenError);
@@ -200,9 +188,7 @@ export const registerForPushNotifications = async () => {
     // Tentativa 2: Sem projectId
     if (!tokenSuccess) {
       try {
-        console.log("Tentando obter token sem projectId...");
         expoPushToken = await Notifications.getExpoPushTokenAsync();
-        console.log("Token Expo obtido sem projectId:", expoPushToken.data);
         tokenSuccess = true;
       } catch (fallbackError) {
         console.error("Erro ao obter token Expo sem projectId:", fallbackError);
@@ -213,11 +199,9 @@ export const registerForPushNotifications = async () => {
     // Tentativa 3: Com opções explícitas
     if (!tokenSuccess) {
       try {
-        console.log("Tentando obter token com opções explícitas...");
         expoPushToken = await Notifications.getExpoPushTokenAsync({
           experienceId: '@pedro_castro/papamotos',
         });
-        console.log("Token Expo obtido com experienceId:", expoPushToken.data);
         tokenSuccess = true;
       } catch (explicitError) {
         console.error("Erro ao obter token com opções explícitas:", explicitError);
@@ -285,7 +269,6 @@ export const registerForPushNotifications = async () => {
         });
       }
       
-      console.log("Token FCM atualizado com sucesso para o usuário:", currentUser.email);
     } catch (firestoreError) {
       console.error("Erro ao salvar token no Firestore:", firestoreError);
       // Continuar mesmo se falhar o salvamento no Firestore
@@ -304,8 +287,6 @@ export const registerForPushNotifications = async () => {
     return null;
   }
 }
-
-
 
 // Verificar se o usuário está registrado
 export const isUserRegistered = async () => {
@@ -328,7 +309,6 @@ export const markUserAsRegistered = async () => {
       await Notifications.cancelAllScheduledNotificationsAsync();
     }
     
-    console.log('Usuário marcado como registrado e notificações canceladas');
     return true;
   } catch (error) {
     console.error('Erro ao marcar usuário como registrado:', error);
@@ -355,7 +335,6 @@ export const scheduleNonRegisteredUserNotifications = async () => {
     // Verificar se o usuário já está registrado
     const userRegistered = await isUserRegistered();
     if (userRegistered) {
-      console.log('Usuário já registrado, não agendando notificações');
       return false;
     }
     
@@ -367,10 +346,7 @@ export const scheduleNonRegisteredUserNotifications = async () => {
       const now = new Date();
       const hoursSinceLastSetup = (now - lastSetup) / (1000 * 60 * 60);
       
-      console.log(`Última configuração de notificações: ${hoursSinceLastSetup.toFixed(2)} horas atrás`);
-      
       if (hoursSinceLastSetup < 24) {
-        console.log(`Notificações configuradas recentemente. Pulando.`);
         return true;
       }
     }
@@ -378,8 +354,6 @@ export const scheduleNonRegisteredUserNotifications = async () => {
     // Marcar que configuramos as notificações e salvar o timestamp ANTES de agendar
     await AsyncStorage.setItem('@PapaTango:notificationsSet', 'true');
     await AsyncStorage.setItem('@PapaTango:notificationsSetupTime', new Date().toISOString());
-    
-    console.log('Configurando lembretes para usuário não registrado...');
     
     // Salvar as datas em que as notificações devem ser enviadas
     const now = new Date();
@@ -397,9 +371,6 @@ export const scheduleNonRegisteredUserNotifications = async () => {
     // Limpar flags de notificações mostradas
     await AsyncStorage.removeItem('@PapaTango:reminder24hShown');
     await AsyncStorage.removeItem('@PapaTango:reminderWeeklyShown');
-    
-    console.log(`Lembrete de 24h configurado para ${reminder24h.toLocaleString()}`);
-    console.log(`Lembrete semanal configurado para ${reminderWeekly.toLocaleString()}`);
     
     return true;
   } catch (error) {
@@ -430,11 +401,10 @@ export const checkAndShowReminders = async () => {
         await Notifications.presentNotificationAsync({
           title: '🏍️ Sua moto está esperando por você!',
           body: 'Falta pouco para você alugar sua moto dos sonhos. Complete seu cadastro agora!',
-          data: { screen: 'SignIn' },
+          data: { screen: 'Login' },
         });
         
         await AsyncStorage.setItem('@PapaTango:reminder24hShown', 'true');
-        console.log('Notificação de 24h mostrada');
       }
     }
     
@@ -449,11 +419,10 @@ export const checkAndShowReminders = async () => {
         await Notifications.presentNotificationAsync({
           title: '🔥 Não perca mais tempo!',
           body: 'Vários usuários já estão aproveitando nossas motos. Venha você também!',
-          data: { screen: 'SignIn' },
+          data: { screen: 'Login' },
         });
         
         await AsyncStorage.setItem('@PapaTango:reminderWeeklyShown', 'true');
-        console.log('Notificação semanal mostrada');
       }
     }
   } catch (error) {
@@ -472,14 +441,11 @@ export const setupNotificationListener = (navigationRef) => {
   
   // Listener para quando o usuário interage com uma notificação
   const subscription = Notifications.addNotificationResponseReceivedListener(response => {
-    console.log("Notificação recebida e sendo processada pelo handler");
     
     const data = response.notification.request.content.data;
-    console.log("Dados da notificação:", data);
     
     // Navegar para a tela apropriada com base nos dados da notificação
     if (data.screen && navigationRef.isReady()) {
-      console.log('Navegando para a tela:', data.screen);
 
       // Tratando navegação aninhada
       if (data.params && data.params.screen) {
@@ -516,7 +482,6 @@ export const setupNotificationListener = (navigationRef) => {
 // Função para buscar detalhes de um pagamento
 const getPaymentDetails = async (paymentId) => {
   try {
-    console.log("Buscando detalhes do pagamento:", paymentId);
     
     // Converter paymentId para número se for string
     const paymentIdNumber = typeof paymentId === 'string' ? parseInt(paymentId, 10) : paymentId;
@@ -527,7 +492,6 @@ const getPaymentDetails = async (paymentId) => {
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
-      console.log("Nenhum pagamento encontrado com ID:", paymentId);
       
       // Tentar buscar como string caso a busca como número falhe
       if (typeof paymentId === 'string') {
@@ -537,7 +501,6 @@ const getPaymentDetails = async (paymentId) => {
         if (!querySnapshotStr.empty) {
           const paymentDoc = querySnapshotStr.docs[0];
           const paymentData = paymentDoc.data();
-          console.log("Pagamento encontrado (como string):", paymentData);
           return {
             id: paymentData.paymentId,
             status: paymentData.status,
@@ -555,8 +518,6 @@ const getPaymentDetails = async (paymentId) => {
     // Obter o primeiro documento que corresponde à consulta
     const paymentDoc = querySnapshot.docs[0];
     const paymentData = paymentDoc.data();
-    
-    console.log("Pagamento encontrado:", paymentData);
     
     // Mapear os dados do Firestore para o formato esperado pela tela PaymentSuccess
     return {
@@ -638,7 +599,7 @@ export const testNotifications = async () => {
       content: {
         title: '🔔 Teste Imediato',
         body: 'Esta é uma notificação de teste imediata',
-        data: { screen: 'SignIn' },
+        data: { screen: 'Login' },
       },
       trigger: null,
     });
@@ -648,7 +609,7 @@ export const testNotifications = async () => {
       content: {
         title: '⏰ Teste Agendado',
         body: `Esta notificação foi agendada para 10 segundos depois`,
-        data: { screen: 'SignIn' },
+        data: { screen: 'Login' },
       },
       trigger: { seconds: 10 },
     });

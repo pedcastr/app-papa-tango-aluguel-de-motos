@@ -1,22 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
-import { FlatList, RefreshControl, Alert, ActivityIndicator } from 'react-native';
+import { FlatList, RefreshControl, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { db } from "../../../../../services/firebaseConfig";
 import { collection, query, orderBy, limit, getDocs, doc, getDoc } from "firebase/firestore";
 
 import {
-  ButtonDetalhesTroca, 
-  ViewTrocaInfo,
-  TextData,
-  ImageKm,
-  ContainerLista,
-  ButtonNovaTroca,
-  TextButtonNovaTroca,
-  ContainerSemTrocas,
-  TextButtonSemTrocas,
-  LoadingContainer,
+    ButtonDetalhesTroca,
+    ViewTrocaInfo,
+    TextData,
+    ImageKm,
+    ContainerLista,
+    ButtonNovaTroca,
+    TextButtonNovaTroca,
+    ContainerSemTrocas,
+    TextButtonSemTrocas,
+    LoadingContainer,
 } from './styles';
 
 export default function UserTrocaOleo() {
@@ -30,14 +30,14 @@ export default function UserTrocaOleo() {
 
     // Obtém o usuário dos parâmetros da rota
     const { user: userParam } = route.params || {};
-    
+
     // Inicializa o estado do usuário
     const [userData, setUserData] = useState(null);
 
     // Configura os dados do usuário quando o componente é montado
     useEffect(() => {
         if (userParam) {
-            setUserData({...userParam});
+            setUserData({ ...userParam });
         } else {
             console.error("Nenhum dado de usuário recebido da rota");
             setError("Dados do usuário não encontrados");
@@ -52,6 +52,15 @@ export default function UserTrocaOleo() {
         }
     }, [isFocused, userData]);
 
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
+
     // Função para carregar as trocas de óleo do Firestore
     const carregarTrocasOleo = async () => {
         if (!userData || !userData.email) {
@@ -62,23 +71,22 @@ export default function UserTrocaOleo() {
 
         setLoading(true);
         setError(null);
-        
+
         try {
             // Normaliza o email para evitar problemas de case sensitivity
             const userEmail = userData.email.toLowerCase().trim();
-            console.log("Carregando trocas para o usuário:", userEmail);
-            
+
             // Verifica se o documento do usuário existe
             const userDocRef = doc(db, "users", userEmail);
             const userDocSnap = await getDoc(userDocRef);
-            
+
             if (!userDocSnap.exists()) {
                 console.log("Documento do usuário não encontrado no Firestore");
                 setTrocasOleo([]);
                 setLoading(false);
                 return;
             }
-            
+
             // Abordagem alternativa: buscar documentos individualmente para evitar o erro interno
             try {
                 // Busca a subcoleção de trocas de óleo
@@ -90,15 +98,14 @@ export default function UserTrocaOleo() {
                 );
 
                 const querySnapshot = await getDocs(q);
-                console.log(`Encontradas ${querySnapshot.size} trocas de óleo`);
-                
+
                 const trocas = [];
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
                     // Verifica se os dados necessários existem
                     if (data && data.dataUpload) {
-                        trocas.push({ 
-                            id: doc.id, 
+                        trocas.push({
+                            id: doc.id,
                             ...data,
                             // Garante que a URL da imagem existe
                             fotoKm: data.fotoKm || 'https://via.placeholder.com/150?text=Sem+Imagem'
@@ -111,14 +118,14 @@ export default function UserTrocaOleo() {
                 setTrocasOleo(trocas);
             } catch (firestoreError) {
                 console.error("Erro específico do Firestore:", firestoreError);
-                
+
                 // Abordagem de fallback se a consulta falhar
                 console.log("Tentando abordagem alternativa...");
-                
+
                 // Tenta obter a lista de IDs de documentos primeiro
                 const trocasCollectionRef = collection(userDocRef, "trocasOleo");
                 const trocasSnapshot = await getDocs(trocasCollectionRef);
-                
+
                 const trocasManual = [];
                 for (const docSnap of trocasSnapshot.docs) {
                     try {
@@ -134,22 +141,22 @@ export default function UserTrocaOleo() {
                         console.error("Erro ao processar documento:", docError);
                     }
                 }
-                
+
                 // Ordena manualmente por data (mais recente primeiro)
                 trocasManual.sort((a, b) => {
                     // Tenta converter para Date se possível
                     const dateA = new Date(a.dataUpload);
                     const dateB = new Date(b.dataUpload);
-                    
+
                     // Se a conversão for válida, compara as datas
                     if (!isNaN(dateA) && !isNaN(dateB)) {
                         return dateB - dateA;
                     }
-                    
+
                     // Caso contrário, compara como strings
                     return b.dataUpload.localeCompare(a.dataUpload);
                 });
-                
+
                 setTrocasOleo(trocasManual.slice(0, 10)); // Limita a 10 itens
             }
         } catch (error) {
@@ -169,7 +176,7 @@ export default function UserTrocaOleo() {
 
     // Função para navegar para a tela de detalhes da troca
     const navegarParaDetalhesTroca = (troca) => {
-        navigation.navigate('DetalhesTrocaOleo', { 
+        navigation.navigate('DetalhesTrocaOleo', {
             troca,
             userData
         });
@@ -180,7 +187,7 @@ export default function UserTrocaOleo() {
         if (userData) {
             navigation.navigate('TrocaOleo', { userData });
         } else {
-            Alert.alert("Erro", "Dados do usuário não disponíveis");
+            showMessage("Erro", "Dados do usuário não disponíveis");
         }
     };
 

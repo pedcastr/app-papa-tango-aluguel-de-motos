@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Alert, ActivityIndicator, ScrollView, View, Platform } from 'react-native';
 import { db, storage } from '../../../../../services/firebaseConfig';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, orderBy, limit, getDocs  } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { 
-    Container, 
+import {
+    Container,
     Form,
     Section,
     Switch,
@@ -41,12 +41,12 @@ export default function CadastroMoto({ navigation }) {
     const [modelo, setModelo] = useState('');
     const [anoModelo, setAnoModelo] = useState('');
     const [placa, setPlaca] = useState('');
-    const [marca,  setMarca] = useState('');
+    const [marca, setMarca] = useState('');
     const [renavam, setRenavam] = useState('');
     const [chassi, setChassi] = useState('');
     const [alugada, setAlugada] = useState(false);
     const [status, setStatus] = useState('disponível');
-    
+
     // Estados para validação e UI
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
@@ -61,8 +61,10 @@ export default function CadastroMoto({ navigation }) {
         { label: 'Reservada', value: 'reservada' },
     ];
 
-    // Verifica se é uma tela de desktop
-    const isWebDesktop = Platform.OS === 'web' && window.innerWidth > 768;
+    // Estado para o próximo ID da moto
+    useEffect(() => {
+        getNextMotoId();
+    }, []);
 
     // Função para mostrar mensagem (alerta) de sucesso/erro (em todas as plataformas)
     const showMessage = (title, message) => {
@@ -70,6 +72,34 @@ export default function CadastroMoto({ navigation }) {
             window.alert(`${title}: ${message}`);
         } else {
             Alert.alert(title, message);
+        }
+    };
+
+    // Função para obter o próximo ID da moto automaticamente e seguindo uma sequência
+    const getNextMotoId = async () => {
+        try {
+            const motosRef = collection(db, "motos");
+            const q = query(motosRef, orderBy("id", "desc"), limit(1));
+            const querySnapshot = await getDocs(q);
+
+            let nextId = "moto1";
+
+            if (!querySnapshot.empty) {
+                const lastDoc = querySnapshot.docs[0];
+                const lastId = lastDoc.data().id;
+
+                if (lastId && lastId.startsWith("moto")) {
+                    const lastNumber = parseInt(lastId.replace("moto", ""), 10);
+                    if (!isNaN(lastNumber)) {
+                        nextId = `moto${lastNumber + 1}`;
+                    }
+                }
+            }
+
+            setMotoId(nextId);
+        } catch (error) {
+            console.error("Erro ao obter próximo ID de moto:", error);
+            showMessage("Erro", "Não foi possível gerar o ID da moto");
         }
     };
 
@@ -96,10 +126,10 @@ export default function CadastroMoto({ navigation }) {
                     name: selectedImage.fileName || `photo_${Date.now()}.jpg`,
                     size: selectedImage.fileSize,
                 });
-                
+
                 // Limpa erro de foto se existir
                 if (errors.foto) {
-                    setErrors({...errors, foto: null});
+                    setErrors({ ...errors, foto: null });
                 }
             }
         } catch (error) {
@@ -150,16 +180,16 @@ export default function CadastroMoto({ navigation }) {
         // Cria um nome de arquivo único
         const fileName = `foto_principal_${Date.now()}.jpg`;
         const storagePath = `motos/${motoId}/fotos/${fileName}`;
-        
+
         // Referência para o arquivo no Storage
         const fileRef = ref(storage, storagePath);
-        
+
         // Upload do arquivo
         await uploadBytes(fileRef, blob);
-        
+
         // Obtém a URL do arquivo
         const downloadURL = await getDownloadURL(fileRef);
-        
+
         return {
             url: downloadURL,
             path: storagePath,
@@ -200,7 +230,7 @@ export default function CadastroMoto({ navigation }) {
 
             // Adiciona a moto ao Firestore usando o ID personalizado
             await setDoc(doc(db, "motos", motoId), motoData);
-            
+
             // Limpa o formulário
             setMotoId('');
             setModelo('');
@@ -214,7 +244,7 @@ export default function CadastroMoto({ navigation }) {
             setFotoUri(null);
             setFotoTempInfo(null);
             setErrors({});
-            
+
             // Navega de volta para a lista de motos
             navigation.goBack();
 
@@ -229,13 +259,13 @@ export default function CadastroMoto({ navigation }) {
     return (
         <Container>
             {loading && (
-                <View style={{ 
-                    position: 'absolute', 
-                    top: 0, 
-                    left: 0, 
-                    right: 0, 
-                    bottom: 0, 
-                    justifyContent: 'center', 
+                <View style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    justifyContent: 'center',
                     alignItems: 'center',
                     backgroundColor: 'rgba(0,0,0,0.5)',
                     zIndex: 999
@@ -259,11 +289,11 @@ export default function CadastroMoto({ navigation }) {
                                 thumbColor={alugada ? '#CB2921' : '#767577'}
                             />
                         </InputGroup>
-                        
+
                         <InputGroup>
                             <Label>ID da Moto*</Label>
-                            <Input 
-                                placeholder="Ex: moto1, moto2..."
+                            <Input
+                                placeholder="Gerando ID automaticamente..."
                                 placeholderTextColor="#999"
                                 value={motoId}
                                 onChangeText={text => {
@@ -271,28 +301,30 @@ export default function CadastroMoto({ navigation }) {
                                     const formattedText = text.replace(/[^a-zA-Z0-9]/g, '');
                                     setMotoId(formattedText);
                                     if (errors.motoId) {
-                                        setErrors({...errors, motoId: null});
+                                        setErrors({ ...errors, motoId: null });
                                     }
                                 }}
                                 error={errors.motoId}
                                 autoCapitalize="none"
+                                editable={false} // Tornando o campo não editável
                             />
                             {errors.motoId && <ErrorText>{errors.motoId}</ErrorText>}
                         </InputGroup>
 
                         <InputGroup>
                             <Label>Modelo*</Label>
-                            <Input 
-                                placeholder="Ex: CG160 FAN ESDI"
+                            <Input
+                                placeholder="Ex: FAN 160"
                                 placeholderTextColor="#999"
                                 value={modelo}
                                 onChangeText={text => {
                                     setModelo(text);
                                     if (errors.modelo) {
-                                        setErrors({...errors, modelo: null});
+                                        setErrors({ ...errors, modelo: null });
                                     }
                                 }}
                                 error={errors.modelo}
+                                maxLength={12}
                                 autoCapitalize="characters"
                             />
                             {errors.modelo && <ErrorText>{errors.modelo}</ErrorText>}
@@ -307,7 +339,7 @@ export default function CadastroMoto({ navigation }) {
                                     const numericValue = text.replace(/[^0-9]/g, '');
                                     setAnoModelo(numericValue);
                                     if (errors.anoModelo) {
-                                        setErrors({...errors, anoModelo: null});
+                                        setErrors({ ...errors, anoModelo: null });
                                     }
                                 }}
                                 keyboardType="numeric"
@@ -326,7 +358,7 @@ export default function CadastroMoto({ navigation }) {
                                     const formattedText = text.toUpperCase().slice(0, 7);
                                     setPlaca(formattedText);
                                     if (errors.placa) {
-                                        setErrors({...errors, placa: null});
+                                        setErrors({ ...errors, placa: null });
                                     }
                                 }}
                                 autoCapitalize="characters"
@@ -338,14 +370,14 @@ export default function CadastroMoto({ navigation }) {
 
                         <InputGroup>
                             <Label>Marca*</Label>
-                            <Input 
+                            <Input
                                 placeholder="Ex: Honda/Yamaha/Suzuki..."
                                 placeholderTextColor="#999"
                                 value={marca}
                                 onChangeText={text => {
                                     setMarca(text);
                                     if (errors.marca) {
-                                        setErrors({...errors, marca: null});
+                                        setErrors({ ...errors, marca: null });
                                     }
                                 }}
                                 error={errors.marca}
@@ -355,7 +387,7 @@ export default function CadastroMoto({ navigation }) {
 
                         <InputGroup>
                             <Label>Renavam*</Label>
-                            <Input 
+                            <Input
                                 placeholder="Ex: 12345678901"
                                 placeholderTextColor="#999"
                                 value={renavam}
@@ -364,7 +396,7 @@ export default function CadastroMoto({ navigation }) {
                                     const numericValue = text.replace(/[^0-9]/g, '');
                                     setRenavam(numericValue);
                                     if (errors.renavam) {
-                                        setErrors({...errors, renavam: null});
+                                        setErrors({ ...errors, renavam: null });
                                     }
                                 }}
                                 keyboardType="numeric"
@@ -376,7 +408,7 @@ export default function CadastroMoto({ navigation }) {
 
                         <InputGroup>
                             <Label>Chassi*</Label>
-                            <Input 
+                            <Input
                                 placeholder="Ex: 9BWHE21JX24060960"
                                 placeholderTextColor="#999"
                                 value={chassi}
@@ -386,7 +418,7 @@ export default function CadastroMoto({ navigation }) {
                                     const formattedText = text.toUpperCase();
                                     setChassi(formattedText);
                                     if (errors.chassi) {
-                                        setErrors({...errors, chassi: null});
+                                        setErrors({ ...errors, chassi: null });
                                     }
                                 }}
                                 autoCapitalize="characters"
@@ -401,7 +433,7 @@ export default function CadastroMoto({ navigation }) {
                         <SectionTitle>Status da Moto</SectionTitle>
                         <StatusContainer>
                             {statusOptions.map(option => (
-                                <StatusOption 
+                                <StatusOption
                                     key={option.value}
                                     selected={status === option.value}
                                     onPress={() => setStatus(option.value)}
@@ -417,11 +449,11 @@ export default function CadastroMoto({ navigation }) {
                     {/* Seção de Foto - COMPLETAMENTE SEPARADA */}
                     <Section>
                         <SectionTitle>Foto da Moto</SectionTitle>
-                        
-                        <ImagePreviewContainer onPress={handleSelectImage}> 
+
+                        <ImagePreviewContainer onPress={handleSelectImage}>
                             {fotoUri ? (
                                 <>
-                                    <MotoImage source={{ uri: fotoUri }} resizeMode="contain"/>
+                                    <MotoImage source={{ uri: fotoUri }} resizeMode="contain" />
                                     <RemoveImageButton onPress={handleRemoveImage}>
                                         <RemoveImageIcon name="close-circle" size={24} color="#CB2921" />
                                     </RemoveImageButton>
@@ -433,7 +465,7 @@ export default function CadastroMoto({ navigation }) {
                                 </ImagePlaceholder>
                             )}
                         </ImagePreviewContainer>
-                        
+
                         <ImageActions>
                             <ActionButton onPress={handleSelectImage}>
                                 <ActionButtonText>

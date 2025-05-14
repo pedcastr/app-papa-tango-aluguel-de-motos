@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { View } from 'react-native';
 import {
   PermissionsAndroid,
   Platform,
@@ -57,6 +58,15 @@ export default function ComprovanteDeEndereco({ navigation }) {
     }, [])
   );
 
+  // Função para mostrar mensagem de sucesso/erro
+  const showMessage = (title, message) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}: ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   // Abre o modal para escolha da foto (PhotoPicker)
   const abrirOpcoes = () => {
     setModalVisible(true);
@@ -64,15 +74,15 @@ export default function ComprovanteDeEndereco({ navigation }) {
 
   // Abre o seletor de PDF (usando expo-document-picker)
   const abrirPdf = async () => {
-    
+
     // Verifica se está na web mobile
     const isWebMobile = Platform.OS === 'web' && window.innerWidth < 768;
-    
+
     // Para web mobile, mostramos um toast ou mensagem na tela antes de abrir o seletor
     if (isWebMobile && Platform.OS === 'web' && !pdfInstructionsShown) {
       // Marca que as instruções foram mostradas para não mostrar novamente
       setPdfInstructionsShown(true);
-      
+
       // Mostra uma mensagem temporária na tela
       const messageDiv = document.createElement('div');
       messageDiv.style.position = 'fixed';
@@ -87,16 +97,16 @@ export default function ComprovanteDeEndereco({ navigation }) {
       messageDiv.style.textAlign = 'center';
       messageDiv.style.fontSize = '16px';
       messageDiv.innerHTML = "Quando o seletor de arquivos abrir, clique no ícone de 'Arquivos' ou 'Documentos' ou 'Fotos e Vídeos' ou qualquer outro que não seja a câmera para acessar seus arquivos e selecione o PDF desejado.";
-      
+
       document.body.appendChild(messageDiv);
-      
+
       // Remove a mensagem após 8 segundos
       setTimeout(() => {
         if (document.body.contains(messageDiv)) {
           document.body.removeChild(messageDiv);
         }
       }, 8000);
-      
+
       // Pequeno atraso antes de abrir o seletor para dar tempo de ler a mensagem
       setTimeout(() => {
         // Continua com a seleção normal
@@ -121,10 +131,10 @@ export default function ComprovanteDeEndereco({ navigation }) {
           console.error("Erro ao selecionar PDF: ", err);
         }
       }, 1500);
-      
+
       return;
     }
-    
+
     // Comportamento normal para outras plataformas ou se as instruções já foram mostradas
     try {
 
@@ -132,7 +142,7 @@ export default function ComprovanteDeEndereco({ navigation }) {
       if (Platform.OS === 'android') {
         const permissionGranted = await solicitarPermissaoStorage();
         if (!permissionGranted) {
-          Alert.alert("Permissão negada", "Precisamos de acesso ao armazenamento para selecionar PDFs.");
+          showMessage("Permissão negada", "Precisamos de acesso ao armazenamento para selecionar PDFs.");
           return;
         }
       }
@@ -141,21 +151,20 @@ export default function ComprovanteDeEndereco({ navigation }) {
         type: 'application/pdf',
         copyToCacheDirectory: true
       });
-      
+
       if (resultado.canceled === false && resultado.assets && resultado.assets.length > 0) {
         const pdfAsset = resultado.assets[0];
-        console.log("PDF selecionado:", pdfAsset);
         if (!pdfAsset.name && pdfAsset.uri) {
           const uriParts = pdfAsset.uri.split('/');
           pdfAsset.name = uriParts[uriParts.length - 1] || "documento.pdf";
         }
-        
+
         setPdfFile(pdfAsset);
         setPhotoImage(null);
       }
     } catch (err) {
       console.error("Erro ao selecionar PDF: ", err);
-      Alert.alert("Erro", "Não foi possível selecionar o PDF. Tente novamente.");
+      showMessage("Erro", "Não foi possível selecionar o PDF. Tente novamente.");
     }
   };
 
@@ -193,7 +202,6 @@ export default function ComprovanteDeEndereco({ navigation }) {
         const storagePath = `users/${email}/comprovantes/foto_${Date.now()}.jpg`;
         const storageRef = ref(storage, storagePath);
         await uploadBytes(storageRef, blob);
-        console.log("Upload da foto realizado com sucesso!");
         const downloadURL = await getDownloadURL(storageRef);
         updatedFormData.comprovanteEndereco.arquivo = {
           arquivoUrl: downloadURL,
@@ -218,7 +226,6 @@ export default function ComprovanteDeEndereco({ navigation }) {
         const storagePath = `users/${email}/comprovantes/doc_${Date.now()}.pdf`;
         const storageRef = ref(storage, storagePath);
         await uploadBytes(storageRef, blob);
-        console.log("Upload do PDF realizado com sucesso!");
         const downloadURL = await getDownloadURL(storageRef);
         updatedFormData.comprovanteEndereco.pdf = {
           arquivoUrl: downloadURL,
@@ -253,16 +260,16 @@ export default function ComprovanteDeEndereco({ navigation }) {
       }, 1500);
     } catch (error) {
       console.log("Erro no upload:", error);
-      Alert.alert("Erro", "Falha ao enviar o arquivo. Tente novamente.");
+      showMessage("Erro", "Falha ao enviar o arquivo. Tente novamente.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView 
-      contentContainerStyle={{ 
-        flexGrow: 1, // Isso garante que o conteúdo seja esticado para ocupar toda a altura disponível
+    <ScrollView
+      contentContainerStyle={{
+        flexGrow: 1, // Isso garante que o conteúdo seja 'esticado' para ocupar toda a altura disponível
       }}
       showsVerticalScrollIndicator={false}
     >
@@ -279,7 +286,7 @@ export default function ComprovanteDeEndereco({ navigation }) {
         </ViewAnimacao>
       ) : (
         <Background>
-          <Container>
+          <View style={{ padding: 16 }}>
             <MaterialIcons
               name="arrow-back"
               size={28}
@@ -287,6 +294,8 @@ export default function ComprovanteDeEndereco({ navigation }) {
               style={{ marginTop: 10 }}
               onPress={() => navigation.goBack()}
             />
+          </View>
+          <Container>
             <TextPage style={{ marginTop: 30, textAlign: 'center' }}>
               Tire uma foto, pegue da sua galeria ou envie em formato PDF, algum comprovante de endereço que esteja no seu nome
             </TextPage>
@@ -305,11 +314,11 @@ export default function ComprovanteDeEndereco({ navigation }) {
                 // Se o PDF foi selecionado, exibe o visualizador de PDF
                 <ButtonPdf onPress={abrirPdf} style={{ width: '100%' }}>
                   <AreaPdf>
-                  <PdfViewer 
-                    uri={pdfFile.uri} 
-                    fileName={pdfFile.name || "documento.pdf"}
-                    onRemove={() => setPdfFile(null)}
-                  />
+                    <PdfViewer
+                      uri={pdfFile.uri}
+                      fileName={pdfFile.name || "documento.pdf"}
+                      onRemove={() => setPdfFile(null)}
+                    />
                     <ButtonIconCancelar onPress={() => setPdfFile(null)}>
                       <MaterialIcons name="close" size={20} color="#000" />
                     </ButtonIconCancelar>

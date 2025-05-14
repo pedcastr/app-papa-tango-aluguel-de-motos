@@ -15,7 +15,7 @@ import {
     ScrollContainerTrocaOleo,
     TextPage,
     ButtonFoto,
-    AreaFoto, 
+    AreaFoto,
     ButtonEnviar,
     RemoveButton,
     TextButtonEnviar,
@@ -25,7 +25,7 @@ import {
 export default function TrocaOleo({ navigation }) {
     const route = useRoute();
     const { userData } = route.params;
-    
+
     const [fotoOleo, setFotoOleo] = useState(null);
     const [fotoNota, setFotoNota] = useState(null);
     const [videoOleo, setVideoOleo] = useState(null);
@@ -44,29 +44,38 @@ export default function TrocaOleo({ navigation }) {
         setModalVisible(true);
     };
 
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
+
     // Função para selecionar foto da galeria
     const abrirGaleria = async (tipoFoto) => {
         const permissaoConcedida = await solicitarPermissoes('galeria');
         if (!permissaoConcedida) return;
-        
+
         // NOTA: Estamos usando MediaTypeOptions depreciado intencionalmente
         // porque as novas APIs (MediaType) causam erros de execução nesta versão específica.
         // Isso deve ser revisado em futuras atualizações do expo-image-picker.
         const opcoes = {
-            mediaTypes: tipoFoto === 'video' 
-                ? ImagePicker.MediaTypeOptions.Videos 
+            mediaTypes: tipoFoto === 'video'
+                ? ImagePicker.MediaTypeOptions.Videos
                 : ImagePicker.MediaTypeOptions.Images,
             allowsEditing: false,
             quality: 1,
             videoMaxDuration: 20,
         };
-        
+
         try {
             const resultado = await ImagePicker.launchImageLibraryAsync(opcoes);
-            
+
             if (!resultado.canceled && resultado.assets && resultado.assets.length > 0) {
                 const asset = resultado.assets[0];
-                switch(tipoFoto) {
+                switch (tipoFoto) {
                     case 'oleo':
                         setFotoOleo(asset);
                         break;
@@ -90,22 +99,22 @@ export default function TrocaOleo({ navigation }) {
     const abrirCamera = async (tipoMidia) => {
         const permissaoConcedida = await solicitarPermissoes('camera');
         if (!permissaoConcedida) return;
-        
+
         const opcoes = {
-            mediaTypes: tipoMidia === 'video' 
-                ? ImagePicker.MediaTypeOptions.Videos 
+            mediaTypes: tipoMidia === 'video'
+                ? ImagePicker.MediaTypeOptions.Videos
                 : ImagePicker.MediaTypeOptions.Images,
             allowsEditing: false,
             quality: 1,
             videoMaxDuration: 20,
         };
-        
+
         try {
             const resultado = await ImagePicker.launchCameraAsync(opcoes);
-            
+
             if (!resultado.canceled && resultado.assets && resultado.assets.length > 0) {
                 const asset = resultado.assets[0];
-                switch(tipoMidia) {
+                switch (tipoMidia) {
                     case 'oleo':
                         setFotoOleo(asset);
                         break;
@@ -129,19 +138,19 @@ export default function TrocaOleo({ navigation }) {
     const solicitarPermissoes = async (tipo) => {
         if (Platform.OS !== 'web') {
             let permissaoResult;
-            
+
             if (tipo === 'camera') {
                 permissaoResult = await ImagePicker.requestCameraPermissionsAsync();
             } else {
                 permissaoResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
             }
-            
+
             if (!permissaoResult.granted) {
                 setFeedback({
                     type: 'error',
                     title: 'Permissão negada',
-                    message: tipo === 'camera' 
-                        ? 'Precisamos de permissão para acessar sua câmera' 
+                    message: tipo === 'camera'
+                        ? 'Precisamos de permissão para acessar sua câmera'
                         : 'Precisamos de permissão para acessar sua galeria'
                 });
                 setFeedbackVisible(true);
@@ -189,16 +198,15 @@ export default function TrocaOleo({ navigation }) {
 
             // Obtém o email do usuário diretamente do objeto userData recebido via rota
             const userEmail = userData.email.toLowerCase().trim();
-            console.log("Email do usuário:", userEmail);
-            
+
             // Obtém dados adicionais do usuário do Firestore
             const userDocRef = doc(db, "users", userEmail);
             const userDocSnap = await getDoc(userDocRef);
-            
+
             if (!userDocSnap.exists()) {
                 throw new Error("Documento do usuário não encontrado no Firestore");
             }
-            
+
             const userDataFromFirestore = userDocSnap.data();
             const userName = userDataFromFirestore.nome || "Nome não disponível";
             const userPhone = userDataFromFirestore.telefone || "Telefone não disponível";
@@ -207,7 +215,7 @@ export default function TrocaOleo({ navigation }) {
             const uploadArquivo = async (arquivo, tipo) => {
                 const extensao = tipo === 'video' ? '.mp4' : '.jpg';
                 const storageRef = ref(storage, `users/${userEmail}/trocasOleo/${tipo}_${Date.now()}${extensao}`);
-                
+
                 // Adaptação para funcionar em todas as plataformas
                 let blob;
                 if (Platform.OS === 'web') {
@@ -226,7 +234,7 @@ export default function TrocaOleo({ navigation }) {
                     const response = await fetch(arquivo.uri);
                     blob = await response.blob();
                 }
-                
+
                 await uploadBytes(storageRef, blob);
                 return await getDownloadURL(storageRef);
             };
@@ -279,7 +287,7 @@ export default function TrocaOleo({ navigation }) {
 
             setUploadProgress(1);
             setUploadStatus('Concluído com sucesso!');
-            
+
             // Exibe feedback de sucesso
             setFeedback({
                 type: 'success',
@@ -287,7 +295,7 @@ export default function TrocaOleo({ navigation }) {
                 message: 'Troca de óleo registrada com sucesso.'
             });
             setFeedbackVisible(true);
-            
+
             // Aguarda um pouco antes de voltar
             setTimeout(() => {
                 navigation.goBack();
@@ -307,7 +315,7 @@ export default function TrocaOleo({ navigation }) {
     };
 
     return (
-        <Container> 
+        <Container>
             <ScrollContainerTrocaOleo>
                 <TextPage style={{ marginTop: 20 }}>
                     Foto do óleo que foi adicionado
@@ -317,15 +325,15 @@ export default function TrocaOleo({ navigation }) {
                         {fotoOleo ? (
                             <View>
                                 <Image
-                                source={{ uri: fotoOleo.uri }}
-                                style={{ width: 364, height: 118 }}
-                                resizeMode="contain"
+                                    source={{ uri: fotoOleo.uri }}
+                                    style={{ width: 364, height: 118 }}
+                                    resizeMode="contain"
                                 />
                                 <RemoveButton onPress={() => setFotoOleo(null)}>
                                     <MaterialIcons name="close" size={20} color="#000" />
                                 </RemoveButton>
                             </View>
-                        ) : <MaterialIcons name="camera-alt" size={110} color="#000" /> }
+                        ) : <MaterialIcons name="camera-alt" size={110} color="#000" />}
                     </AreaFoto>
                 </ButtonFoto>
                 <Divider style={{ marginTop: 25, marginBottom: -5 }} />
@@ -371,31 +379,30 @@ export default function TrocaOleo({ navigation }) {
                                     />
                                 ) : (
                                     // Para mobile: mostrar thumbnail com botão para visualizar
-                                    <View style={{ 
-                                        width: 364, 
-                                        height: 118, 
-                                        backgroundColor: '#D9D9D9', 
-                                        justifyContent: 'center', 
-                                        alignItems: 'center' 
+                                    <View style={{
+                                        width: 364,
+                                        height: 118,
+                                        backgroundColor: '#D9D9D9',
+                                        justifyContent: 'center',
+                                        alignItems: 'center'
                                     }}>
                                         <MaterialIcons name="videocam" size={40} color="#666" />
-                                        
+
                                         <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 5 }}>
-                                            <TouchableOpacity 
-                                                style={{ 
-                                                    backgroundColor: '#CB2921', 
-                                                    paddingVertical: 8, 
-                                                    paddingHorizontal: 12, 
+                                            <TouchableOpacity
+                                                style={{
+                                                    backgroundColor: '#CB2921',
+                                                    paddingVertical: 8,
+                                                    paddingHorizontal: 12,
                                                     borderRadius: 5,
                                                     flexDirection: 'row',
                                                     alignItems: 'center',
                                                     marginRight: 10
                                                 }}
                                                 onPress={() => {
-                                                    Alert.alert(
+                                                    showMessage(
                                                         "Vídeo selecionado",
-                                                        "O vídeo foi selecionado com sucesso e será enviado quando você clicar em 'Enviar'.",
-                                                        [{ text: "OK" }]
+                                                        "O vídeo foi selecionado com sucesso e será enviado quando você clicar em 'Enviar'."
                                                     );
                                                 }}
                                             >
@@ -477,7 +484,7 @@ export default function TrocaOleo({ navigation }) {
                         />
                     </View>
                 )}
-                
+
                 {/* Modal para opções de escolha de foto */}
                 <ImagePickerModal
                     visible={modalVisible}

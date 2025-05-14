@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native'; // Importando o useFocusEffect para pausar a animação quando retornar para essa tela
-import { Pressable, Keyboard, ActivityIndicator, Platform } from 'react-native';
+import { Pressable, Keyboard, ActivityIndicator, Platform, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import LottieAnimation from "../../components/LottieAnimation"; 
+import LottieAnimation from "../../components/LottieAnimation";
 
-import { 
+import {
     Background,
     Container,
     AreaAnimacao,
@@ -37,14 +37,14 @@ export default function Nome({ navigation }) {
         setSucesso(true); // Mostra a animação json de sucesso
 
         setTimeout(() => {
-            navigation.navigate('nomeCompleto', { nome }); // Passamos nome para a próxima tela
-        }, 2000) // Aguarda 2.0 segundos antes de navegar
-            
+            navigation.navigate('Nome Completo', { nome });
+        }, 2000)
+
     };
 
 
     return (
-        <Pressable 
+        <Pressable
             onPress={Platform.OS !== 'web' ? () => Keyboard.dismiss() : undefined}
             style={{ flex: 1 }}
         >
@@ -61,32 +61,34 @@ export default function Nome({ navigation }) {
                 </ViewAnimacao>
             ) : (
                 <Background>
-                    <Container>
-                        <MaterialIcons 
-                            name="arrow-back" 
-                            size={28} 
+                    <View style={{ padding: 16 }}>
+                        <MaterialIcons
+                            name="arrow-back"
+                            size={28}
                             color="#fff"
                             style={{ marginTop: 10 }}
-                            onPress={() => navigation.goBack()} 
+                            onPress={() => navigation.goBack()}
                         />
+                    </View>
+                    <Container>
                         <AreaInput>
-                            <TextPage>Como deseja ser chamado?</TextPage>
-                                <Input 
-                                    value={nome}
-                                    onChangeText={(text) => {
-                                        setNome(text);
-                                        setNomeError('');
-                                    }}
-                                    autoCapitalize="words"
-                                    error={!!nomeError}
-                                />
+                            <TextPage>Como deseja ser chamado(a)?</TextPage>
+                            <Input
+                                value={nome}
+                                onChangeText={(text) => {
+                                    setNome(text);
+                                    setNomeError('');
+                                }}
+                                autoCapitalize="words"
+                                error={!!nomeError}
+                            />
                             {nomeError ? <ErrorText>{nomeError}</ErrorText> : null}
                         </AreaInput>
-                            
+
                         {nome.length > 0 && (
                             <AreaButtonContinuar>
                                 <ButtonContinuar onPress={handleContinuar} disabled={loading}>
-                                {loading ? <ActivityIndicator color="#fff" /> : <TextButtonContinuar>Continuar</TextButtonContinuar>}
+                                    {loading ? <ActivityIndicator color="#fff" /> : <TextButtonContinuar>Continuar</TextButtonContinuar>}
                                 </ButtonContinuar>
                             </AreaButtonContinuar>
                         )}

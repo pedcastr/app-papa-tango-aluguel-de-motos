@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import FilterPanel from '../../../../../components/FilterPanel';
 
 import {
-    Container,  
+    Container,
     UserCard,
     UserInfo,
     TextContainer,
@@ -32,15 +32,15 @@ export default function UserList({ navigation }) {
     const [users, setUsers] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredUsers, setFilteredUsers] = useState([]);
-   
+
     // Estados para controle de filtros
     const [approvalFilter, setApprovalFilter] = useState('todos'); // 'todos', 'aprovados', 'pendentes'
-   
+
     // Filtros específicos por ID
     const [motoAlugadaFilter, setMotoAlugadaFilter] = useState('todos'); // 'todos', específico ID, 'sem_moto'
     const [aluguelFilter, setAluguelFilter] = useState('todos'); // 'todos', específico ID, 'sem_aluguel'
     const [contratoFilter, setContratoFilter] = useState('todos'); // 'todos', específico ID, 'sem_contrato'
-   
+
     // Listas de valores únicos para os filtros
     const [motosAlugadasUnicas, setMotosAlugadasUnicas] = useState([]);
     const [alugueisUnicos, setAlugueisUnicos] = useState([]);
@@ -49,13 +49,13 @@ export default function UserList({ navigation }) {
     // Função para funcionar a navegação da tela Dashboard para a tela de Usuários com filtro aplicado
     useEffect(() => {
         let isMounted = true;
-        
+
         // Função para aplicar filtro recebido
         const applyInitialFilter = async () => {
             try {
                 // Verificar se há um filtro salvo
                 let filterValue = null;
-                
+
                 // Tentar obter do AsyncStorage
                 const asyncStorageFilter = await AsyncStorage.getItem('userListFilter');
                 if (asyncStorageFilter) {
@@ -63,7 +63,7 @@ export default function UserList({ navigation }) {
                     // Limpar o filtro após usá-lo
                     await AsyncStorage.removeItem('userListFilter');
                 }
-                
+
                 // Para web, verificar também o sessionStorage
                 if (Platform.OS === 'web' && !filterValue) {
                     const sessionFilter = sessionStorage.getItem('userListFilter');
@@ -73,10 +73,9 @@ export default function UserList({ navigation }) {
                         sessionStorage.removeItem('userListFilter');
                     }
                 }
-                
+
                 if (filterValue && isMounted) {
-                    console.log('Aplicando filtro de usuários:', filterValue);
-                    
+
                     // Aplicar o filtro salvo
                     if (filterValue === 'aprovados') {
                         setApprovalFilter('aprovados');
@@ -85,7 +84,7 @@ export default function UserList({ navigation }) {
                     } else {
                         setApprovalFilter('todos');
                     }
-                    
+
                     // Garantir que os dados estejam carregados antes de aplicar o filtro
                     if (users.length > 0) {
                         // Aplicar os filtros aos dados com um pequeno delay
@@ -100,17 +99,16 @@ export default function UserList({ navigation }) {
                 console.error('Erro ao recuperar filtro de usuários:', error);
             }
         };
-        
+
         // Executar ao montar o componente
         applyInitialFilter();
-        
+
         // Configurar listener para eventos de filtro (web)
         const handleFilterEvent = (event) => {
             if (!isMounted) return;
-            
+
             const { filter } = event.detail;
-            console.log('Evento de filtro de usuários recebido:', filter);
-            
+
             if (filter === 'aprovados') {
                 setApprovalFilter('aprovados');
             } else if (filter === 'pendentes') {
@@ -118,7 +116,7 @@ export default function UserList({ navigation }) {
             } else {
                 setApprovalFilter('todos');
             }
-            
+
             // Aplicar os filtros aos dados com um pequeno delay
             setTimeout(() => {
                 if (isMounted && users.length > 0) {
@@ -126,12 +124,12 @@ export default function UserList({ navigation }) {
                 }
             }, 300);
         };
-        
+
         // Adicionar listener apenas no ambiente web
         if (Platform.OS === 'web') {
             document.addEventListener('applyUserFilter', handleFilterEvent);
         }
-        
+
         // Cleanup
         return () => {
             isMounted = false;
@@ -140,7 +138,7 @@ export default function UserList({ navigation }) {
             }
         };
     }, []);
-    
+
     // UseEffect para reagir a mudanças nos dados
     useEffect(() => {
         // Verificar se temos um filtro ativo que não seja 'todos'
@@ -153,19 +151,18 @@ export default function UserList({ navigation }) {
     // UseEffect para verificar o filtro a cada vez que o componente recebe foco
     useEffect(() => {
         let isMounted = true;
-        
+
         // Função para verificar e aplicar o filtro quando o componente recebe foco
         const checkFilterOnFocus = async () => {
             if (Platform.OS === 'web') return; // Apenas para mobile
-            
+
             try {
                 const filter = await AsyncStorage.getItem('userListFilter');
                 const timestamp = await AsyncStorage.getItem('userListFilterTimestamp');
-                
+
                 // Verificar se temos um filtro e um timestamp
                 if (filter && timestamp && isMounted) {
-                    console.log('Aplicando filtro de usuários no foco:', filter);
-                    
+
                     // Aplicar o filtro
                     if (filter === 'aprovados') {
                         setApprovalFilter('aprovados');
@@ -174,7 +171,7 @@ export default function UserList({ navigation }) {
                     } else {
                         setApprovalFilter('todos');
                     }
-                    
+
                     // Aplicar os filtros aos dados
                     if (users.length > 0) {
                         setTimeout(() => {
@@ -191,13 +188,13 @@ export default function UserList({ navigation }) {
                 console.error('Erro ao verificar filtro no foco:', error);
             }
         };
-        
+
         // Configurar listener para o evento de foco
         const unsubscribe = navigation.addListener('focus', checkFilterOnFocus);
-        
+
         // Verificar filtro ao montar o componente
         checkFilterOnFocus();
-        
+
         // Cleanup
         return () => {
             isMounted = false;
@@ -216,14 +213,14 @@ export default function UserList({ navigation }) {
                 .map(user => user.motoAlugadaId)
             )].sort();
             setMotosAlugadasUnicas(motosIds);
-           
+
             // Extrair IDs únicos de aluguéis
             const alugueisIds = [...new Set(users
                 .filter(user => user.aluguelAtivoId && user.aluguelAtivoId.trim() !== '')
                 .map(user => user.aluguelAtivoId)
             )].sort();
             setAlugueisUnicos(alugueisIds);
-           
+
             // Extrair IDs únicos de contratos
             const contratosIds = [...new Set(users
                 .filter(user => user.contratoId && user.contratoId.trim() !== '')
@@ -238,7 +235,7 @@ export default function UserList({ navigation }) {
      */
     useEffect(() => {
         const usersRef = collection(db, "users");
-       
+
         const unsubscribe = onSnapshot(usersRef, (querySnapshot) => {
             try {
                 const usersList = querySnapshot.docs.map(doc => ({
@@ -247,25 +244,33 @@ export default function UserList({ navigation }) {
                 }));
                 setUsers(usersList);
                 applyAllFilters(usersList);
-                console.log("Lista de usuários atualizada em tempo real");
             } catch (error) {
                 console.error("Erro ao processar dados:", error);
-                Alert.alert('Erro', 'Falha ao atualizar lista de usuários');
+                showMessage('Erro', 'Falha ao atualizar lista de usuários');
             }
         }, (error) => {
             console.error("Erro no listener:", error);
-            Alert.alert('Erro', 'Falha na conexão com o banco de dados');
+            showMessage('Erro', 'Falha na conexão com o banco de dados');
         });
-       
+
         return () => unsubscribe();
     }, [searchTerm, approvalFilter, motoAlugadaFilter, aluguelFilter, contratoFilter]);
+
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
 
     /**
      * Função para aplicar todos os filtros
      */
     const applyAllFilters = useCallback((usersList) => {
         let filtered = [...usersList];
-       
+
         // Filtro por termo de busca
         if (searchTerm.trim()) {
             const searchTermLower = searchTerm.toLowerCase();
@@ -275,7 +280,7 @@ export default function UserList({ navigation }) {
                 (user.telefone && user.telefone.includes(searchTerm))
             );
         }
-       
+
         // Filtro por status de aprovação
         if (approvalFilter !== 'todos') {
             filtered = filtered.filter(user => {
@@ -283,7 +288,7 @@ export default function UserList({ navigation }) {
                 return approvalFilter === 'aprovados' ? isApproved : !isApproved;
             });
         }
-       
+
         // Filtro por ID específico de moto alugada
         if (motoAlugadaFilter !== 'todos') {
             filtered = filtered.filter(user => {
@@ -294,7 +299,7 @@ export default function UserList({ navigation }) {
                 }
             });
         }
-       
+
         // Filtro por ID específico de aluguel
         if (aluguelFilter !== 'todos') {
             filtered = filtered.filter(user => {
@@ -305,7 +310,7 @@ export default function UserList({ navigation }) {
                 }
             });
         }
-       
+
         // Filtro por ID específico de contrato
         if (contratoFilter !== 'todos') {
             filtered = filtered.filter(user => {
@@ -316,7 +321,7 @@ export default function UserList({ navigation }) {
                 }
             });
         }
-       
+
         setFilteredUsers(filtered);
     }, [searchTerm, approvalFilter, motoAlugadaFilter, aluguelFilter, contratoFilter]);
 
@@ -344,9 +349,9 @@ export default function UserList({ navigation }) {
      */
     const countActiveFilters = () => {
         return (approvalFilter !== 'todos' ? 1 : 0) +
-               (motoAlugadaFilter !== 'todos' ? 1 : 0) +
-               (aluguelFilter !== 'todos' ? 1 : 0) +
-               (contratoFilter !== 'todos' ? 1 : 0);
+            (motoAlugadaFilter !== 'todos' ? 1 : 0) +
+            (aluguelFilter !== 'todos' ? 1 : 0) +
+            (contratoFilter !== 'todos' ? 1 : 0);
     };
 
     /**
@@ -471,41 +476,41 @@ export default function UserList({ navigation }) {
                 </View>
             ) : (
                 filteredUsers.map(user => (
-                    <UserCard key={user.id}> 
+                    <UserCard key={user.id}>
                         <UserEmail>{user.email}</UserEmail>
                         <UserInfo>
                             <TextContainer>
                                 <TextInfo>Nome: </TextInfo>
                                 <TextUserData>{user.nomeCompleto || user.nome}</TextUserData>
                             </TextContainer>
-                            
+
                             <TextContainer>
                                 <TextInfo>Telefone: </TextInfo>
                                 <TextUserData>{user.telefone}</TextUserData>
                             </TextContainer>
-                            
+
                             <TextContainer>
                                 <TextInfo>Tem Moto Alugada?: </TextInfo>
                                 <TextUserDataMotoAlugada alugada={user.motoAlugada}>
                                     {user.motoAlugada ? 'SIM' : 'NÃO'}
                                 </TextUserDataMotoAlugada>
                             </TextContainer>
-                            
+
                             <TextContainer>
                                 <TextInfo>Moto Alugada: </TextInfo>
                                 <TextUserData>{user.motoAlugadaId || 'N/A'}</TextUserData>
                             </TextContainer>
-                            
+
                             <TextContainer>
                                 <TextInfo>Aluguel: </TextInfo>
                                 <TextUserData>{user.aluguelAtivoId || 'N/A'}</TextUserData>
                             </TextContainer>
-                            
+
                             <TextContainer>
                                 <TextInfo>Contrato: </TextInfo>
                                 <TextUserData>{user.contratoId || 'N/A'}</TextUserData>
                             </TextContainer>
-                            
+
                             <TextContainer>
                                 <TextInfoStatus>Status: </TextInfoStatus>
                                 <UserStatus approved={user.aprovado}>
@@ -513,21 +518,21 @@ export default function UserList({ navigation }) {
                                 </UserStatus>
                             </TextContainer>
                         </UserInfo>
-                        
+
                         <AreaButtons>
                             <ActionButton
                                 onPress={() => navigation.navigate('UserEdit', { user })}
                             >
                                 <ActionButtonText>Editar</ActionButtonText>
                             </ActionButton>
-                            
-                            <TrocaOleoButton 
+
+                            <TrocaOleoButton
                                 onPress={() => navigation.navigate('UserTrocaOleo', { user })}
                             >
                                 <TrocaOleoButtonText>Trocas Óleo</TrocaOleoButtonText>
                             </TrocaOleoButton>
-                            
-                            <DestalhesButton 
+
+                            <DestalhesButton
                                 onPress={() => navigation.navigate('UserDetails', { user })}
                             >
                                 <DestalhesButtonText>

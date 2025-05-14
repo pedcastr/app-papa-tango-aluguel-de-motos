@@ -66,7 +66,7 @@ export default function DetalhesTrocaOleo({ route, navigation }) {
                     color="#000"
                     onPress={() => navigation.goBack()}
                 />
-                <TextTitleLista>Detalhes troca de óleo</TextTitleLista>
+                <TextTitleLista>Detalhes da troca de óleo</TextTitleLista>
             </Header>
             
             <TextDataDetalhes>Data: {troca.dataUpload}</TextDataDetalhes>

@@ -46,22 +46,22 @@ export default function ContractEdit({ route, navigation }) {
     const [contractData, setContractData] = useState(contract);
     const [uploading, setUploading] = useState(false);
     const [loading, setLoading] = useState(false);
-    
+
     // Estados para as listas de seleção
     const [users, setUsers] = useState([]);
     const [motos, setMotos] = useState([]);
     const [alugueis, setAlugueis] = useState([]);
-    
+
     // Estados para controlar o que está selecionado
     const [selectedUser, setSelectedUser] = useState(null);
     const [selectedMoto, setSelectedMoto] = useState(null);
     const [selectedAluguel, setSelectedAluguel] = useState(null);
-    
+
     // Estados para controlar a visibilidade das listas
     const [showUsersList, setShowUsersList] = useState(false);
     const [showMotosList, setShowMotosList] = useState(false);
     const [showAluguelsList, setShowAluguelsList] = useState(false);
-    
+
     // Estado para tipo de recorrência
     const [recorrenciaTipo, setRecorrenciaTipo] = useState({
         semanal: contractData.tipoRecorrenciaPagamento === 'semanal',
@@ -90,7 +90,7 @@ export default function ContractEdit({ route, navigation }) {
             Alert.alert(title, message);
         }
     };
-    
+
     // Carregar dados iniciais
     useEffect(() => {
         const loadInitialData = async () => {
@@ -108,10 +108,10 @@ export default function ContractEdit({ route, navigation }) {
                 setLoading(false);
             }
         };
-        
+
         loadInitialData();
     }, []);
-    
+
     // Carregar usuários do Firestore
     const loadUsers = async () => {
         try {
@@ -119,7 +119,7 @@ export default function ContractEdit({ route, navigation }) {
             const q = query(usersRef, orderBy("email"));
             const querySnapshot = await getDocs(q);
             const usersList = [];
-            
+
             querySnapshot.forEach((doc) => {
                 const userData = doc.data();
                 usersList.push({
@@ -132,15 +132,15 @@ export default function ContractEdit({ route, navigation }) {
                     disponivel: !userData.contratoId || userData.contratoId === contractData.id
                 });
             });
-            
+
             setUsers(usersList);
-            
+
             // Atualizar o usuário selecionado com dados completos
             if (contractData.cliente) {
                 const user = usersList.find(u => u.email === contractData.cliente);
                 if (user) setSelectedUser(user);
             }
-            
+
             return usersList;
         } catch (error) {
             console.error("Erro ao carregar usuários:", error);
@@ -156,7 +156,7 @@ export default function ContractEdit({ route, navigation }) {
             const q = query(motosRef, orderBy("marca"));
             const querySnapshot = await getDocs(q);
             const motosList = [];
-            
+
             querySnapshot.forEach((doc) => {
                 const motoData = doc.data();
                 motosList.push({
@@ -171,15 +171,15 @@ export default function ContractEdit({ route, navigation }) {
                     dataCriacao: motoData.dataCriacao
                 });
             });
-            
+
             setMotos(motosList);
-            
+
             // Atualizar a moto selecionada com dados completos
             if (contractData.motoId) {
                 const moto = motosList.find(m => m.id === contractData.motoId);
                 if (moto) setSelectedMoto(moto);
             }
-            
+
             return motosList;
         } catch (error) {
             console.error("Erro ao carregar motos:", error);
@@ -195,7 +195,7 @@ export default function ContractEdit({ route, navigation }) {
             const q = query(alugueisRef);
             const querySnapshot = await getDocs(q);
             const aluguelList = [];
-            
+
             querySnapshot.forEach((doc) => {
                 const aluguelData = doc.data();
                 aluguelList.push({
@@ -210,20 +210,19 @@ export default function ContractEdit({ route, navigation }) {
                     disponivel: !aluguelData.motoId || aluguelData.motoId === contractData.motoId
                 });
             });
-            
+
             setAlugueis(aluguelList);
-            
+
             // Atualizar o aluguel selecionado com dados completos
             if (contractData.aluguelId) {
                 const aluguel = aluguelList.find(a => a.id === contractData.aluguelId);
                 if (aluguel) {
-                    console.log("Aluguel encontrado e selecionado:", aluguel);
                     setSelectedAluguel(aluguel);
                 } else {
                     console.log("Aluguel não encontrado na lista:", contractData.aluguelId);
                 }
             }
-            
+
             return aluguelList;
         } catch (error) {
             console.error("Erro ao carregar aluguéis:", error);
@@ -231,7 +230,7 @@ export default function ContractEdit({ route, navigation }) {
             return [];
         }
     };
-    
+
     // Função para selecionar um usuário
     const handleSelectUser = (user) => {
         setSelectedUser(user);
@@ -244,7 +243,7 @@ export default function ContractEdit({ route, navigation }) {
         setSelectedMoto(moto);
         setContractData(prev => ({ ...prev, motoId: moto.id }));
         setShowMotosList(false);
-        
+
         // Filtrar aluguéis relacionados a esta moto
         const motosAlugueis = alugueis.filter(aluguel => aluguel.motoId === moto.id);
         if (motosAlugueis.length > 0 && !selectedAluguel) {
@@ -258,7 +257,7 @@ export default function ContractEdit({ route, navigation }) {
         setContractData(prev => ({ ...prev, aluguelId: aluguel.id }));
         setShowAluguelsList(false);
     };
-    
+
     // Converter o timestamp do Firestore para Date
     const getDateFromTimestamp = () => {
         if (contractData.dataInicio && contractData.dataInicio.seconds) {
@@ -266,12 +265,12 @@ export default function ContractEdit({ route, navigation }) {
         }
         return new Date(); // Data padrão se não houver timestamp
     };
-    
+
     const [selectedDate, setSelectedDate] = useState(getDateFromTimestamp());
 
     // Verificar se o dispositivo é um desktop web
     const isWebDesktop = Platform.OS === 'web' && window.innerWidth > 768;
-    
+
     // Função para atualizar a data
     const handleDateChange = (date) => {
         setSelectedDate(date);
@@ -281,7 +280,7 @@ export default function ContractEdit({ route, navigation }) {
             dataInicio: Timestamp.fromDate(date)
         }));
     };
-    
+
     // Função para lidar com a mudança de tipo de recorrência
     const handleRecorrenciaChange = (tipo) => {
         // Se o tipo já está selecionado, desmarque-o
@@ -320,7 +319,7 @@ export default function ContractEdit({ route, navigation }) {
             setLoading(false);
         }
     };
-    
+
     // Função para excluir o contrato
     const handleDeleteContract = async () => {
         showConfirmation(
@@ -329,18 +328,18 @@ export default function ContractEdit({ route, navigation }) {
             async () => {
                 try {
                     setLoading(true);
-                    
+
                     // 1. Excluir o PDF do Storage
                     if (contractData.urlContrato) {
                         await tryMultipleDeleteApproaches(contractData);
                     }
-                    
+
                     // 2. Remover referência do contrato no usuário
                     if (contractData.cliente) {
                         try {
                             const userQuery = query(collection(db, "users"), where("contratoId", "==", contractData.id));
                             const userSnapshot = await getDocs(userQuery);
-                            
+
                             if (!userSnapshot.empty) {
                                 userSnapshot.forEach(async (userDoc) => {
                                     await updateDoc(doc(db, "users", userDoc.id), {
@@ -353,10 +352,10 @@ export default function ContractEdit({ route, navigation }) {
                             console.error("Erro ao atualizar usuário:", userError);
                         }
                     }
-                    
+
                     // 3. Excluir o documento do contrato do Firestore
                     await deleteDoc(doc(db, "contratos", contractData.id));
-                    
+
                     showMessage('Sucesso', 'Contrato excluído com sucesso!');
                     navigation.goBack();
                 } catch (error) {
@@ -375,7 +374,7 @@ export default function ContractEdit({ route, navigation }) {
             showMessage('Erro', 'Não há contrato para excluir');
             return;
         }
-        
+
         showConfirmation(
             'Confirmar exclusão',
             'Tem certeza que deseja excluir este contrato?',
@@ -383,16 +382,16 @@ export default function ContractEdit({ route, navigation }) {
                 try {
                     // Tentar múltiplas abordagens para excluir o arquivo
                     await tryMultipleDeleteApproaches(contractData);
-                    
+
                     // Independentemente do resultado da exclusão do arquivo,
                     // atualizar o Firestore removendo a URL
                     const updatedData = { ...contractData, urlContrato: null };
                     await updateDoc(doc(db, "contratos", contractData.id), updatedData);
                     console.log("Firestore atualizado com sucesso");
-                    
+
                     // Atualizar o estado local
                     setContractData(updatedData);
-                    
+
                     showMessage('Sucesso', 'PDF do contrato removido com sucesso!');
                 } catch (error) {
                     console.error('Erro ao excluir contrato:', error);
@@ -405,13 +404,13 @@ export default function ContractEdit({ route, navigation }) {
     // Função para tentar múltiplas abordagens de exclusão
     const tryMultipleDeleteApproaches = async (contractData) => {
         const approaches = [];
-        
+
         // Abordagem 1: Caminho padrão
         approaches.push(`contratos/${contractData.id}/pdf`);
-        
+
         // Abordagem 2: Com nome do contrato
         approaches.push(`contratos/${contractData.contratoId}/pdf`);
-        
+
         // Abordagem 3: Extrair nome do arquivo da URL
         if (contractData.urlContrato) {
             const urlParts = contractData.urlContrato.split('/');
@@ -419,7 +418,7 @@ export default function ContractEdit({ route, navigation }) {
             approaches.push(`contratos/${contractData.id}/${fileName}`);
             approaches.push(`contratos/${contractData.contratoId}/${fileName}`);
         }
-        
+
         // Abordagem 4: Tentar extrair o caminho completo da URL
         if (contractData.urlContrato) {
             const urlString = contractData.urlContrato;
@@ -429,31 +428,29 @@ export default function ContractEdit({ route, navigation }) {
                 approaches.push(path);
             }
         }
-        
+
         // Abordagem 5: Usar o nome do arquivo armazenado
         if (contractData.nomeArquivoContrato) {
             approaches.push(`contratos/${contractData.id}/${contractData.nomeArquivoContrato}`);
         }
-        
+
         // Tentar cada abordagem
         let success = false;
         for (const path of approaches) {
             try {
-                console.log("Tentando excluir arquivo do Storage com caminho:", path);
                 const fileRef = ref(storage, path);
                 await deleteObject(fileRef);
-                console.log("Arquivo excluído com sucesso do Storage:", path);
                 success = true;
                 break; // Sair do loop se uma abordagem funcionar
             } catch (error) {
                 console.log(`Erro ao excluir com caminho ${path}:`, error.message);
             }
         }
-        
+
         if (!success) {
             console.log("Nenhuma abordagem de exclusão funcionou. Arquivos podem precisar ser limpos manualmente.");
         }
-        
+
         return success;
     };
 
@@ -461,46 +458,40 @@ export default function ContractEdit({ route, navigation }) {
     const handleUploadPdf = async () => {
         try {
             setUploading(true);
-            
+
             // Selecionar documento usando expo-document-picker
             const result = await DocumentPicker.getDocumentAsync({
                 type: 'application/pdf',
                 copyToCacheDirectory: true
             });
-            
+
             if (result.canceled) {
                 setUploading(false);
                 return;
             }
-            
+
             const file = result.assets[0];
-            
-            console.log("Arquivo selecionado:", file);
-            
+
             // Obter o blob usando fetch
             const response = await fetch(file.uri);
             const blob = await response.blob();
-            
-            console.log("Blob obtido com sucesso, tamanho:", blob.size);
-            
+
             // Nome do arquivo com timestamp para evitar colisões
             const fileName = `contrato_${Date.now()}.pdf`;
-            
+
             // Caminho para o storage
             const storagePath = `contratos/${contractData.id}/${fileName}`;
-            console.log("Fazendo upload para:", storagePath);
-            
+
             // Referência para o local de armazenamento
             const storageRef = ref(storage, storagePath);
-            
+
             // Fazer upload do arquivo
             await uploadBytes(storageRef, blob);
             console.log("Upload concluído com sucesso");
-            
+
             // Obter a URL de download
             const downloadUrl = await getDownloadURL(storageRef);
-            console.log("URL de download obtida:", downloadUrl);
-            
+
             // Atualizar o Firestore com a nova URL
             const updatedData = {
                 ...contractData,
@@ -509,10 +500,10 @@ export default function ContractEdit({ route, navigation }) {
             };
             await updateDoc(doc(db, "contratos", contractData.id), updatedData);
             console.log("Firestore atualizado com sucesso");
-            
+
             // Atualizar o estado local
             setContractData(updatedData);
-            
+
             showMessage('Sucesso', 'PDF do contrato enviado com sucesso!');
         } catch (error) {
             console.error('Erro ao fazer upload do contrato:', error);
@@ -556,11 +547,11 @@ export default function ContractEdit({ route, navigation }) {
                             <Label>Id do Contrato</Label>
                             <Input
                                 value={contractData.contratoId}
-                                onChangeText={(text) => setContractData(prev => ({...prev, contratoId: text}))}
+                                onChangeText={(text) => setContractData(prev => ({ ...prev, contratoId: text }))}
                                 editable={false} // ID não deve ser editável
                             />
                         </InputGroup>
-                        
+
                         {/* Seleção de Cliente */}
                         <InputGroup>
                             <Label>Cliente</Label>
@@ -577,7 +568,7 @@ export default function ContractEdit({ route, navigation }) {
                                     <SelectButtonText>Selecionar Cliente</SelectButtonText>
                                 </SelectButton>
                             )}
-                            
+
                             {showUsersList && (
                                 <SelectionList>
                                     {users.length > 0 ? (
@@ -589,8 +580,8 @@ export default function ContractEdit({ route, navigation }) {
                                                 return 0;
                                             })
                                             .map((user) => (
-                                                <SelectionItem 
-                                                    key={user.id} 
+                                                <SelectionItem
+                                                    key={user.id}
                                                     onPress={() => handleSelectUser(user)}
                                                     available={user.disponivel}
                                                 >
@@ -608,7 +599,7 @@ export default function ContractEdit({ route, navigation }) {
                                 </SelectionList>
                             )}
                         </InputGroup>
-                        
+
                         {/* Seleção de Moto */}
                         <InputGroup>
                             <Label>Moto</Label>
@@ -625,7 +616,7 @@ export default function ContractEdit({ route, navigation }) {
                                     <SelectButtonText>Selecionar Moto</SelectButtonText>
                                 </SelectButton>
                             )}
-                            
+
                             {showMotosList && (
                                 <SelectionList>
                                     {motos.length > 0 ? (
@@ -637,8 +628,8 @@ export default function ContractEdit({ route, navigation }) {
                                                 return 0;
                                             })
                                             .map((moto) => (
-                                                <SelectionItem 
-                                                    key={moto.id} 
+                                                <SelectionItem
+                                                    key={moto.id}
                                                     onPress={() => handleSelectMoto(moto)}
                                                     available={moto.disponivel}
                                                 >
@@ -656,7 +647,7 @@ export default function ContractEdit({ route, navigation }) {
                                 </SelectionList>
                             )}
                         </InputGroup>
-                        
+
                         {/* Seleção de Aluguel */}
                         <InputGroup>
                             <Label>Aluguel</Label>
@@ -675,7 +666,7 @@ export default function ContractEdit({ route, navigation }) {
                                     <SelectButtonText>Selecionar Aluguel</SelectButtonText>
                                 </SelectButton>
                             )}
-                            
+
                             {showAluguelsList && (
                                 <SelectionList>
                                     {alugueis.length > 0 ? (
@@ -684,29 +675,29 @@ export default function ContractEdit({ route, navigation }) {
                                                 // Primeiro o aluguel atual do contrato
                                                 if (a.id === contractData.aluguelId) return -1;
                                                 if (b.id === contractData.aluguelId) return 1;
-                                                
+
                                                 // Depois os aluguéis da moto selecionada
                                                 if (selectedMoto) {
                                                     if (a.motoId === selectedMoto.id && b.motoId !== selectedMoto.id) return -1;
                                                     if (a.motoId !== selectedMoto.id && b.motoId === selectedMoto.id) return 1;
                                                 }
-                                                
+
                                                 // Por fim, os aluguéis ativos
                                                 if (a.ativo && !b.ativo) return -1;
                                                 if (!a.ativo && b.ativo) return 1;
-                                                
+
                                                 return 0;
                                             })
                                             .map((aluguel) => (
-                                                <SelectionItem 
-                                                    key={aluguel.id} 
+                                                <SelectionItem
+                                                    key={aluguel.id}
                                                     onPress={() => handleSelectAluguel(aluguel)}
                                                     available={aluguel.id === contractData.aluguelId || !selectedMoto || aluguel.motoId === selectedMoto.id}
                                                 >
                                                     <SelectionItemText>Aluguel: {aluguel.id}</SelectionItemText>
                                                     <SelectionItemEmail>
                                                         Mensal: R$ {aluguel.valorMensal} | Semanal: R$ {aluguel.valorSemanal}
-                                                        {selectedMoto && aluguel.motoId && aluguel.motoId !== selectedMoto.id ? 
+                                                        {selectedMoto && aluguel.motoId && aluguel.motoId !== selectedMoto.id ?
                                                             ' (Moto diferente da selecionada)' : ''}
                                                     </SelectionItemEmail>
                                                 </SelectionItem>
@@ -719,7 +710,7 @@ export default function ContractEdit({ route, navigation }) {
                                 </SelectionList>
                             )}
                         </InputGroup>
-                        
+
                         <InputGroup>
                             <Label>Data de Início</Label>
                             <DatePickerMultiplatform
@@ -731,11 +722,11 @@ export default function ContractEdit({ route, navigation }) {
                             <Label>Meses Contratados</Label>
                             <Input
                                 value={contractData.mesesContratados !== undefined ? String(contractData.mesesContratados) : ''}
-                                onChangeText={(text) => setContractData(prev => ({...prev, mesesContratados: Number(text)}))}
+                                onChangeText={(text) => setContractData(prev => ({ ...prev, mesesContratados: Number(text) }))}
                                 keyboardType="numeric"
                             />
                         </InputGroup>
-                        
+
                         {/* Tipo de Recorrência com Checkboxes */}
                         <InputGroup>
                             <Label>Tipo de Recorrência de Pagamento</Label>
@@ -746,7 +737,7 @@ export default function ContractEdit({ route, navigation }) {
                                     </Checkbox>
                                     <CheckboxLabel>Semanal</CheckboxLabel>
                                 </CheckboxWrapper>
-                                
+
                                 <CheckboxWrapper onPress={() => handleRecorrenciaChange('mensal')}>
                                     <Checkbox>
                                         {recorrenciaTipo.mensal && <CheckboxInner />}
@@ -756,17 +747,17 @@ export default function ContractEdit({ route, navigation }) {
                             </CheckboxContainer>
                         </InputGroup>
                     </Section>
-                    
+
                     {/* Seção do PDF */}
                     <Section>
                         <SectionTitle>Contrato (PDF)</SectionTitle>
-                        
+
                         {contractData.urlContrato ? (
                             <>
                                 <DocumentTitle>
                                     Contrato atual
                                 </DocumentTitle>
-                                
+
                                 <PdfContainer>
                                     <PdfViewer
                                         uri={contractData.urlContrato}
@@ -774,13 +765,13 @@ export default function ContractEdit({ route, navigation }) {
                                         height={isWebDesktop ? 600 : 300}
                                     />
                                 </PdfContainer>
-                                
+
                                 <PdfActionsContainer>
                                     <PdfActionButton onPress={handleDeletePdf} color="#FF3B30">
                                         <MaterialIcons name="delete" size={20} color="#FFFFFF" />
                                         <PdfActionButtonText>Excluir PDF</PdfActionButtonText>
                                     </PdfActionButton>
-                                    
+
                                     <PdfActionButton onPress={handleUploadPdf} color="#007AFF">
                                         <MaterialIcons name="file-upload" size={20} color="#FFFFFF" />
                                         <PdfActionButtonText>Substituir</PdfActionButtonText>
@@ -800,11 +791,11 @@ export default function ContractEdit({ route, navigation }) {
                             </View>
                         )}
                     </Section>
-                    
+
                     <UpdateButton onPress={handleUpdate}>
                         <UpdateButtonText>Atualizar Contrato</UpdateButtonText>
                     </UpdateButton>
-                    
+
                     {/* Botão para excluir o contrato */}
                     <DeleteButton onPress={handleDeleteContract}>
                         <DeleteButtonText>Excluir Contrato</DeleteButtonText>

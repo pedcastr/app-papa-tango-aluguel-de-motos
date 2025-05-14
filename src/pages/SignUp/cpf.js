@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native'; // Importando o useFocusEffect para pausar a animação quando retornar para essa tela
 import { Pressable, Keyboard, ActivityIndicator, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -25,14 +26,13 @@ export default function CPF({ navigation }) {
     const [cpf, setCpf] = useState('');
     const [cpfError, setCpfError] = useState({ cpf: '' });
     const [loading, setLoading] = useState(false);
-    const [sucesso, setSucesso] = useState(false); // Estado para mostrar a animação json
-    const [cpfValido, setCpfValido] = useState(false); // Estado para controlar visibilidade do botão continuar
+    const [sucesso, setSucesso] = useState(false); 
+    const [cpfValido, setCpfValido] = useState(false); 
 
-    // Usado para pausar a animação json quando o usuário retorna para essa tela
-    useFocusEffect( // useFocusEffect é usado para executar uma função de efeito sempre que a tela é focada
-        useCallback(() => { // useCallback é usado para memorizar uma função, evitando que a função seja recriada a cada renderização
-            setSucesso(false); // Reseta o estado de sucesso quando a tela é focada novamente
-        }, []) // logo, quando o usuário entra na tela, a animação json de sucesso é resetada e só é chamada caso o usuário siga para outra tela.
+    useFocusEffect( 
+        useCallback(() => { 
+            setSucesso(false); 
+        }, []) 
     );
 
     // Função para remover os caracteres não numéricos do cpf e verificar se ele tem 11 dígitos
@@ -91,7 +91,7 @@ export default function CPF({ navigation }) {
         Keyboard.dismiss();
         setSucesso(true); // Mostra a animação json de sucesso
         setTimeout(() => {
-            navigation.navigate('dataNascimento', { nome, nomeCompleto, cpf }); 
+            navigation.navigate('Data de Nascimento', { nome, nomeCompleto, cpf }); 
         }, 2000) // Aguarda 2.0 segundos antes de navegar
             
     };
@@ -115,14 +115,16 @@ export default function CPF({ navigation }) {
                 </ViewAnimacao>
             ) : (
                 <Background>
-                    <Container>
+                    <View style={{padding: 16}}>
                         <MaterialIcons 
                             name="arrow-back" 
                             size={28} 
                             color="#fff"
-                            style={{ marginTop: 10 }}
+                            style={{ marginTop: 10}}
                             onPress={() => navigation.goBack()} 
                         />
+                    </View>
+                    <Container>
                         <AreaInput>
                             <TextPage>Digite seu CPF</TextPage>
                                 <Input 

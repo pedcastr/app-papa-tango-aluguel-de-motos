@@ -59,7 +59,6 @@ export default function AdminPayments() {
                 
                 // Verificar se temos um filtro e um timestamp
                 if (filter && timestamp && isMounted) {
-                    console.log('Aplicando filtro de pagamentos no foco:', filter);
                     
                     // Mapear o valor do filtro para o formato esperado pela função applyFilters
                     let filterValue;
@@ -134,7 +133,6 @@ export default function AdminPayments() {
                 }
                 
                 if (filterValue && isMounted) {
-                    console.log('Aplicando filtro de pagamentos:', filterValue);
                     
                     // Mapear o valor do filtro para o formato esperado pela função applyFilters
                     let filterType;
@@ -172,7 +170,6 @@ export default function AdminPayments() {
             if (!isMounted) return;
             
             const { filter } = event.detail;
-            console.log('Evento de filtro de pagamentos recebido:', filter);
             
             // Mapear o valor do filtro para o formato esperado pela função applyFilters
             let filterType;
@@ -571,7 +568,6 @@ export default function AdminPayments() {
                 createdAt: serverTimestamp()
             });
             
-            console.log(`Solicitação de notificação criada: ${requestId}`);
             return true;
         } catch (error) {
             console.error(`Erro ao criar solicitação de notificação: ${error.message}`);
@@ -595,7 +591,6 @@ export default function AdminPayments() {
                 createdAt: serverTimestamp(),
             });
             
-            console.log(`Solicitação de email criada: ${requestId}`);
             return true;
         } catch (error) {
             console.error(`Erro ao criar solicitação de email: ${error.message}`);
@@ -717,8 +712,8 @@ export default function AdminPayments() {
                 : item.valorMensal;
             
             // Preparar dados para a notificação
-            const title = 'Lembrete de Pagamento';
-            let body;
+            const title = 'Lembrete de Pagamento'; 
+            let body = '';
             
             if (item.status === 'overdue') {
                 body = `Seu pagamento de ${formatCurrency(valorPagamento)} está atrasado há ${Math.abs(item.diasRestantes)} dias. Clique para efetuar o pagamento.`;
@@ -735,10 +730,6 @@ export default function AdminPayments() {
             // Enviar notificação
             await enviarNotificacaoPeloFirestore(
                 item.userEmail,
-                {
-                    transaction_amount: valorPagamento,
-                    proximaData: item.proximaData
-                },
                 title,
                 body,
                 data

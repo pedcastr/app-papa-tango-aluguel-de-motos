@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { View } from 'react-native';
 import {
   ScrollView,
   Alert,
@@ -36,8 +37,11 @@ import {
 
 export default function CNH({ navigation }) {
   const route = useRoute();
-  const { email, nome, nomeCompleto, cpf, phoneNumber, dadosEndereco, formData: existingFormData, dataNascimento } = route.params;
-  
+  const { email, nome, nomeCompleto, cpf, phoneNumber,
+    dadosEndereco, formData: existingFormData,
+    dataNascimento
+  } = route.params;
+
   // FormData com os arquivos da CNH
   const [formData, setFormData] = useState({
     ...existingFormData,
@@ -47,7 +51,7 @@ export default function CNH({ navigation }) {
       pdf: null
     }
   });
-  
+
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedButton, setSelectedButton] = useState(null); // 'front' ou 'back'
   const [frontImage, setFrontImage] = useState(null);
@@ -64,32 +68,41 @@ export default function CNH({ navigation }) {
       const updateLayout = () => {
         setIsDesktop(window.innerWidth >= 768);
       };
-      
+
       updateLayout(); // Verificar inicialmente
       window.addEventListener('resize', updateLayout);
-      
+
       return () => window.removeEventListener('resize', updateLayout);
     }
   }, []);
-  
+
   // Voltar a animação para o início se a tela for reexibida
   useFocusEffect(
     useCallback(() => {
       setSucesso(false);
     }, [])
   );
-  
+
+  // Função para mostrar mensagem de sucesso/erro
+  const showMessage = (title, message) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}: ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   // Função para atualizar a imagem após retorno do PhotoPicker
   const updateImage = (result) => {
-    if(result && result.uri){
-      if(selectedButton === 'front'){
+    if (result && result.uri) {
+      if (selectedButton === 'front') {
         setFrontImage(result);
         // Se o PDF estiver selecionado, limpar
-        if(pdfFile) setPdfFile(null);
-      } else if(selectedButton === 'back'){
+        if (pdfFile) setPdfFile(null);
+      } else if (selectedButton === 'back') {
         setBackImage(result);
         // Se o PDF estiver selecionado, limpar
-        if(pdfFile) setPdfFile(null);
+        if (pdfFile) setPdfFile(null);
       }
     }
   };
@@ -102,108 +115,107 @@ export default function CNH({ navigation }) {
 
   // Abre o DocumentPicker para seleção de PDF
   const abrirPdf = async () => {
-      
-      // Verifica se está na web mobile
-      const isWebMobile = Platform.OS === 'web' && window.innerWidth < 768;
-      
-      // Para web mobile, mostramos um toast ou mensagem na tela antes de abrir o seletor
-      if (isWebMobile && Platform.OS === 'web' && !pdfInstructionsShown) {
-        // Marca que as instruções foram mostradas para não mostrar novamente
-        setPdfInstructionsShown(true);
-        
-        // Mostra uma mensagem temporária na tela
-        const messageDiv = document.createElement('div');
-        messageDiv.style.position = 'fixed';
-        messageDiv.style.bottom = '20%';
-        messageDiv.style.left = '10%';
-        messageDiv.style.right = '10%';
-        messageDiv.style.backgroundColor = 'rgba(0,0,0,0.8)';
-        messageDiv.style.color = 'white';
-        messageDiv.style.padding = '15px';
-        messageDiv.style.borderRadius = '8px';
-        messageDiv.style.zIndex = '9999';
-        messageDiv.style.textAlign = 'center';
-        messageDiv.style.fontSize = '16px';
-        messageDiv.innerHTML = "Quando o seletor de arquivos abrir, clique no ícone de 'Arquivos' ou 'Documentos' ou 'Fotos e Vídeos' ou qualquer outro que não seja a câmera para acessar seus arquivos e selecione o PDF desejado.";
-        
-        document.body.appendChild(messageDiv);
-        
-        // Remove a mensagem após 8 segundos
-        setTimeout(() => {
-          if (document.body.contains(messageDiv)) {
-            document.body.removeChild(messageDiv);
-          }
-        }, 8000);
-        
-        // Pequeno atraso antes de abrir o seletor para dar tempo de ler a mensagem
-        setTimeout(() => {
-          // Continua com a seleção normal
-          try {
-            DocumentPicker.getDocumentAsync({
-              type: 'application/pdf',
-              copyToCacheDirectory: true
-            }).then(resultado => {
-              if (resultado.canceled === false && resultado.assets && resultado.assets.length > 0) {
-                const pdfAsset = resultado.assets[0];
-                if (!pdfAsset.name && pdfAsset.uri) {
-                  const uriParts = pdfAsset.uri.split('/');
-                  pdfAsset.name = uriParts[uriParts.length - 1] || "documento.pdf";
-                }
-                setPdfFile(pdfAsset);
-                setPhotoImage(null);
-              }
-            }).catch(err => {
-              console.error("Erro ao selecionar PDF: ", err);
-            });
-          } catch (err) {
-            console.error("Erro ao selecionar PDF: ", err);
-          }
-        }, 1500);
-        
-        return;
-      }
-      
-      // Comportamento normal para outras plataformas ou se as instruções já foram mostradas
-      try {
-        // Solicitar permissão primeiro (se necessário)
-        if (Platform.OS === 'android') {
-          const permissionGranted = await solicitarPermissaoStorage();
-          if (!permissionGranted) {
-            Alert.alert("Permissão negada", "Precisamos de acesso ao armazenamento para selecionar PDFs.");
-            return;
-          }
-        }
-        
-        const resultado = await DocumentPicker.getDocumentAsync({
-          type: 'application/pdf',
-          copyToCacheDirectory: true
-        });
-        
-        if (resultado.canceled === false && resultado.assets && resultado.assets.length > 0) {
-          const pdfAsset = resultado.assets[0];
-          console.log("PDF selecionado:", pdfAsset);
-          if (!pdfAsset.name && pdfAsset.uri) {
-            const uriParts = pdfAsset.uri.split('/');
-            pdfAsset.name = uriParts[uriParts.length - 1] || "documento.pdf";
-          }
-          
-          setPdfFile(pdfAsset);
-          // Se o PDF for selecionado, limpar as imagens
-          setFrontImage(null);
-          setBackImage(null);
 
+    // Verifica se está na web mobile
+    const isWebMobile = Platform.OS === 'web' && window.innerWidth < 768;
+
+    // Para web mobile, mostramos um toast ou mensagem na tela antes de abrir o seletor
+    if (isWebMobile && Platform.OS === 'web' && !pdfInstructionsShown) {
+      // Marca que as instruções foram mostradas para não mostrar novamente
+      setPdfInstructionsShown(true);
+
+      // Mostra uma mensagem temporária na tela
+      const messageDiv = document.createElement('div');
+      messageDiv.style.position = 'fixed';
+      messageDiv.style.bottom = '20%';
+      messageDiv.style.left = '10%';
+      messageDiv.style.right = '10%';
+      messageDiv.style.backgroundColor = 'rgba(0,0,0,0.8)';
+      messageDiv.style.color = 'white';
+      messageDiv.style.padding = '15px';
+      messageDiv.style.borderRadius = '8px';
+      messageDiv.style.zIndex = '9999';
+      messageDiv.style.textAlign = 'center';
+      messageDiv.style.fontSize = '16px';
+      messageDiv.innerHTML = "Quando o seletor de arquivos abrir, clique no ícone de 'Arquivos' ou 'Documentos' ou 'Fotos e Vídeos' ou qualquer outro que não seja a câmera para acessar seus arquivos e selecione o PDF desejado.";
+
+      document.body.appendChild(messageDiv);
+
+      // Remove a mensagem após 8 segundos
+      setTimeout(() => {
+        if (document.body.contains(messageDiv)) {
+          document.body.removeChild(messageDiv);
         }
-      } catch (err) {
-        console.error("Erro ao selecionar PDF: ", err);
-        Alert.alert("Erro", "Não foi possível selecionar o PDF. Tente novamente.");
+      }, 8000);
+
+      // Pequeno atraso antes de abrir o seletor para dar tempo de ler a mensagem
+      setTimeout(() => {
+        // Continua com a seleção normal
+        try {
+          DocumentPicker.getDocumentAsync({
+            type: 'application/pdf',
+            copyToCacheDirectory: true
+          }).then(resultado => {
+            if (resultado.canceled === false && resultado.assets && resultado.assets.length > 0) {
+              const pdfAsset = resultado.assets[0];
+              if (!pdfAsset.name && pdfAsset.uri) {
+                const uriParts = pdfAsset.uri.split('/');
+                pdfAsset.name = uriParts[uriParts.length - 1] || "documento.pdf";
+              }
+              setPdfFile(pdfAsset);
+              setPhotoImage(null);
+            }
+          }).catch(err => {
+            console.error("Erro ao selecionar PDF: ", err);
+          });
+        } catch (err) {
+          console.error("Erro ao selecionar PDF: ", err);
+        }
+      }, 1500);
+
+      return;
+    }
+
+    // Comportamento normal para outras plataformas ou se as instruções já foram mostradas
+    try {
+      // Solicitar permissão primeiro (se necessário)
+      if (Platform.OS === 'android') {
+        const permissionGranted = await solicitarPermissaoStorage();
+        if (!permissionGranted) {
+          showMessage("Permissão negada", "Precisamos de acesso ao armazenamento para selecionar PDFs.");
+          return;
+        }
       }
-    };
+
+      const resultado = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true
+      });
+
+      if (resultado.canceled === false && resultado.assets && resultado.assets.length > 0) {
+        const pdfAsset = resultado.assets[0];
+        if (!pdfAsset.name && pdfAsset.uri) {
+          const uriParts = pdfAsset.uri.split('/');
+          pdfAsset.name = uriParts[uriParts.length - 1] || "documento.pdf";
+        }
+
+        setPdfFile(pdfAsset);
+        // Se o PDF for selecionado, limpar as imagens
+        setFrontImage(null);
+        setBackImage(null);
+
+      }
+    } catch (err) {
+      console.error("Erro ao selecionar PDF: ", err);
+      showMessage("Erro", "Não foi possível selecionar o PDF. Tente novamente.");
+    }
+  };
 
   // Função para solicitar permissão de armazenamento (Android)
   const solicitarPermissaoStorage = async () => {
     if (Platform.OS === 'ios') return true;
     if (Platform.OS === 'android' && Platform.Version >= 33) return true;
-    
+
     try {
       const { PermissionsAndroid } = require('react-native');
       const granted = await PermissionsAndroid.request(
@@ -231,8 +243,8 @@ export default function CNH({ navigation }) {
       let downloadURLFront = null;
       let downloadURLBack = null;
       let downloadURLPdf = null;
-      
-      if(frontImage) {
+
+      if (frontImage) {
         const response = await fetch(frontImage.uri);
         const blob = await response.blob();
         const storageRef = ref(storage, `users/${email}/cnh/frente_${Date.now()}.jpg`);
@@ -252,8 +264,8 @@ export default function CNH({ navigation }) {
           nome: `frente_${Date.now()}.jpg`
         };
       }
-      
-      if(backImage) {
+
+      if (backImage) {
         const response = await fetch(backImage.uri);
         const blob = await response.blob();
         const storageRef = ref(storage, `users/${email}/cnh/verso_${Date.now()}.jpg`);
@@ -273,8 +285,8 @@ export default function CNH({ navigation }) {
           nome: `verso_${Date.now()}.jpg`
         };
       }
-      
-      if(pdfFile) {
+
+      if (pdfFile) {
         const response = await fetch(pdfFile.uri);
         const blob = await response.blob();
         const storageRef = ref(storage, `users/${email}/cnh/pdf_${Date.now()}.pdf`);
@@ -294,16 +306,16 @@ export default function CNH({ navigation }) {
           nome: `pdf_${Date.now()}.pdf`
         };
         // Se o pdf foi enviado e não houver imagens, limpar os campos de imagem
-        if(pdfFile && !frontImage && !backImage) {
+        if (pdfFile && !frontImage && !backImage) {
           updatedFormData.cnh.frente = null;
           updatedFormData.cnh.verso = null;
         }
       }
-      
+
       setFormData(updatedFormData);
       setSucesso(true);
       setTimeout(() => {
-        navigation.navigate("selfie", {
+        navigation.navigate("Selfie", {
           email,
           nome,
           nomeCompleto,
@@ -316,7 +328,7 @@ export default function CNH({ navigation }) {
       }, 1500);
     } catch (error) {
       console.log("Erro no upload:", error);
-      Alert.alert("Erro", "Falha ao enviar o(s) arquivo(s). Tente novamente.");
+      showMessage("Erro", "Falha ao enviar o(s) arquivo(s). Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -342,7 +354,7 @@ export default function CNH({ navigation }) {
         </ViewAnimacao>
       ) : (
         <Background>
-          <Container>
+          <View style={{ padding: 16 }}>
             <MaterialIcons
               name="arrow-back"
               size={28}
@@ -350,18 +362,20 @@ export default function CNH({ navigation }) {
               style={{ marginTop: 10 }}
               onPress={() => navigation.goBack()}
             />
+          </View>
+          <Container>
             <TextPage style={{ marginTop: 30 }}>
               Tire foto da frente e verso da CNH ou envie o PDF do arquivo exportado da CNH digital
             </TextPage>
             <ButtonContainer>
               {/* Botão para foto frontal - USANDO O DESIGN DO CLI */}
-              <UploadButton 
+              <UploadButton
                 onPress={() => handleButtonPress('front')}
                 disabled={pdfFile !== null}
               >
                 {frontImage ? (
                   <ImageContainer>
-                    <PreviewImage source={{ uri: frontImage.uri }}/>
+                    <PreviewImage source={{ uri: frontImage.uri }} />
                     <TextPageCNH>Frente da CNH</TextPageCNH>
                     <RemoveButton onPress={() => setFrontImage(null)}>
                       <MaterialIcons name="close" size={20} color="#000" />
@@ -369,8 +383,8 @@ export default function CNH({ navigation }) {
                   </ImageContainer>
                 ) : (
                   <ButtonContent>
-                    <IconImage 
-                      source={require('../../assets/cnh-frente.jpg')} 
+                    <IconImage
+                      source={require('../../assets/cnh-frente.jpg')}
                       style={pdfFile ? styles.disabledImage : null}
                     />
                     <TextPageCNH style={pdfFile ? styles.disabledText : null}>
@@ -379,15 +393,15 @@ export default function CNH({ navigation }) {
                   </ButtonContent>
                 )}
               </UploadButton>
-              
+
               {/* Botão para foto traseira - USANDO O DESIGN DO CLI */}
-              <UploadButton 
+              <UploadButton
                 onPress={() => handleButtonPress('back')}
                 disabled={pdfFile !== null}
               >
                 {backImage ? (
                   <ImageContainer>
-                    <PreviewImage source={{ uri: backImage.uri }}/>
+                    <PreviewImage source={{ uri: backImage.uri }} />
                     <TextPageCNH>Verso da CNH</TextPageCNH>
                     <RemoveButton onPress={() => setBackImage(null)}>
                       <MaterialIcons name="close" size={20} color="#000" />
@@ -395,8 +409,8 @@ export default function CNH({ navigation }) {
                   </ImageContainer>
                 ) : (
                   <ButtonContent>
-                    <IconImage 
-                      source={require('../../assets/cnh-verso.jpg')} 
+                    <IconImage
+                      source={require('../../assets/cnh-verso.jpg')}
                       style={pdfFile ? styles.disabledImage : null}
                     />
                     <TextPageCNH style={pdfFile ? styles.disabledText : null}>
@@ -405,10 +419,10 @@ export default function CNH({ navigation }) {
                   </ButtonContent>
                 )}
               </UploadButton>
-              
+
               {/* Botão para PDF - Ajustado para desktop */}
-              <UploadButton 
-                onPress={abrirPdf} 
+              <UploadButton
+                onPress={abrirPdf}
                 style={[
                   pdfFile && styles.uploadButtonWithPdf,
                   // Se for desktop e tiver PDF, ajusta a altura para ser maior
@@ -427,12 +441,12 @@ export default function CNH({ navigation }) {
                   </PdfContainer>
                 ) : (
                   <ButtonContent>
-                    <MaterialIcons 
-                      name="picture-as-pdf" 
-                      size={40} 
-                      color={(frontImage || backImage) ? "#ccc" : "#000"} 
+                    <MaterialIcons
+                      name="picture-as-pdf"
+                      size={40}
+                      color={(frontImage || backImage) ? "#ccc" : "#000"}
                     />
-                    <TextPageCNH 
+                    <TextPageCNH
                       style={[
                         { marginLeft: 10 },
                         (frontImage || backImage) ? styles.disabledText : null
@@ -444,17 +458,17 @@ export default function CNH({ navigation }) {
                 )}
               </UploadButton>
             </ButtonContainer>
-            
+
             {/* Botão de continuar - Ajustado para ficar abaixo do PDF em desktop */}
             {(frontImage || backImage || pdfFile) && (
-              <AreaButtonContinuar style={isDesktop && pdfFile ? styles.desktopContinueButton : null }>
-                <ButtonContinuar onPress={handleCnhContinuar} style={{marginTop: 30}}>
+              <AreaButtonContinuar style={isDesktop && pdfFile ? styles.desktopContinueButton : null}>
+                <ButtonContinuar onPress={handleCnhContinuar} style={{ marginTop: 30 }}>
                   {loading ? <ActivityIndicator color="#fff" /> : <TextButtonContinuar>Continuar</TextButtonContinuar>}
                 </ButtonContinuar>
               </AreaButtonContinuar>
             )}
           </Container>
-          
+
           {/* Modal para escolher tirar foto/selecionar da galeria */}
           <PhotoPicker
             visible={modalVisible}

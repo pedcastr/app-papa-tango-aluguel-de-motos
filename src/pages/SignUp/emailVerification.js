@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback} from "react";
-import { useFocusEffect } from '@react-navigation/native'; 
+import React, { useState, useEffect, useCallback } from "react";
+import { View } from "react-native";
+import { useFocusEffect } from '@react-navigation/native';
 import { Keyboard, Platform, Alert, ActivityIndicator, Pressable } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import LottieAnimation from "../../components/LottieAnimation";
@@ -14,8 +15,8 @@ import {
     TextPage,
     Input,
     ErrorText,
-    AreaButtonContinuar, 
-    ButtonContinuar, 
+    AreaButtonContinuar,
+    ButtonContinuar,
     TextButtonContinuar,
     ButtonReenvio,
     TextButtonReenvio,
@@ -23,24 +24,23 @@ import {
 
 
 export default function EmailVerification() {
-    const route = useRoute(); 
+    const route = useRoute();
     const navigation = useNavigation();
-    const { email, nome, nomeCompleto, cpf, dataNascimento } = route.params; 
+    const { email, nome, nomeCompleto, cpf, dataNascimento } = route.params;
     const [codigo, setCodigo] = useState('');
     const [erros, setErros] = useState({ codigo: '' });
     const [loading, setLoading] = useState(false);
     const [reenviando, setReenviando] = useState(false);
     const [timer, setTimer] = useState(60);
-    const [sucesso, setSucesso] = useState(false); 
+    const [sucesso, setSucesso] = useState(false);
 
-    // Usado para pausar a animação json quando o usuário retorna para essa tela
-    useFocusEffect( 
-        useCallback(() => { 
-            setSucesso(false); 
-        }, []) 
+    useFocusEffect(
+        useCallback(() => {
+            setSucesso(false);
+        }, [])
     );
 
-    // ⏳ Timer para reenvio do código
+    // Timer para reenvio do código
     useEffect(() => {
         if (timer > 0) {
             const interval = setInterval(() => {
@@ -49,6 +49,15 @@ export default function EmailVerification() {
             return () => clearInterval(interval);
         }
     }, [timer]);
+
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
 
     // Função para reenviar o código
     const reenviarCodigo = async () => {
@@ -64,9 +73,9 @@ export default function EmailVerification() {
                 });
 
                 setTimer(60);
-                Alert.alert("Código reenviado!");
+                showMessage("Código reenviado!");
             } catch (error) {
-                Alert.alert("Erro", "Falha ao reenviar código.\nPor favor, tente novamente.");
+                showMessage("Erro", "Falha ao reenviar código.\nPor favor, tente novamente.");
             }
 
             setReenviando(false);
@@ -77,35 +86,35 @@ export default function EmailVerification() {
     const verificarCodigo = async () => {
         Keyboard.dismiss();
         setLoading(true);
-    
+
         try {
             const response = await fetch("https://verificarcodigo-q3zrn7ctxq-uc.a.run.app", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, codigo })
             });
-    
+
             const data = await response.json();
-    
+
             if (data.success) {
-    
-                setSucesso(true); 
+
+                setSucesso(true);
                 setTimeout(() => {
                     navigation.navigate("Telefone", { email, nome, nomeCompleto, cpf, dataNascimento });
-                }, 1500); 
+                }, 1500);
 
             } else {
                 setErros({ codigo: "Código incorreto, tente novamente ou solicite um novo código." });
             }
         } catch (error) {
-            Alert.alert("Erro", "Erro ao conectar ao servidor.\nPor favor, tente novamente mais tarde.");
+            showMessage("Erro", "Erro ao conectar ao servidor.\nPor favor, tente novamente mais tarde.");
         }
-    
+
         setLoading(false);
     };
 
     return (
-        <Pressable 
+        <Pressable
             onPress={Platform.OS !== 'web' ? () => Keyboard.dismiss() : undefined}
             style={{ flex: 1 }}
         >
@@ -117,13 +126,12 @@ export default function EmailVerification() {
                             autoPlay
                             loop={false}
                             speed={2}
-                            />
+                        />
                     </AreaAnimacao>
                 </ViewAnimacao>
             ) : (
                 <Background>
-                    <Container>
-                        {/* Botão de Voltar */}
+                    <View style={{ padding: 16 }}>
                         <MaterialIcons
                             name="arrow-back"
                             size={28}
@@ -131,49 +139,50 @@ export default function EmailVerification() {
                             style={{ marginTop: 10 }}
                             onPress={() => navigation.goBack()}
                         />
-                                {/* Input para Código */}
-                                <AreaInput>
-                                    <TextPage style={{marginBottom: 10}}>Digite o código enviado para o e-mail: {email}</TextPage>
-                                    <Input
-                                        value={codigo}
-                                        onChangeText={(text) => {
-                                            setCodigo(text);
-                                            setErros(prev => ({ ...prev, codigo: "" }));
-                                        }}
-                                        keyboardType="number-pad"
-                                        autoCapitalize="none"
-                                        maxLength={6}
-                                        error={!!erros.codigo}
-                                        autoCorrect={false}
-                                    />
-                                    {erros.codigo ? <ErrorText>{erros.codigo}</ErrorText> : null}
-                                </AreaInput>
+                    </View>
+                    <Container>
+                        <AreaInput>
+                            <TextPage style={{ marginBottom: 10 }}>Digite o código enviado para o e-mail: {email}</TextPage>
+                            <Input
+                                value={codigo}
+                                onChangeText={(text) => {
+                                    setCodigo(text);
+                                    setErros(prev => ({ ...prev, codigo: "" }));
+                                }}
+                                keyboardType="number-pad"
+                                autoCapitalize="none"
+                                maxLength={6}
+                                error={!!erros.codigo}
+                                autoCorrect={false}
+                            />
+                            {erros.codigo ? <ErrorText>{erros.codigo}</ErrorText> : null}
+                        </AreaInput>
 
-                                {codigo.length >= 6 && !loading && !reenviando && (
-                                    <AreaButtonContinuar>
-                                        <ButtonContinuar onPress={verificarCodigo} disabled={loading}>
-                                            <TextButtonContinuar>Verificar Código</TextButtonContinuar>
-                                        </ButtonContinuar>
-                                    </AreaButtonContinuar>
-                                )}
+                        {codigo.length >= 6 && !loading && !reenviando && (
+                            <AreaButtonContinuar>
+                                <ButtonContinuar onPress={verificarCodigo} disabled={loading}>
+                                    <TextButtonContinuar>Verificar Código</TextButtonContinuar>
+                                </ButtonContinuar>
+                            </AreaButtonContinuar>
+                        )}
 
-                                {loading &&  (
-                                    <AreaButtonContinuar>
-                                        <ButtonContinuar>
-                                            <TextButtonContinuar>
-                                                <ActivityIndicator size="small" color="#fff" />
-                                            </TextButtonContinuar>
-                                        </ButtonContinuar>
-                                    </AreaButtonContinuar>
-                                )}
+                        {loading && (
+                            <AreaButtonContinuar>
+                                <ButtonContinuar>
+                                    <TextButtonContinuar>
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    </TextButtonContinuar>
+                                </ButtonContinuar>
+                            </AreaButtonContinuar>
+                        )}
 
-                                <ButtonReenvio onPress={reenviarCodigo} disabled={timer > 0 || reenviando}>
-                                    <TextButtonReenvio>
-                                        {reenviando ? 'Reenviando código...' : 
-                                            timer > 0 ? `Reenviar código em ${timer}s` : "Reenviar código"
-                                        }
-                                    </TextButtonReenvio>
-                                </ButtonReenvio>
+                        <ButtonReenvio onPress={reenviarCodigo} disabled={timer > 0 || reenviando}>
+                            <TextButtonReenvio>
+                                {reenviando ? 'Reenviando código...' :
+                                    timer > 0 ? `Reenviar código em ${timer}s` : "Reenviar código"
+                                }
+                            </TextButtonReenvio>
+                        </ButtonReenvio>
                     </Container>
                 </Background>
             )}

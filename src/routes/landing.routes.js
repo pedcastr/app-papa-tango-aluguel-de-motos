@@ -1,6 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import LandingPage from '../pages/LandingPage'; // Nova página de landing
+import LandingPage from '../pages/LandingPage';
 import SignIn from '../pages/SignIn';
 import Nome from '../pages/SignUp/nome';
 import NomeCompleto from '../pages/SignUp/nomeCompleto';
@@ -9,7 +9,6 @@ import DataNascimento from '../pages/SignUp/dataNascimento';
 import Email from '../pages/SignUp/email';
 import EmailVerification from '../pages/SignUp/emailVerification';
 import Telefone from '../pages/SignUp/telefone';
-import VerifyPhone from '../pages/SignUp/telefoneVerify';
 import Endereco from '../pages/SignUp/endereco';
 import ComprovanteDeEndereco from '../pages/SignUp/comprovanteDeEndereco';
 import CNH from '../pages/SignUp/cnh';
@@ -19,47 +18,44 @@ import Concluido from '../pages/SignUp/concluido';
 
 const Stack = createNativeStackNavigator();
 
-// Este arquivo define as rotas para usuários não autenticados
-// Começa com a Landing Page e inclui todas as rotas de autenticação
 export default function LandingRoutes() {
   return (
     <Stack.Navigator>
       {/* A Landing Page é a primeira tela que o usuário vê */}
       <Stack.Screen 
-        name="LandingPage" 
+        name="Papa Tango - Aluguel de Motos" 
         component={LandingPage} 
         options={{ headerShown: false }}
       />
       
-      {/* Incluímos todas as rotas de autenticação existentes */}
       <Stack.Screen 
-        name="SignIn" 
+        name="Login" 
         component={SignIn} 
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name='nome'
+        name='Nome'
         component={Nome}
         options={{
           headerShown: false,
         }}
       />
       <Stack.Screen
-        name='nomeCompleto'
+        name='Nome Completo'
         component={NomeCompleto}
         options={{
           headerShown: false,
         }}
       />
       <Stack.Screen
-        name='cpf'
+        name='CPF'
         component={CPF}
         options={{
           headerShown: false,
         }}
       />
       <Stack.Screen
-        name='dataNascimento'
+        name='Data de Nascimento'
         component={DataNascimento}
         options={{
           headerShown: false,
@@ -73,7 +69,7 @@ export default function LandingRoutes() {
         }}
       />
       <Stack.Screen
-        name='EmailVerification'
+        name='Verificação de Email'
         component={EmailVerification}
         options={{
           headerShown: false,
@@ -87,21 +83,14 @@ export default function LandingRoutes() {
         }}
       />
       <Stack.Screen
-        name='VerifyPhone'
-        component={VerifyPhone}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name='endereco'
+        name='Endereço'
         component={Endereco}
         options={{
           headerShown: false,
         }}
       />
       <Stack.Screen
-        name='comprovanteDeEndereco'
+        name='Comprovante de Endereço'
         component={ComprovanteDeEndereco}
         options={{
           headerShown: false,
@@ -115,21 +104,21 @@ export default function LandingRoutes() {
         }}
       />
       <Stack.Screen
-        name='selfie'
+        name='Selfie'
         component={Selfie}
         options={{
           headerShown: false,
         }}
       />
       <Stack.Screen
-        name='senha'
+        name='Senha'
         component={Senha}
         options={{
           headerShown: false,
         }}
       />
       <Stack.Screen
-        name='concluido'
+        name='Fim do Cadastro'
         component={Concluido}
         options={{
           headerShown: false,

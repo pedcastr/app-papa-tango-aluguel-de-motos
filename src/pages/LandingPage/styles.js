@@ -30,8 +30,8 @@ export const LogoContainer = styled.View`
 `;
 
 export const Logo = styled.Image`
-  width: 120px;
-  height: 50px;
+  width: ${isWebDesktop ? '100px' : '90px'};
+  height: ${isWebDesktop ? '100px' : '60px'};
 `;
 
 export const LoginButton = styled.TouchableOpacity`
@@ -52,8 +52,8 @@ export const HeroSection = styled.View`
   padding: 20px;
   background-color: #f8f8f8;
   align-items: center;
-  padding-top: 40px;
-  padding-bottom: 40px;
+  padding-top: 30px;
+  padding-bottom: 20px;
 `;
 
 export const HeroTitle = styled.Text`

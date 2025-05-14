@@ -453,14 +453,12 @@ exports.processPayment = functions.https.onRequest((req, res) => {
       if (req.method !== "POST") {
         return res.status(405).json({error: "Método não permitido"});
       }
-
       console.log("Dados recebidos:", JSON.stringify(req.body));
 
-      // Inicializar o SDK com seu token de acesso
+      // Inicializar o SDK do Mercado Pago
       const mp = new mercadopago.MercadoPagoConfig({
         accessToken: env.mercadopago.accessToken,
       });
-
       const paymentClient = new mercadopago.Payment(mp);
 
       // Mapear os parâmetros recebidos para os nomes esperados pelo Mercado Pago
@@ -472,16 +470,20 @@ exports.processPayment = functions.https.onRequest((req, res) => {
         externalReference,
         statementDescriptor,
         items,
+        diasAtraso = 0,
+        contratoId,
+        aluguelId,
       } = req.body;
 
       // Garantir que o valor da transação seja um número válido
-      const amount = Number(parseFloat(transactionAmount));
+      let amount = Number(parseFloat(transactionAmount));
       if (isNaN(amount) || amount <= 0) {
         return res.status(400).json({
           error: "Invalid transaction_amount",
           details: "O valor da transação deve ser um número positivo",
         });
       }
+
       // Validação extra para boleto
       if (paymentType === "boleto" && amount < 3) {
         return res.status(400).json({
@@ -490,14 +492,32 @@ exports.processPayment = functions.https.onRequest((req, res) => {
         });
       }
 
-      // Criar o objeto de pagamento com os nomes corretos de parâmetros
+      // Para PIX, aplicamos a multa no valor total
+      let valorMulta = 0;
+      if (paymentType === "pix" && diasAtraso > 0) {
+        const multaPorcentual = amount * 0.02; // 2% do valor
+        const multaPorDia = 10; // R$ 10 por dia
+        valorMulta = multaPorcentual + (diasAtraso * multaPorDia);
+        // Adicionar a multa ao valor total para PIX e arredondar para 2 casas decimais
+        amount = Number((amount + valorMulta).toFixed(2));
+      }
+
+      // Adicionar informação sobre multa, se aplicável
+      let descricaoComMulta = description;
+      if (paymentType === "pix" && valorMulta > 0) {
+        descricaoComMulta = `${description} (Inclui multa de R$${valorMulta.toFixed(2)} por ${diasAtraso} dia(s) de atraso)`;
+      } else if (paymentType === "boleto" && diasAtraso > 0) {
+        descricaoComMulta = `${description} (Multa de 2% + R$10/dia será aplicada pelo banco após o vencimento)`;
+      }
+
+      // Criar o objeto de pagamento
       const paymentData = {
         transaction_amount: amount,
-        description: description,
+        description: descricaoComMulta,
         payer: payer,
       };
 
-      // Adicionar external_reference (obrigatório)
+      // Adicionar external_reference
       if (externalReference) {
         paymentData.external_reference = externalReference;
       } else if (req.body.externalReference) {
@@ -506,12 +526,12 @@ exports.processPayment = functions.https.onRequest((req, res) => {
         paymentData.external_reference = `payment_${Date.now()}`;
       }
 
-      // Adicionar statement_descriptor (recomendado)
+      // Adicionar statement_descriptor
       if (statementDescriptor) {
         paymentData.statement_descriptor = statementDescriptor;
       }
 
-      // Adicionar informações do item (recomendado)
+      // Adicionar informações do item
       if (items && items.length > 0) {
         paymentData.additional_info = {
           items: items,
@@ -521,9 +541,21 @@ exports.processPayment = functions.https.onRequest((req, res) => {
       // Se for PIX, adicionar os parâmetros específicos
       if (paymentType === "pix") {
         paymentData.payment_method_id = "pix";
-      // Se for boleto, adicionar os parâmetros específicos
+        // Se for boleto, adicionar os parâmetros específicos
       } else if (paymentType === "boleto") {
         paymentData.payment_method_id = "bolbradesco";
+
+        // data de vencimento será a data em que o boleto foi gerado
+        const dataVencimento = new Date();
+
+        // Definir a hora para o final do dia (23:59:59)
+        dataVencimento.setHours(23, 59, 59, 0);
+        // Obter a data no formato ISO 8601 completo
+        const dataFormatada = dataVencimento.toISOString();
+
+        // Adicionar data de vencimento
+        paymentData.date_of_expiration = dataFormatada;
+
         // Garantir que todos os campos obrigatórios do endereço estejam presentes
         if (
           !payer.address ||
@@ -546,19 +578,14 @@ exports.processPayment = functions.https.onRequest((req, res) => {
         });
       }
 
-      // Adicione external_reference se vier do frontend
-      if (req.body.externalReference) {
-        paymentData.external_reference = req.body.externalReference;
-      }
-
       console.log("Dados formatados para o Mercado Pago:", JSON.stringify(paymentData));
 
       // Criar o pagamento usando o SDK do Mercado Pago
       const payment = await paymentClient.create({body: paymentData});
-
       console.log("Resposta da API do Mercado Pago:", JSON.stringify(payment));
 
-      res.json({
+      // Adicionar informações sobre multa na resposta, se aplicável
+      const responseData = {
         status: payment.status,
         status_detail: payment.status_detail,
         id: payment.id,
@@ -566,11 +593,36 @@ exports.processPayment = functions.https.onRequest((req, res) => {
         payment_method: payment.payment_method,
         point_of_interaction: payment.point_of_interaction,
         external_reference: payment.external_reference,
-      });
+        date_created: new Date().toISOString(),
+        transaction_amount: amount,
+        payment_type_id: paymentType,
+        description: descricaoComMulta,
+        contratoId: contratoId || null,
+        aluguelId: aluguelId || null,
+      };
+
+      // Adicionar informações sobre multa e valor original para PIX
+      if (paymentType === "pix" && valorMulta > 0) {
+        responseData.multa = {
+          valorMulta: valorMulta,
+          diasAtraso: diasAtraso,
+          valorOriginal: Number(parseFloat(transactionAmount)),
+        };
+      }
+
+      // Adicionar informações de vencimento e configuração de multa para boleto
+      if (paymentType === "boleto") {
+        responseData.date_of_expiration = paymentData.date_of_expiration;
+        responseData.fine_configuration = {
+          percentage: 2.00,
+          daily_value: 10.00,
+        };
+      }
+
+      res.json(responseData);
     } catch (error) {
       console.error("Erro ao processar pagamento:", error);
-
-      // Melhorar o log de erro para incluir mais detalhes
+      // Log de erro para incluir detalhes
       if (error.response) {
         console.error("Detalhes do erro da API:", JSON.stringify(error.response.data));
         return res.status(500).json({
@@ -578,7 +630,6 @@ exports.processPayment = functions.https.onRequest((req, res) => {
           details: error.response.data || error.message,
         });
       }
-
       res.status(500).json({
         error: "Erro ao processar pagamento",
         details: error.message,
@@ -586,6 +637,7 @@ exports.processPayment = functions.https.onRequest((req, res) => {
     }
   });
 });
+
 
 /**
  * Envia uma notificação push para um usuário específico ou para administradores
@@ -863,18 +915,18 @@ exports.processarNotificacoes = functions.firestore
         // Normalizar os dados da notificação
         // Garantir que title e body sejam strings
         const title = typeof data.title === "string" ? data.title :
-                     (typeof data.title === "object" && data.title !== null ?
-                      JSON.stringify(data.title) : "Notificação");
+        (typeof data.title === "object" && data.title !== null ?
+          JSON.stringify(data.title) : "Notificação");
 
         const body = typeof data.body === "string" ? data.body :
-                    (typeof data.body === "object" && data.body !== null ?
-                     JSON.stringify(data.body) : "Você tem uma nova notificação");
+        (typeof data.body === "object" && data.body !== null ?
+          JSON.stringify(data.body) : "Você tem uma nova notificação");
 
         // Garantir que data seja um objeto
         const notificationData = typeof data.data === "object" ? data.data :
-                               (typeof data.data === "string" ?
-                                {message: data.data, screen: data.screen || "Financeiro"} :
-                                {screen: data.screen || "Financeiro"});
+        (typeof data.data === "string" ?
+          {message: data.data, screen: data.screen || "Financeiro"} :
+          {screen: data.screen || "Financeiro"});
 
         let response;
         let success = false;
@@ -883,7 +935,7 @@ exports.processarNotificacoes = functions.firestore
         const isExpoToken = userData.fcmToken.startsWith("ExponentPushToken[");
 
         if (isExpoToken) {
-          // Enviar via API do Expo
+        // Enviar via API do Expo
           console.log("Enviando via API Expo para usuário", data.userEmail);
 
           const expoMessage = {
@@ -905,7 +957,7 @@ exports.processarNotificacoes = functions.firestore
           console.log("Enviando mensagem via Expo:", JSON.stringify(expoMessage));
 
           try {
-            // Usando axios para fazer a requisição
+          // Usando axios para fazer a requisição
             const axiosResponse = await axios.post("https://exp.host/--/api/v2/push/send", expoMessage, {
               headers: {
                 "Accept": "application/json",
@@ -913,7 +965,6 @@ exports.processarNotificacoes = functions.firestore
               },
             });
 
-            // Com axios, a resposta já é um objeto JSON
             response = axiosResponse.data;
             console.log("Notificação enviada via Expo (resposta):", response);
 
@@ -940,7 +991,7 @@ exports.processarNotificacoes = functions.firestore
             throw axiosError;
           }
         } else {
-          // Enviar via FCM diretamente (API V1)
+        // Enviar via FCM diretamente (API V1)
           console.log("Enviando via FCM para usuário", data.userEmail);
 
           try {
@@ -968,7 +1019,7 @@ exports.processarNotificacoes = functions.firestore
 
             // Adicionar imagem se fornecida
             if (data.imageUrl) {
-              // Configuração para Android
+            // Configuração para Android
               if (!fcmMessage.android) fcmMessage.android = {};
               if (!fcmMessage.android.notification) fcmMessage.android.notification = {};
               fcmMessage.android.notification.imageUrl = data.imageUrl;
@@ -989,8 +1040,8 @@ exports.processarNotificacoes = functions.firestore
 
             // Se o token for inválido, remover do Firestore
             if (fcmError.code === "messaging/invalid-argument" ||
-                fcmError.code === "messaging/registration-token-not-registered" ||
-                fcmError.code === "messaging/invalid-registration-token") {
+            fcmError.code === "messaging/registration-token-not-registered" ||
+            fcmError.code === "messaging/invalid-registration-token") {
               try {
                 await admin.firestore().collection("users").doc(userDoc.id).update({
                   fcmToken: admin.firestore.FieldValue.delete(),
@@ -1036,7 +1087,7 @@ exports.processarNotificacoes = functions.firestore
         console.error("Erro ao processar solicitação de notificação:", error);
 
         try {
-          // Atualizar o status da solicitação com o erro
+        // Atualizar o status da solicitação com o erro
           await event.data.ref.update({
             status: "error",
             error: error.message,
@@ -1053,24 +1104,21 @@ exports.processarNotificacoes = functions.firestore
 
 // Função agendada para enviar lembretes de pagamento
 exports.sendPaymentReminders = onSchedule({
-  schedule: "0 10 * * *", // Todos os dias às 10:00
+  schedule: "0 9 * * *", // Todos os dias às 9h
   timeZone: "America/Sao_Paulo",
   retryCount: 3,
   region: "southamerica-east1", // Região do Brasil
 }, async (event) => {
   try {
     console.log("Iniciando verificação de lembretes de pagamento...");
-
     // Buscar todos os contratos ativos
     const contratosSnapshot = await db.collection("contratos")
         .where("statusContrato", "==", true)
         .get();
-
     if (contratosSnapshot.empty) {
       console.log("Nenhum contrato ativo encontrado");
       return null;
     }
-
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0); // Normalizar para início do dia
 
@@ -1088,7 +1136,6 @@ exports.sendPaymentReminders = onSchedule({
       // Obter dados do usuário
       const userEmail = contrato.cliente;
       let userData;
-
       try {
         const userDoc = await db.collection("users").doc(userEmail).get();
         if (!userDoc.exists) {
@@ -1103,6 +1150,7 @@ exports.sendPaymentReminders = onSchedule({
 
       // Buscar aluguel associado ao contrato
       let aluguel;
+      let motoInfo = null;
       try {
         if (contrato.aluguelId) {
           const aluguelDoc = await db.collection("alugueis").doc(contrato.aluguelId).get();
@@ -1115,15 +1163,21 @@ exports.sendPaymentReminders = onSchedule({
               .where("ativo", "==", true)
               .limit(1)
               .get();
-
           if (!alugueisQuery.empty) {
             aluguel = alugueisQuery.docs[0].data();
           }
         }
-
         if (!aluguel) {
           console.log(`Aluguel não encontrado para contrato ${contratoId}`);
           continue;
+        }
+
+        // Buscar informações da moto
+        if (aluguel.motoId) {
+          const motoDoc = await db.collection("motos").doc(aluguel.motoId).get();
+          if (motoDoc.exists) {
+            motoInfo = motoDoc.data();
+          }
         }
       } catch (error) {
         console.error(`Erro ao buscar aluguel para contrato ${contratoId}:`, error);
@@ -1134,7 +1188,7 @@ exports.sendPaymentReminders = onSchedule({
       const tipoRecorrencia = contrato.tipoRecorrenciaPagamento || "mensal";
       const valorMensal = aluguel.valorMensal || 250;
       const valorSemanal = aluguel.valorSemanal || 70;
-      const valor = tipoRecorrencia === "semanal" ? valorSemanal : valorMensal;
+      const valorOriginal = tipoRecorrencia === "semanal" ? valorSemanal : valorMensal;
 
       // Buscar último pagamento aprovado
       let dataBase;
@@ -1145,7 +1199,6 @@ exports.sendPaymentReminders = onSchedule({
             .orderBy("dateCreated", "desc")
             .limit(1)
             .get();
-
         if (!paymentsQuery.empty) {
           const ultimoPagamento = paymentsQuery.docs[0].data();
           dataBase = ultimoPagamento.dateCreated.toDate();
@@ -1153,7 +1206,6 @@ exports.sendPaymentReminders = onSchedule({
           // Se não houver pagamento, usar data de início do contrato
           dataBase = contrato.dataInicio.toDate();
         }
-
         dataBase.setHours(0, 0, 0, 0); // Normalizar para início do dia
       } catch (error) {
         console.error(`Erro ao buscar pagamentos para ${userEmail}:`, error);
@@ -1162,7 +1214,6 @@ exports.sendPaymentReminders = onSchedule({
 
       // Calcular próxima data de pagamento
       const proximaData = new Date(dataBase);
-
       if (tipoRecorrencia === "semanal") {
         // Para pagamento semanal
         proximaData.setDate(proximaData.getDate() + 7);
@@ -1186,7 +1237,6 @@ exports.sendPaymentReminders = onSchedule({
       const reminderRef = db.collection("paymentReminders")
           .doc(`${userEmail}_${hoje.toISOString().split("T")[0]}`);
       const reminderDoc = await reminderRef.get();
-
       if (reminderDoc.exists) {
         console.log(`Já enviamos um lembrete hoje para ${userEmail}, pulando`);
         continue;
@@ -1195,7 +1245,6 @@ exports.sendPaymentReminders = onSchedule({
       // Determinar se devemos enviar lembrete hoje
       let deveEnviarLembrete = false;
       let tipoLembrete = "";
-
       if (tipoRecorrencia === "mensal") {
         // Para pagamento mensal: enviar no dia do pagamento e 3 dias antes
         if (diasRestantes === 0 || diasRestantes === 1 || diasRestantes === 2 || diasRestantes === 3) {
@@ -1217,57 +1266,133 @@ exports.sendPaymentReminders = onSchedule({
         tipoLembrete = "atraso";
       }
 
+      // Calcular multa se estiver atrasado
+      let valorMulta = 0;
+      let valorTotal = valorOriginal;
+      if (diasAtraso > 0) {
+        // Calcular multa (2% fixo + R$10 por dia)
+        const percentualMulta = 2.0; // 2% fixo
+        const valorMultaFixa = valorOriginal * (percentualMulta / 100);
+        const valorMultaDiaria = 10 * diasAtraso; // R$10 por dia de atraso
+        valorMulta = valorMultaFixa + valorMultaDiaria;
+        valorTotal = valorOriginal + valorMulta;
+        console.log(`Calculando multa para ${userEmail}: Valor original: ${valorOriginal}, Multa: ${valorMulta}, Total: ${valorTotal}`);
+      }
+
+      // Gerar descrição detalhada para boleto e PIX
+      const periodoLocacao = `${proximaData.toLocaleDateString("pt-BR")}`;
+      const descricaoSimples = `Pagamento ${tipoRecorrencia === "mensal" ? "Mensal" : "Semanal"}`;
+
+      // Descrição detalhada para o boleto/pix (apenas para o banco)
+      const tipoLocacao = tipoRecorrencia === "semanal" ? "semana" : "mês";
+      const infoMoto = motoInfo ? `Moto alugada: ${motoInfo.modelo} Placa ${motoInfo.placa}.` : "";
+      const descricaoDetalhada = `${tipoRecorrencia === "semanal" ? "Pagamento" : "Mensalidade"} referente ${tipoRecorrencia === "semanal" ?
+        "a" : "ao"} ${tipoLocacao} [${periodoLocacao}] de locação. ${infoMoto} Caso precise, entre em contato através do WhatsApp 
+        (85991372994 / 85992684035). Após pagar, enviar o comprovante para algum dos números acima. O pagamento até o vencimento garante 
+        a permanência da locação da moto.`;
+
       // Se devemos enviar lembrete, preparar e enviar notificação e email
       if (deveEnviarLembrete) {
         console.log(`Enviando lembrete para ${userEmail}: ${tipoLembrete}, dias restantes: ${diasRestantes}`);
 
-        // Verificar se já existe um pagamento PIX pendente para este usuário
-        let pixPayment = null;
-        let pixQrCodeBase64 = null;
-        let pixQrCodeText = null;
+        // Verificar se já existe um pagamento pendente para este usuário
+        let existingPayment = null;
+        let existingPaymentId = null;
 
         try {
-          const pendingPixQuery = await db.collection("payments")
+          const pendingPaymentsQuery = await db.collection("payments")
               .where("userEmail", "==", userEmail)
               .where("status", "==", "pending")
-              .where("paymentMethod", "==", "pix")
               .orderBy("dateCreated", "desc")
               .limit(1)
               .get();
 
-          if (!pendingPixQuery.empty) {
-            // Já existe um pagamento PIX pendente
-            const pixDoc = pendingPixQuery.docs[0];
-            pixPayment = pixDoc.data();
+          if (!pendingPaymentsQuery.empty) {
+            // Já existe um pagamento pendente
+            const paymentDoc = pendingPaymentsQuery.docs[0];
+            existingPayment = paymentDoc.data();
+            existingPaymentId = paymentDoc.id;
 
-            // Extrair QR code e código PIX
-            if (pixPayment.paymentDetails &&
-                pixPayment.paymentDetails.point_of_interaction &&
-                pixPayment.paymentDetails.point_of_interaction.transaction_data) {
-              const transactionData = pixPayment.paymentDetails.point_of_interaction.transaction_data;
-              pixQrCodeBase64 = transactionData.qr_code_base64;
-              pixQrCodeText = transactionData.qr_code;
+            console.log(`Pagamento pendente encontrado: ${existingPaymentId}`);
+
+            // Verificar se o pagamento pendente tem o valor correto (considerando multa)
+            const paymentAmount = existingPayment.amount || 0;
+
+            // Se o valor for diferente ou se não tiver informações de multa e estiver atrasado
+            if (Math.abs(paymentAmount - valorTotal) > 0.01 ||
+              (diasAtraso > 0 && (!existingPayment.multa || existingPayment.multa.valorMulta !== valorMulta))) {
+              console.log(`Atualizando pagamento pendente com novo valor: ${valorTotal} (original: ${paymentAmount})`);
+
+              // Decidir se vamos atualizar o existente ou criar um novo
+              if (existingPayment.paymentMethod === "pix") {
+                // Para PIX, vamos cancelar o antigo e criar um novo
+                // Cancelar pagamento antigo
+                await db.collection("payments").doc(existingPaymentId).update({
+                  status: "cancelled",
+                  cancellationReason: "Substituído por pagamento com multa atualizada",
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+
+                console.log(`Pagamento PIX antigo cancelado: ${existingPaymentId}`);
+
+                // Criar novo pagamento PIX
+                existingPayment = null; // Forçar criação de novo pagamento
+                existingPaymentId = null;
+              } else if (existingPayment.paymentMethod === "boleto" || existingPayment.paymentMethod === "ticket") {
+                // Para boletos, apenas atualizar o valor no Firestore
+                const multa = {
+                  valorOriginal: valorOriginal,
+                  valorMulta: valorMulta,
+                  diasAtraso: diasAtraso,
+                  percentualMulta: 2.0,
+                  percentualMoraDiaria: 0.5,
+                };
+
+                await db.collection("payments").doc(existingPaymentId).update({
+                  amount: valorTotal,
+                  multa: multa,
+                  descricaoDetalhada: descricaoDetalhada,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+
+                console.log(`Boleto existente atualizado no Firestore: ${existingPaymentId}`);
+
+                // Atualizar o objeto em memória
+                existingPayment = {
+                  ...existingPayment,
+                  amount: valorTotal,
+                  multa: multa,
+                  descricaoDetalhada: descricaoDetalhada,
+                };
+              }
             }
+          }
+        } catch (error) {
+          console.error(`Erro ao verificar pagamentos pendentes para ${userEmail}:`, error);
+        }
 
-            console.log(`Usando pagamento PIX pendente existente: ${pixDoc.id}`);
-          } else {
-            // Não existe pagamento PIX pendente, vamos criar um novo
+        // Se não existe pagamento pendente ou se o PIX foi cancelado, criar um novo
+        let pixQrCodeText = null;
+        let pixPaymentId = null;
+
+        if (!existingPayment || (existingPayment && existingPayment.paymentMethod !== "pix")) {
+          try {
             console.log(`Gerando novo pagamento PIX para ${userEmail}`);
 
             // Preparar dados para o pagamento
             const paymentData = {
               paymentType: "pix",
-              transactionAmount: valor,
-              description: `Pagamento ${tipoRecorrencia === "mensal" ? "Mensal" : "Semanal"}`,
+              transactionAmount: valorTotal,
+              description: descricaoSimples,
               externalReference: `reminder_${userEmail}_${Date.now()}`,
               statementDescriptor: "PAPA TANGO MOTOS",
               items: [
                 {
                   id: contratoId,
                   title: "Aluguel de Motocicleta",
-                  description: `Pagamento ${tipoRecorrencia === "mensal" ? "Mensal" : "Semanal"}`,
+                  description: descricaoSimples,
                   quantity: 1,
-                  unit_price: valor,
+                  unit_price: valorTotal,
                 },
               ],
               payer: {
@@ -1285,7 +1410,6 @@ exports.sendPaymentReminders = onSchedule({
             const mp = new mercadopago.MercadoPagoConfig({
               accessToken: env.mercadopago.accessToken,
             });
-
             const paymentClient = new mercadopago.Payment(mp);
 
             // Formatar os dados para o Mercado Pago
@@ -1304,21 +1428,38 @@ exports.sendPaymentReminders = onSchedule({
             // Criar o pagamento
             const payment = await paymentClient.create({body: mpPaymentData});
 
-            // Extrair QR code e código PIX
+            // Extrair código PIX
             if (payment &&
-                payment.point_of_interaction &&
-                payment.point_of_interaction.transaction_data) {
-              pixQrCodeBase64 = payment.point_of_interaction.transaction_data.qr_code_base64;
+              payment.point_of_interaction &&
+              payment.point_of_interaction.transaction_data) {
               pixQrCodeText = payment.point_of_interaction.transaction_data.qr_code;
             }
 
+            // Preparar objeto de multa se aplicável
+            const multaObj = diasAtraso > 0 ? {
+              valorOriginal: valorOriginal,
+              valorMulta: valorMulta,
+              diasAtraso: diasAtraso,
+              percentualMulta: 2.0,
+              percentualMoraDiaria: 0.5,
+            } : null;
+
+            // Preparar informações da moto se disponíveis
+            const motoInfoObj = motoInfo ? {
+              modelo: motoInfo.modelo,
+              placa: motoInfo.placa,
+              marca: motoInfo.marca || "",
+              ano: motoInfo.ano || "",
+            } : null;
+
             // Salvar o pagamento no Firestore
-            const paymentId = payment.id.toString();
-            await db.collection("payments").doc(paymentId).set({
+            pixPaymentId = payment.id.toString();
+            await db.collection("payments").doc(pixPaymentId).set({
               userEmail: userEmail,
               userName: userData.nome || "Cliente",
-              amount: valor,
-              description: paymentData.description,
+              amount: valorTotal,
+              description: descricaoSimples, // Descrição simples para a interface
+              descricaoDetalhada: descricaoDetalhada, // Descrição detalhada para o boleto/PIX
               status: payment.status || "pending",
               paymentMethod: "pix",
               paymentId: payment.id,
@@ -1327,109 +1468,169 @@ exports.sendPaymentReminders = onSchedule({
               aluguelId: contrato.aluguelId || null,
               externalReference: paymentData.externalReference,
               paymentDetails: payment,
+              pixQrCode: pixQrCodeText,
+              // Adicionar campos para multa se aplicável
+              multa: multaObj,
+              // Adicionar informações da moto se disponíveis
+              motoInfo: motoInfoObj,
+              // Adicionar período de locação
+              periodoLocacao: periodoLocacao,
+              tipoRecorrencia: tipoRecorrencia,
             });
 
-            console.log(`Novo pagamento PIX criado com ID: ${paymentId}`);
-            pixPayment = payment;
+            console.log(`Novo pagamento PIX criado com ID: ${pixPaymentId}`);
+          } catch (error) {
+            console.error(`Erro ao processar pagamento PIX para ${userEmail}:`, error);
+            // Continuar mesmo sem o pagamento PIX
           }
-        } catch (error) {
-          console.error(`Erro ao processar pagamento PIX para ${userEmail}:`, error);
-          // Continuar mesmo sem o pagamento PIX
+        } else if (existingPayment && existingPayment.paymentMethod === "pix") {
+          // Usar o pagamento PIX existente
+          pixPaymentId = existingPaymentId;
+
+          // Extrair código PIX do pagamento existente
+          if (existingPayment.pixQrCode) {
+            pixQrCodeText = existingPayment.pixQrCode;
+          } else if (existingPayment.paymentDetails &&
+            existingPayment.paymentDetails.point_of_interaction &&
+            existingPayment.paymentDetails.point_of_interaction.transaction_data) {
+            pixQrCodeText = existingPayment.paymentDetails.point_of_interaction.transaction_data.qr_code;
+          }
+
+          console.log(`Usando pagamento PIX existente: ${pixPaymentId}`);
         }
 
         // Preparar mensagens com base no tipo de lembrete
-        let title; let body; let emailSubject; let emailContent; let emailH2Title;
+        let title; let body; let emailSubject; let emailH2Title;
 
+        // Ajustar mensagens para incluir informações de multa se aplicável
         if (tipoLembrete === "vencimento") {
-          title = "📅 Lembrete de Pagamento 📅";
-          body = `Seu pagamento de R$ ${valor.toFixed(2)} vence hoje. Clique para pagar agora.`;
+          title = "🗓️ Lembrete de Pagamento 🗓️";
+          body = `${userData.nome || "Cliente"}, seu pagamento de R$ ${valorTotal.toFixed(2)} vence hoje. Clique para pagar agora.`;
           emailSubject = "Lembrete de Pagamento - Papa Tango";
-          emailH2Title = "Lembrete de Pagamento"; // sem "Papa Tango"
-          emailContent = `
-              <p>Olá, <strong>${userData.nome || "Cliente"}</strong>,</p>
-              <p>Gostaríamos de lembrá-lo(a) que seu pagamento no valor de <strong>R$ ${valor.toFixed(2)}</strong>
-              vence hoje.</p>
-              <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo Papa Tango ou
-              utilizando o QR Code PIX abaixo ou copiando o código PIX.</p>
-            `;
+          emailH2Title = "Lembrete de Pagamento";
         } else if (tipoLembrete === "antecipado") {
-          title = "📅 Lembrete de Pagamento 📅";
-          body = `Seu pagamento de R$ ${valor.toFixed(2)} vence em ${diasRestantes} ${diasRestantes === 1 ?
-              "dia" : "dias"}. Prepare-se!`;
+          title = "🗓️ Lembrete de Pagamento 🗓️";
+          body = `${userData.nome || "Cliente"}, seu pagamento de R$ ${valorTotal.toFixed(2)} vence em ${diasRestantes} ${diasRestantes === 1 ? "dia" : "dias"}. Prepare-se!`;
           emailSubject = "Lembrete de Pagamento - Papa Tango";
-          emailH2Title = "Lembrete de Pagamento"; // sem "Papa Tango"
-          emailContent = `
-              <p>Olá, <strong>${userData.nome || "Cliente"}</strong>,</p>
-              <p>Gostaríamos de lembrá-lo(a) que seu pagamento no valor de <strong>R$ ${valor.toFixed(2)}</strong>
-              vencerá em ${diasRestantes} ${diasRestantes === 1 ? "dia" : "dias"}.</p>
-              <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo Papa Tango ou
-              utilizando o QR Code PIX abaixo ou copiando o código PIX.</p>
-            `;
+          emailH2Title = "Lembrete de Pagamento";
         } else if (tipoLembrete === "atraso") {
           title = "⚠️ Pagamento em Atraso ⚠️";
-          body = `Seu pagamento de R$ ${valor.toFixed(2)} está atrasado há ${diasAtraso} ${diasAtraso === 1 ?
-              "dia" : "dias"}. Clique para regularizar.`;
+          // Incluir informações de multa na mensagem
+          const mensagemMulta = diasAtraso > 0 ? `(inclui multa de R$ ${valorMulta.toFixed(2)})` : "";
+          body = `${userData.nome || "Cliente"}, seu pagamento de R$ ${valorTotal.toFixed(2)} ${mensagemMulta} está atrasado há ${diasAtraso} ${diasAtraso === 1 ? "dia" : "dias"}. Clique para regularizar.`;
           emailSubject = "Pagamento em Atraso - Papa Tango";
-          emailH2Title = "Pagamento em Atraso"; // sem "Papa Tango"
+          emailH2Title = "Pagamento em Atraso";
+        }
+
+        // Preparar conteúdo do email com base no tipo de lembrete
+        let emailContent;
+        if (tipoLembrete === "vencimento") {
           emailContent = `
-              <p>Olá, <strong>${userData.nome || "Cliente"}</strong>,</p>
-              <p>Notamos que seu pagamento no valor de <strong>R$ ${valor.toFixed(2)}</strong> está
-              atrasado há ${diasAtraso} ${diasAtraso === 1 ? "dia" : "dias"}.</p>
-              <p>Para regularizar sua situação, você pode realizar o pagamento diretamente
-              pelo aplicativo Papa Tango ou utilizando o QR Code PIX abaixo ou copiando o código PIX.</p>
+            <p>Olá, <strong>${userData.nome || "Cliente"}</strong>,</p>
+            <p>Gostaríamos de lembrá-lo(a) que seu pagamento no valor de <strong>R$ ${valorTotal.toFixed(2)}</strong>
+            vence hoje.</p>
+            <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo Papa Tango ou
+            utilizando o código PIX abaixo.</p>
+          `;
+        } else if (tipoLembrete === "antecipado") {
+          emailContent = `
+            <p>Olá, <strong>${userData.nome || "Cliente"}</strong>,</p>
+            <p>Gostaríamos de lembrá-lo(a) que seu pagamento no valor de <strong>R$ ${valorTotal.toFixed(2)}</strong>
+            vencerá em ${diasRestantes} ${diasRestantes === 1 ? "dia" : "dias"}.</p>
+            <p>Para sua comodidade, você pode realizar o pagamento diretamente pelo aplicativo Papa Tango ou
+            utilizando o código PIX abaixo.</p>
+          `;
+        } else if (tipoLembrete === "atraso") {
+          // Adicionar informações de multa no email
+          let infoMulta = "";
+          if (diasAtraso > 0) {
+            infoMulta = `
+              <div style="background-color: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; padding: 15px; margin: 15px 0;">
+                <p style="color: #856404; margin: 0;"><strong>Informações de multa:</strong></p>
+                <ul style="color: #856404; margin-top: 10px;">
+                  <li>Valor original: R$ ${valorOriginal.toFixed(2)}</li>
+                  <li>Multa: R$ ${valorMulta.toFixed(2)}</li>
+                  <li>Dias de atraso: ${diasAtraso}</li>
+                  <li>Valor total: R$ ${valorTotal.toFixed(2)}</li>
+                </ul>
+              </div>
             `;
+          }
+
+          emailContent = `
+            <p>Olá, <strong>${userData.nome || "Cliente"}</strong>,</p>
+            <p>Notamos que seu pagamento está atrasado há ${diasAtraso} ${diasAtraso === 1 ? "dia" : "dias"}.</p>
+            ${infoMulta}
+            <p>Para regularizar sua situação, você pode realizar o pagamento diretamente
+            pelo aplicativo Papa Tango ou utilizando o código PIX abaixo.</p>
+          `;
         }
 
         const logoUrl = "https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/" +
-                        "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
-
+          "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
         const imageWhatsApp = "https://upload.wikimedia.org/wikipedia/" +
-                              "commons/thumb/6/6b/WhatsApp.svg/512px-WhatsApp.svg.png";
+          "commons/thumb/6/6b/WhatsApp.svg/512px-WhatsApp.svg.png";
 
-        // Adicionar seção de QR Code PIX se disponível
+        // Adicionar seção de PIX se disponível (apenas código copia e cola, sem QR code)
         let pixSection = "";
-        if (pixQrCodeBase64 && pixQrCodeText) {
+        if (pixQrCodeText) {
+          // Construir a seção do PIX apenas com o código copia e cola
           pixSection = `
-            <div style="margin: 20px 0; padding: 15px; border: 1px solid #e0e0e0; border-radius: 5px; 
-            background-color: #f9f9f9;">
+            <div style="margin: 20px 0; padding: 15px; border: 1px solid #e0e0e0;
+            border-radius: 5px; background-color: #f9f9f9;">
               <h3 style="color: #333; text-align: center; margin-bottom: 15px;">Pague com PIX</h3>
-              
-              <div style="text-align: center; margin-bottom: 15px;">
-                <img src="data:image/png;base64,${pixQrCodeBase64}" alt="QR Code PIX" 
-                style="width: 200px; height: 200px;">
-              </div>
               
               <div style="margin-bottom: 15px;">
                 <p style="font-weight: bold; margin-bottom: 5px;">Código PIX Copia e Cola:</p>
-                <div style="background-color: #fff; border: 1px solid #ddd; border-radius: 4px; 
+                <div style="background-color: #fff; border: 1px solid #ddd; border-radius: 4px;
                 padding: 10px; font-size: 12px; word-break: break-all;">
                   ${pixQrCodeText}
                 </div>
               </div>
               
               <p style="font-size: 12px; color: #666; text-align: center;">
-                Abra o aplicativo do seu banco, escolha a opção PIX, e escaneie o QR Code ou cole o código acima.
+                Abra o aplicativo do seu banco, escolha a opção PIX, e cole o código acima.
               </p>
             </div>
           `;
+        } else {
+          // Se não temos código PIX, não incluir a seção
+          pixSection = "";
+          // Modificar o conteúdo do email para não mencionar o código PIX
+          emailContent = emailContent.replace("utilizando o código PIX abaixo", " ");
         }
 
         // Adicionar botão para WhatsApp para pagamento com boleto
         const whatsappSection = `
           <div style="margin: 20px 0; text-align: center;">
-            <p style="margin-bottom: 10px;">Se preferir pagar com boleto, entre em contato com o 
+            <p style="margin-bottom: 10px;">Se preferir pagar com boleto, entre em contato com o
             setor de boletos 👇</p>
-            <a href="https://wa.me/5585913729940?text=Gerar%20boleto." 
+            <a href="https://wa.me/5585991372994?text=Gerar%20boleto."
                style="color: #25D366; text-decoration: none; display: inline-block; border: 1px solid #25D366;
                 border-radius: 5px; padding: 8px 15px;">
               <span style="display: flex; align-items: center; justify-content: center;">
-                <img src="${imageWhatsApp}" 
+                <img src="${imageWhatsApp}"
                      alt="WhatsApp" style="width: 20px; height: 20px; margin-right: 8px;">
                 Falar com Setor de Boletos
               </span>
             </a>
           </div>
         `;
+
+        // Adicionar informações da moto se disponíveis
+        let motoSection = "";
+        if (motoInfo) {
+          motoSection = `
+            <div style="margin: 20px 0; padding: 15px; border: 1px solid #e0e0e0;
+            border-radius: 5px; background-color: #f0f8ff;">
+              <h3 style="color: #333; text-align: center; margin-bottom: 15px;">Informações da Locação</h3>
+              <p><strong>Moto:</strong> ${motoInfo.modelo}</p>
+              <p><strong>Placa:</strong> ${motoInfo.placa}</p>
+              <p><strong>Vencimento:</strong> ${periodoLocacao}</p>
+              <p><strong>Recorrência de Pagamento:</strong> ${tipoRecorrencia === "mensal" ? "Mensal" : "Semanal"}</p>
+            </div>
+          `;
+        }
 
         // Preparar corpo completo do email
         const emailBody = `
@@ -1443,36 +1644,57 @@ exports.sendPaymentReminders = onSchedule({
               
               ${emailContent}
               
+              ${motoSection}
+              
               ${pixSection}
               
               ${whatsappSection}
               
-              <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
-                Caso já tenha realizado o pagamento, por favor, desconsidere este E-mail.\n\n
-                Este é um email automático. Por favor, não responda a este email.\n
+              <p style="font-size: 12px; color: #666; text-align: center; margin-top: 50px;">
+                Caso já tenha realizado o pagamento, por favor, desconsidere este E-mail.
+                Este é um email automático. Por favor, não responda a este email.
                 Em caso de dúvidas, entre em contato com um dos números: (85) 99268-4035 ou (85) 99137-2994
               </p>
             </div>
           `;
 
-        // Enviar notificação push
+        // Enviar notificação push usando a função existente
         const requestId = `payment_reminder_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
         // Criar objeto de dados estruturado para a notificação
         const notificationData = {
           screen: "Financeiro",
-          paymentAmount: valor.toFixed(2),
+          paymentAmount: valorTotal.toFixed(2),
           paymentDate: proximaData.toISOString(),
           reminderType: tipoLembrete,
           daysRemaining: diasRestantes,
           daysOverdue: diasAtraso,
         };
 
-        // Se temos um pagamento PIX, adicionar o ID para navegação direta
-        if (pixPayment && pixPayment.id) {
-          notificationData.paymentId = pixPayment.id;
+        // Adicionar informações de multa se aplicável
+        if (diasAtraso > 0) {
+          notificationData.multa = {
+            valorOriginal: valorOriginal,
+            valorMulta: valorMulta,
+            diasAtraso: diasAtraso,
+          };
         }
 
+        // Adicionar informações da moto se disponíveis
+        if (motoInfo) {
+          notificationData.motoInfo = {
+            modelo: motoInfo.modelo,
+            placa: motoInfo.placa,
+          };
+        }
+
+        // Se temos um pagamento PIX, adicionar o ID para navegação direta
+        if (pixPaymentId) {
+          notificationData.paymentId = pixPaymentId;
+          notificationData.screen = "Detalhes do Pagamento"; // Navegar diretamente para a tela de pagamento
+        }
+
+        // Usar a função existente para enviar notificação
         await db.collection("notificationRequests").doc(requestId).set({
           userEmail: userEmail,
           title: title,
@@ -1482,7 +1704,7 @@ exports.sendPaymentReminders = onSchedule({
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        // Enviar email
+        // Enviar email usando a função existente
         const emailRequestId = `email_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
         await db.collection("emailRequests").doc(emailRequestId).set({
           to: userEmail,
@@ -1493,17 +1715,43 @@ exports.sendPaymentReminders = onSchedule({
         });
 
         // Registrar que o lembrete foi enviado hoje
-        await reminderRef.set({
+        const reminderData = {
           userEmail: userEmail,
           paymentDate: proximaData,
-          paymentAmount: valor,
+          paymentAmount: valorTotal,
           diasRestantes: diasRestantes,
           diasAtraso: diasAtraso,
           tipoLembrete: tipoLembrete,
           sentAt: admin.firestore.FieldValue.serverTimestamp(),
-          pixPaymentId: pixPayment ? pixPayment.id : null,
-        });
+        };
 
+        // Adicionar informações de multa se aplicável
+        if (diasAtraso > 0) {
+          reminderData.multa = {
+            valorOriginal: valorOriginal,
+            valorMulta: valorMulta,
+            diasAtraso: diasAtraso,
+            percentualMulta: 2.0,
+            percentualMoraDiaria: 0.5,
+          };
+        }
+
+        // Adicionar informações da moto se disponíveis
+        if (motoInfo) {
+          reminderData.motoInfo = {
+            modelo: motoInfo.modelo,
+            placa: motoInfo.placa,
+            marca: motoInfo.marca || "",
+            ano: motoInfo.ano || "",
+          };
+        }
+
+        // Adicionar pixPaymentId apenas se ele existir
+        if (pixPaymentId) {
+          reminderData.pixPaymentId = pixPaymentId;
+        }
+
+        await reminderRef.set(reminderData);
         console.log(`Lembrete enviado com sucesso para ${userEmail}`);
       }
     }
@@ -1519,7 +1767,7 @@ exports.sendPaymentReminders = onSchedule({
 
 // Função agendada para enviar mensagens de aniversário
 exports.sendBirthdayMessages = onSchedule({
-  schedule: "0 10 * * *", // Todos os dias às 10:00
+  schedule: "0 8 * * *", // Todos os dias às 8h
   timeZone: "America/Sao_Paulo",
   retryCount: 3,
   region: "southamerica-east1", // Região do Brasil
@@ -1608,12 +1856,13 @@ exports.sendBirthdayMessages = onSchedule({
           const userEmail = userId; // userId na função é o email do usuário
 
           // Verificar se existe um arquivo avatar.jpg no storage usando o email
-          const avatarRef = admin.storage().bucket().file(`profile/${userEmail}/avatar.jpg`);
+          const avatarRef = admin.storage().bucket("papamotos-2988e.firebasestorage.app").file(`profile/${userEmail}/avatar.jpg`);
           const [exists] = await avatarRef.exists();
 
           if (exists) {
             // Usar o formato correto de URL do Firebase Storage
-            const bucketName = admin.storage().bucket().name;
+            const bucket = admin.storage().bucket("papamotos-2988e.firebasestorage.app");
+            const bucketName = bucket.name;
             const encodedFilePath = encodeURIComponent(`profile/${userEmail}/avatar.jpg`);
             avatarUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedFilePath}?alt=media`;
 
@@ -1688,7 +1937,7 @@ exports.sendBirthdayMessages = onSchedule({
             status: "pending",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             notificationType: "push",
-            // Adicionar notificationGroupId para agrupar notificações relacionadas
+            // NotificationGroupId para agrupar notificações relacionadas
             notificationGroupId: `birthday_${userId}_${hoje.toISOString().split("T")[0]}`,
           });
 
@@ -1701,7 +1950,7 @@ exports.sendBirthdayMessages = onSchedule({
         try {
           // Preparar o corpo completo do email
           const logoUrl = "https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/" +
-                        "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
+            "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
 
           let avatarHtml = "";
           if (avatarUrl) {
@@ -1934,7 +2183,7 @@ exports.enviarMensagemEmMassaHttp = functions.https.onRequest(async (req, res) =
 
             // Dados adicionais para a notificação - garantir que seja um objeto válido
             const notificationData = {
-              screen: "Inicio",
+              screen: "Início",
               campaignId: campaignId,
               type: "massMessage",
             };
@@ -2013,7 +2262,7 @@ exports.enviarMensagemEmMassaHttp = functions.https.onRequest(async (req, res) =
           if (enviarEmail) {
             // Preparar o conteúdo do email
             const logoUrl = "https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/" +
-                        "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
+              "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
 
             let conteudoHtml = `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;
@@ -2092,7 +2341,7 @@ exports.enviarMensagemEmMassaHttp = functions.https.onRequest(async (req, res) =
               title: titulo,
               body: mensagem.substring(0, 100) + (mensagem.length > 100 ? "..." : ""),
               data: {
-                screen: "Inicio",
+                screen: "Início",
                 campaignId: campaignId,
                 type: "email",
               },
@@ -2367,7 +2616,6 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
         const db = admin.firestore();
 
         // Buscar o documento diretamente pelo ID do pagamento
-        // Como sabemos que o frontend usa o ID do pagamento como ID do documento
         const paymentDocRef = db.collection("payments").doc(paymentId.toString());
         const paymentDoc = await paymentDocRef.get();
 
@@ -2451,16 +2699,12 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
             // Usar a função sendPaymentNotification existente
             await sendPaymentNotification(userId, {
               title: "Pagamento Recebido 💰",
-              body: `Seu pagamento de R$ ${transactionAmount.toFixed(2)} foi recebido com sucesso 🎉`,
-              data: {
-                screen: "Financeiro",
-                paymentId: paymentId,
-                amount: transactionAmount,
-                status: status,
-                type: "payment_approved",
-                notificationGroupId: notificationGroupId,
-              },
+              body: `${paymentData.userName || "Cliente"}, seu pagamento de R$ ${transactionAmount.toFixed(2)} foi recebido com sucesso 🎉`,
+              data: {screen: "Financeiro", params: {screen: "Financeiro Screen"}},
             });
+
+            const logoUrl = "https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/" +
+              "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
 
             // Enviar email de confirmação se tivermos o email do usuário
             if (userEmail) {
@@ -2473,8 +2717,7 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; 
                     padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
                       <div style="text-align: center; margin-bottom: 20px;">
-                        <img src="cid:Logo" alt="Logo Papa Tango"
-                         style="width: 70px; margin-bottom: 20px;">
+                        <img src="${logoUrl}" alt="Logo Papa Tango" style="width: 70px; margin-bottom: 20px;">
                       </div>
                       <h2>Pagamento Recebido!</h2>
                       <p>Olá, ${paymentData.userName || "Cliente"}</p>
@@ -2486,12 +2729,6 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                         <li>Data: ${new Date(dateApproved || dateCreated).toLocaleString("pt-BR")}</li>
                         <li>Método: ${paymentMethodId || paymentData.paymentMethod || "Não especificado"}</li>
                       </ul>
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; 
-                        padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                          Abrir no Aplicativo
-                        </a>
-                      </div>
                       <p>Obrigado por utilizar nossos serviços!</p>
                       <p>Equipe Papa Tango</p>
                       <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
@@ -2502,11 +2739,6 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                   `,
                   status: "pending",
                   createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                  attachments: [{
-                    filename: "Logo.png",
-                    path: path.join(__dirname, "src/assets/Logo.png"),
-                    cid: "Logo",
-                  }],
                   notificationGroupId: notificationGroupId,
                   notificationType: "email",
                 });
@@ -2522,27 +2754,22 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
               "notificationsSent.approved": true,
             });
           } else if (["rejected", "cancelled"].includes(status) &&
-                  !notificationsSent.rejected &&
-                  statusChanged &&
-                  previousStatus !== "in_process" &&
-                  previousStatus !== "pending") {
+            !notificationsSent.rejected &&
+            statusChanged &&
+            previousStatus !== "in_process" &&
+            previousStatus !== "pending") {
             // 2. Notificação de pagamento rejeitado/cancelado
             console.log(`Enviando notificação de pagamento não aprovado para o usuário: ${userId}`);
 
             // Usar a função sendPaymentNotification existente
             await sendPaymentNotification(userId, {
               title: "⚠️ Atenção: Pagamento não aprovado ⚠️",
-              body: `Seu pagamento de R$ ${transactionAmount.toFixed(2)} não foi aprovado.`,
-              data: {
-                screen: "Financeiro",
-                paymentId: paymentId,
-                amount: transactionAmount,
-                status: status,
-                statusDetail: statusDetail,
-                type: "payment_rejected",
-                notificationGroupId: notificationGroupId,
-              },
+              body: `${paymentData.userName || "Cliente"}, seu pagamento de R$ ${transactionAmount.toFixed(2)} não foi aprovado.`,
+              data: {screen: "Financeiro", params: {screen: "Financeiro Screen"}},
             });
+
+            const logoUrl = "https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/" +
+              "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
 
             // Enviar email se tivermos o email do usuário
             if (userEmail) {
@@ -2554,21 +2781,15 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; 
                     padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
                       <div style="text-align: center; margin-bottom: 20px;">
-                        <img src="cid:Logo" alt="Logo Papa Tango"
-                         style="width: 70px; margin-bottom: 20px;">
+                        <img src="${logoUrl}" alt="Logo Papa Tango" style="width: 70px; margin-bottom: 20px;">
                       </div>
                       <h2>Pagamento Não Aprovado</h2>
                       <p>Olá, ${paymentData.userName || "Cliente"}</p>
                       <p>Seu pagamento de <strong>R$ ${transactionAmount.toFixed(2)}</strong> 
                       não foi aprovado.</p>
                       <p>Motivo: ${statusDetail || "Não especificado"}</p>
-                      <p>Por favor, tente novamente ou entre em contato com nosso suporte.</p>
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; 
-                        padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                          Tentar Novamente
-                        </a>
-                      </div>
+                      <p>Por favor, tente novamente no nosso app na área de Financeiro ou 
+                      entre em contato com nosso suporte.</p>
                       <br>
                       <div style="text-align: center;">
                           <a href="https://wa.me/5585992684035?text=Quero%20falar%20com%20o%20suporte
@@ -2585,17 +2806,11 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                       <p>Equipe Papa Tango</p>
                       <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
                         Este é um email automático. Por favor, não responda a este email.\n\n
-                        Em caso de dúvidas, entre em contato com um dos números: (85) 99268-4035 ou (85) 99137-2994
                       </p>
                     </div>
                   `,
                   status: "pending",
                   createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                  attachments: [{
-                    filename: "Logo.png",
-                    path: path.join(__dirname, "src/assets/Logo.png"),
-                    cid: "Logo",
-                  }],
                   notificationGroupId: notificationGroupId,
                   notificationType: "email",
                 });
@@ -2626,17 +2841,12 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
               // Usar a função sendPaymentNotification existente
               await sendPaymentNotification(userId, {
                 title: "Pagamento Pendente",
-                body: `Seu pagamento de R$ ${transactionAmount.toFixed(2)} está pendente de confirmação.
-                \nSe você já realizou o pagamento, aguarde a confirmação do processamento.`,
-                data: {
-                  screen: "Financeiro",
-                  paymentId: paymentId,
-                  amount: transactionAmount,
-                  status: status,
-                  type: "payment_pending",
-                  notificationGroupId: notificationGroupId,
-                },
+                body: `${paymentData.userName || "Cliente"}, seu pagamento de R$ ${transactionAmount.toFixed(2)} está pendente de confirmação.\nSe você já realizou o pagamento, aguarde a confirmação do processamento.`,
+                data: {screen: "Financeiro", params: {screen: "Financeiro Screen"}},
               });
+
+              const logoUrl = "https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/" +
+                "o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14";
 
               // Enviar email se tivermos o email do usuário
               if (userEmail) {
@@ -2648,8 +2858,7 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; 
                         padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
                           <div style="text-align: center; margin-bottom: 20px;">
-                            <img src="cid:Logo" alt="Logo Papa Tango"
-                            style="width: 70px; margin-bottom: 20px;">
+                            <img src="${logoUrl}" alt="Logo Papa Tango" style="width: 70px; margin-bottom: 20px;">
                           </div>
                         <h2>Pagamento Pendente</h2>
                         <p>Olá, ${paymentData.userName || "Cliente"}</p>
@@ -2657,28 +2866,28 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                         está pendente de confirmação.</p>
                         <p>Se você já realizou o pagamento, aguarde a confirmação do processamento.</p>
                         <p>Pagamentos realizados com boleto levam de 1 a 3 dias úteis para serem compensados</p>
-                        <p>Caso não tenha realizado o pagamento, por favor, conclua-o para evitar o 
-                        cancelamento da locação.</p>
-                        <div style="text-align: center; margin: 30px 0;">
-                          <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; 
-                          padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                            Verificar no Aplicativo
-                          </a>
+                        <p>Caso ainda não tenha realizado o pagamento, você poderá realizar através do nosso
+                        App na área de Financeiro ou falando com suporte clicando no botão abaixo.</p>
+                        <br>
+                        <div style="text-align: center;">
+                            <a href="https://wa.me/5585991372994?text=Pagamento}"
+                              style="background-color: #25D366;
+                                      color: white;
+                                      padding: 10px 20px;
+                                      text-decoration: none;
+                                      border-radius: 5px;
+                                      font-weight: bold;">
+                                Falar com Suporte
+                            </a>
                         </div>
                         <p>Equipe Papa Tango</p>
                         <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
                           Este é um email automático. Por favor, não responda a este email.
-                          Em caso de dúvidas, entre em contato com um dos números: (85) 99268-4035 ou (85) 99137-2994
                         </p>
                       </div>
                     `,
                     status: "pending",
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    attachments: [{
-                      filename: "Logo.png",
-                      path: path.join(__dirname, "src/assets/Logo.png"),
-                      cid: "Logo",
-                    }],
                     notificationGroupId: notificationGroupId,
                     notificationType: "email",
                   });
@@ -2702,23 +2911,13 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
               // Enviar notificação para administradores sobre a mudança de status usando a função existente
               await sendPaymentNotification(null, {
                 title: `Pagamento ${status === "approved" ? "Aprovado" :
-                        status === "rejected" ? "Rejeitado" :
-                        status === "cancelled" ? "Cancelado" : "Atualizado"}`,
-                body: `Pagamento de R$ ${transactionAmount.toFixed(2)} do usuário ${userEmail} foi ${
-                        status === "approved" ? "aprovado" :
-                        status === "rejected" ? "rejeitado" :
-                        status === "cancelled" ? "cancelado" :
-                        "atualizado para " + status}`,
-                data: {
-                  screen: "Admin",
-                  params: {screen: "Pagamentos"},
-                  paymentId: paymentId,
-                  amount: transactionAmount,
-                  previousStatus: previousStatus,
-                  newStatus: status,
-                  userEmail: userEmail,
-                  type: "admin_payment_status_change",
-                },
+                  status === "rejected" ? "Rejeitado" :
+                    status === "cancelled" ? "Cancelado" : "Atualizado"}`,
+                body: `Pagamento de R$ ${transactionAmount.toFixed(2)} do usuário ${userEmail} foi ${status === "approved" ? "aprovado" :
+                  status === "rejected" ? "rejeitado" :
+                    status === "cancelled" ? "cancelado" :
+                      "atualizado para " + status}`,
+                data: {screen: "Pagamentos", params: {screen: "AdminPaymentsScreen"}},
               }, true); // true indica que é uma notificação para administradores
 
               console.log(`Notificação de mudança de status enviada para administradores`);
@@ -2734,14 +2933,7 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
               title: `Pagamento ${status} sem usuário identificado`,
               body: `Pagamento de R$ ${transactionAmount.toFixed(2)} foi recebido, mas não foi possível identificar 
               o usuário.`,
-              data: {
-                screen: "Admin",
-                params: {screen: "Payments"},
-                paymentId: paymentId,
-                amount: transactionAmount,
-                status: status,
-                type: "admin_payment_no_user",
-              },
+              data: {screen: "Pagamentos", params: {screen: "AdminPaymentsScreen"}},
             }, true); // true indica que é uma notificação para administradores
 
             console.log(`Notificação enviada para administradores sobre pagamento sem usuário identificado`);
@@ -2774,7 +2966,7 @@ exports.checkPaymentStatus = functions.https.onRequest((req, res) => {
         return res.status(405).json({error: "Método não permitido"});
       }
 
-      // Inicializar o SDK com seu token de acesso (usando a importação tradicional com API moderna)
+      // Inicializar o SDK do Mercado Pago com token de acesso
       const mp = new mercadopago.MercadoPagoConfig({
         accessToken: env.mercadopago.accessToken,
       });

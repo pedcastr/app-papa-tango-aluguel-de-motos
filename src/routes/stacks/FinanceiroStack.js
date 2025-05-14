@@ -11,17 +11,20 @@ export default function FinanceiroStack() {
     return (
         <Stack.Navigator>
             <Stack.Screen
-                name="FinanceiroScreen"
+                name="Financeiro Screen"
                 component={Financeiro}
-                options={{ headerShown: false }}
+                options={{ 
+                    headerShown: false,
+                    title: 'Financeiro',
+                }}
             />
             <Stack.Screen
-                name="Payment"
+                name="Pagamento"
                 component={Payment}
                 options={{ headerShown: false }}
             />
             <Stack.Screen
-                name="PaymentSuccess"
+                name="Detalhes do Pagamento"
                 component={PaymentSuccess}
                 options={{ headerShown: false }}
             />

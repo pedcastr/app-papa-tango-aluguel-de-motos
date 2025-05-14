@@ -161,8 +161,8 @@ export const TextButtonCriar = styled.Text`
 
 // View para posicionar o botão de suporte ao final da tela
 export const BottomButtonsContainer = styled.View`
-    position: absolute;
-    bottom: 20px;
+    position: relative;
+    bottom: 5px;
     left: 0;
     right: 0;
     padding: 0 30px;

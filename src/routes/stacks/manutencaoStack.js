@@ -12,25 +12,28 @@ export default function ManutencaoStack() {
         <Stack.Navigator>
 
             <Stack.Screen 
-                name="Manutencao" 
+                name="Manutenção Screen" 
                 component={Manutencao}
-                options={{ headerShown: false }}
+                options={{ 
+                    headerShown: false,
+                    title: 'Manutenção',
+                }}
             />
 
             <Stack.Screen 
-                name="ListaTrocasOleo" 
+                name="Lista de Trocas de Óleo" 
                 component={ListaTrocasOleo}
                 options={{ headerShown: false }}
             />
 
             <Stack.Screen 
-                name="TrocaOleo" 
+                name="Troca de Óleo" 
                 component={TrocaOleo}
                 options={{ headerShown: false }}
             />
 
             <Stack.Screen 
-                name="DetalhesTrocaOleo" 
+                name="Detalhes da Troca de Óleo" 
                 component={DetalhesTrocaOleo}
                 options={{ headerShown: false }}
             />

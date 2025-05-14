@@ -4,6 +4,16 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 
 export default function PdfViewer({ uri, fileName, onRemove }) {
+
+  // Função para mostrar mensagem de sucesso/erro
+  const showMessage = (title, message) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}: ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   // Função para baixar o PDF (web mobile)
   const handleDownloadPdf = () => {
     if (Platform.OS === 'web') {
@@ -52,7 +62,6 @@ export default function PdfViewer({ uri, fileName, onRemove }) {
   // Determina a plataforma
   const isNative = Platform.OS === 'ios' || Platform.OS === 'android';
   const isWebMobile = Platform.OS === 'web' && window.innerWidth < 768;
-  const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
 
   // Versão para dispositivos nativos (Android/iOS)
   if (isNative) {
@@ -61,21 +70,21 @@ export default function PdfViewer({ uri, fileName, onRemove }) {
         <View style={styles.fileInfoContainer}>
           <MaterialIcons name="picture-as-pdf" size={30} color="#CB2921" />
         </View>
-        
+
         <View style={styles.pdfIconContainer}>
           <MaterialIcons name="picture-as-pdf" size={80} color="#CB2921" style={{ marginBottom: 10, marginTop: 10 }} />
           <Text style={styles.fileName} numberOfLines={2} ellipsizeMode="middle">
             PDF Selecionado: <Text style={[styles.fileName, styles.bold]}>{fileName || "Documento PDF"}</Text>
           </Text>
         </View>
-        
+
         <View style={styles.buttonRow}>
           {/* Botão de visualizar (apenas para plataformas nativas) */}
           <TouchableOpacity style={styles.buttonView} onPress={handleViewPdf}>
             <MaterialIcons name="visibility" size={18} color="#fff" />
             <Text style={styles.buttonText}>Visualizar</Text>
           </TouchableOpacity>
-          
+
           {/* Botão de remover */}
           <TouchableOpacity style={styles.buttonCancel} onPress={onRemove}>
             <MaterialIcons name="close" size={18} color="#fff" />
@@ -85,26 +94,26 @@ export default function PdfViewer({ uri, fileName, onRemove }) {
       </View>
     );
   }
-  
+
   // Versão para web mobile
   if (isWebMobile) {
     return (
       <View style={styles.container}>
-        
+
         <View style={styles.pdfIconContainer}>
           <MaterialIcons name="picture-as-pdf" size={80} color="#CB2921" style={{ marginBottom: 10, marginTop: 10 }} />
           <Text style={styles.fileName} numberOfLines={2} ellipsizeMode="middle">
             PDF Selecionado:<Text style={[styles.fileName, styles.bold]}>{fileName || "Documento PDF"}</Text>
           </Text>
         </View>
-        
+
         <View style={styles.buttonRow}>
           {/* Botão de baixar (web mobile) */}
           <TouchableOpacity style={styles.button} onPress={handleDownloadPdf}>
             <MaterialIcons name="file-download" size={18} color="#fff" />
             <Text style={styles.buttonText}>Baixar PDF</Text>
           </TouchableOpacity>
-          
+
           {/* Botão de remover */}
           <TouchableOpacity style={styles.buttonCancel} onPress={onRemove}>
             <MaterialIcons name="close" size={18} color="#fff" />
@@ -114,7 +123,7 @@ export default function PdfViewer({ uri, fileName, onRemove }) {
       </View>
     );
   }
-  
+
   // Versão para web desktop (com iframe)
   return (
     <View style={styles.container}>
@@ -146,7 +155,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 2,
   },
-  
+
   fileInfoContainer: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, ActivityIndicator, View, ScrollView, Text, Platform } from 'react-native';
 import { db, storage } from '../../../../../services/firebaseConfig';
-import { doc, updateDoc, getDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore'; 
+import { doc, updateDoc, getDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import {
-    Container, 
+    Container,
     Form,
     Section,
     Switch,
@@ -131,28 +131,25 @@ export default function MotoEdit({ route, navigation }) {
                 // Caminho no Storage: motos/{id}/fotos/{nome_arquivo}.jpg
                 const storagePath = `motos/${motoData.id}/fotos/${fileName}`;
 
-                console.log("Fazendo upload para:", storagePath);
 
                 // Upload para o Storage
                 const fileRef = ref(storage, storagePath);
                 await uploadBytes(fileRef, blob);
-                
+
                 // Obter URL do arquivo
                 const downloadURL = await getDownloadURL(fileRef);
-                console.log("URL do arquivo:", downloadURL);
-                
+
                 // Atualizar Firestore com a nova URL
                 await updateDoc(doc(db, "motos", motoData.id), {
                     fotoUrl: downloadURL
                 });
-                console.log("Firestore atualizado com sucesso");
-                
+
                 // Atualizar estado local
                 setMotoData(prev => ({
                     ...prev,
                     fotoUrl: downloadURL
                 }));
-                
+
                 showMessage('Sucesso', 'Foto da moto enviada com sucesso!');
             }
         } catch (error) {
@@ -164,8 +161,77 @@ export default function MotoEdit({ route, navigation }) {
     };
 
     /**
-     * Função para excluir foto da moto
+     * Função para excluir apenas a foto da moto
      * Remove a imagem do Storage e atualiza o Firestore
+     */
+    const handleDeletePhoto = async () => {
+        // Verificar se temos um ID válido e uma foto
+        if (!motoData.id || !motoData.fotoUrl) {
+            showMessage("Erro", "Foto não disponível para exclusão");
+            return;
+        }
+
+        // Confirmar a exclusão com o usuário
+        showConfirmation(
+            'Confirmação',
+            'Tem certeza que deseja excluir a foto desta moto?',
+            async () => {
+                try {
+                    setLoading(true);
+
+                    // Tentar excluir a foto do Storage
+                    try {
+                        // Método 1: Tentar extrair o caminho da URL
+                        const urlString = motoData.fotoUrl;
+                        const match = urlString.match(/\/o\/([^?]+)/);
+
+                        if (match && match[1]) {
+                            // Se conseguir extrair o caminho da URL
+                            const path = decodeURIComponent(match[1]);
+                            const fileRef = ref(storage, path);
+                            await deleteObject(fileRef);
+                            console.log("Foto excluída com sucesso do Storage");
+                        } else {
+                            // Método 2: Tentar com o ID da moto e nome do arquivo
+                            const urlParts = motoData.fotoUrl.split('/');
+                            const fileName = urlParts[urlParts.length - 1].split('?')[0];
+                            const alternativePath = `motos/${motoData.id}/fotos/${fileName}`;
+
+                            const fileRef = ref(storage, alternativePath);
+                            await deleteObject(fileRef);
+                            console.log("Foto excluída com sucesso do Storage (caminho alternativo)");
+                        }
+                    } catch (storageError) {
+                        console.error("Erro ao excluir do Storage:", storageError);
+                        // Continuar mesmo se falhar a exclusão da foto
+                    }
+
+                    // Atualizar o documento no Firestore para remover a referência à foto
+                    await updateDoc(doc(db, "motos", motoData.id), {
+                        fotoUrl: null
+                    });
+
+                    // Atualizar o estado local
+                    setMotoData(prev => ({
+                        ...prev,
+                        fotoUrl: null
+                    }));
+
+                    showMessage('Sucesso', 'Foto da moto excluída com sucesso!');
+
+                } catch (error) {
+                    console.error('Erro ao excluir foto:', error);
+                    showMessage('Erro', 'Falha ao excluir foto da moto. Tente novamente.');
+                } finally {
+                    setLoading(false);
+                }
+            }
+        );
+    };
+
+    /**
+     * Função para excluir a moto completamente
+     * Remove a moto e todas as suas associações
      */
     const handleDeleteMoto = async () => {
         // Verificar se temos um ID válido
@@ -173,7 +239,7 @@ export default function MotoEdit({ route, navigation }) {
             showMessage("Erro", "ID da moto não disponível");
             return;
         }
-    
+
         // Confirmar a exclusão com o usuário
         showConfirmation(
             'Confirmação',
@@ -181,24 +247,24 @@ export default function MotoEdit({ route, navigation }) {
             async () => {
                 try {
                     setLoading(true);
-                    
+
                     // 1. Verificar se a moto está associada a algum aluguel ou contrato
                     const alugueisRef = collection(db, "alugueis");
                     const alugueisQuery = query(alugueisRef, where("motoId", "==", motoData.id));
                     const alugueisSnapshot = await getDocs(alugueisQuery);
-                    
+
                     const contratosRef = collection(db, "contratos");
                     const contratosQuery = query(contratosRef, where("motoId", "==", motoData.id));
                     const contratosSnapshot = await getDocs(contratosQuery);
-                    
+
                     const usersRef = collection(db, "users");
                     const usersQuery = query(usersRef, where("motoAlugadaId", "==", motoData.id));
                     const usersSnapshot = await getDocs(usersQuery);
-                    
+
                     // Se a moto estiver associada a aluguéis, contratos ou usuários, perguntar se deseja continuar
                     if (!alugueisSnapshot.empty || !contratosSnapshot.empty || !usersSnapshot.empty) {
                         setLoading(false); // Desativar o loading enquanto aguarda a confirmação
-                        
+
                         showConfirmation(
                             'Atenção',
                             `Esta moto está associada a ${alugueisSnapshot.size} aluguel(is), ${contratosSnapshot.size} contrato(s) e ${usersSnapshot.size} usuário(s). Excluir a moto também removerá essas associações. Deseja continuar?`,
@@ -218,19 +284,20 @@ export default function MotoEdit({ route, navigation }) {
             }
         );
     };
-    
+
+
     // Função auxiliar para realizar a exclusão completa
     const realizarExclusaoCompleta = async (motoData, alugueisSnapshot = null, contratosSnapshot = null, usersSnapshot = null) => {
         try {
             setLoading(true);
-            
+
             // 1. Excluir a foto do Storage, se existir
             if (motoData.fotoUrl) {
                 try {
                     // Método 1: Tentar extrair o caminho da URL
                     const urlString = motoData.fotoUrl;
                     const match = urlString.match(/\/o\/([^?]+)/);
-                    
+
                     if (match && match[1]) {
                         // Se conseguir extrair o caminho da URL
                         const path = decodeURIComponent(match[1]);
@@ -242,7 +309,7 @@ export default function MotoEdit({ route, navigation }) {
                         const urlParts = motoData.fotoUrl.split('/');
                         const fileName = urlParts[urlParts.length - 1].split('?')[0];
                         const alternativePath = `motos/${motoData.id}/fotos/${fileName}`;
-                        
+
                         const fileRef = ref(storage, alternativePath);
                         await deleteObject(fileRef);
                         console.log("Foto excluída com sucesso do Storage (caminho alternativo)");
@@ -252,7 +319,7 @@ export default function MotoEdit({ route, navigation }) {
                     // Continuar mesmo se falhar a exclusão da foto
                 }
             }
-            
+
             // 2. Remover associações com usuários
             if (usersSnapshot && !usersSnapshot.empty) {
                 const atualizacoesUsuarios = [];
@@ -264,13 +331,13 @@ export default function MotoEdit({ route, navigation }) {
                         })
                     );
                 });
-                
+
                 if (atualizacoesUsuarios.length > 0) {
                     await Promise.all(atualizacoesUsuarios);
                     console.log(`${atualizacoesUsuarios.length} usuários atualizados`);
                 }
             }
-            
+
             // 3. Excluir aluguéis associados
             if (alugueisSnapshot && !alugueisSnapshot.empty) {
                 const exclusoesAlugueis = [];
@@ -279,11 +346,11 @@ export default function MotoEdit({ route, navigation }) {
                         deleteDoc(doc(db, "alugueis", aluguelDoc.id))
                     );
                 });
-                
+
                 await Promise.all(exclusoesAlugueis);
                 console.log(`${exclusoesAlugueis.length} aluguéis excluídos`);
             }
-            
+
             // 4. Atualizar contratos associados (remover referência à moto)
             if (contratosSnapshot && !contratosSnapshot.empty) {
                 const atualizacoesContratos = [];
@@ -294,23 +361,23 @@ export default function MotoEdit({ route, navigation }) {
                         })
                     );
                 });
-                
+
                 await Promise.all(atualizacoesContratos);
                 console.log(`${atualizacoesContratos.length} contratos atualizados`);
             }
-            
+
             // 5. Finalmente, excluir o documento da moto do Firestore
             await deleteDoc(doc(db, "motos", motoData.id));
             console.log("Documento da moto excluído com sucesso");
-            
+
             showMessage('Sucesso', 'Moto excluída com sucesso!');
-            
+
             // 6. Voltar para a tela anterior
             navigation.navigate('BikeList', {
                 deleteBikeId: motoData.id,
                 timestamp: Date.now(),
             });
-            
+
         } catch (error) {
             console.error('Erro ao excluir moto:', error);
             showMessage('Erro', 'Falha ao excluir moto. Tente novamente.');
@@ -366,13 +433,13 @@ export default function MotoEdit({ route, navigation }) {
         <Container>
             {/* Indicador de carregamento */}
             {loading && (
-                <View style={{ 
-                    position: 'absolute', 
-                    top: 0, 
-                    left: 0, 
-                    right: 0, 
-                    bottom: 0, 
-                    justifyContent: 'center', 
+                <View style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    justifyContent: 'center',
                     alignItems: 'center',
                     backgroundColor: 'rgba(0,0,0,0.5)',
                     zIndex: 999
@@ -380,14 +447,14 @@ export default function MotoEdit({ route, navigation }) {
                     <ActivityIndicator size="large" color="#CB2921" />
                 </View>
             )}
-            
+
             <ScrollView>
                 <Form>
                     {/* Seção de informações básicas da moto */}
                     <Section>
                         <SectionTitle>Informações da Moto</SectionTitle>
 
-                        <InputGroup style={{flexDirection: 'row', justifyContent: 'space-between'}}>
+                        <InputGroup style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                             <Label>Moto Alugada?</Label>
                             <Switch
                                 value={motoData.alugada}
@@ -399,58 +466,58 @@ export default function MotoEdit({ route, navigation }) {
 
                         <InputGroup>
                             <Label>ID</Label>
-                            <Input 
+                            <Input
                                 value={motoData.id}
                                 editable={false} // ID não deve ser editável
                             />
                         </InputGroup>
                         <InputGroup>
                             <Label>Modelo</Label>
-                            <Input 
+                            <Input
                                 value={motoData.modelo}
-                                onChangeText={(text) => setMotoData(prev => ({...prev, modelo: text}))}
+                                onChangeText={(text) => setMotoData(prev => ({ ...prev, modelo: text }))}
                                 autoCapitalize="words"
                             />
                         </InputGroup>
                         <InputGroup>
                             <Label>Placa</Label>
-                            <Input 
+                            <Input
                                 value={motoData.placa}
-                                onChangeText={(text) => setMotoData(prev => ({...prev, placa: text}))}
+                                onChangeText={(text) => setMotoData(prev => ({ ...prev, placa: text }))}
                                 autoCapitalize="characters"
                                 maxLength={7}
                             />
                         </InputGroup>
                         <InputGroup>
                             <Label>Ano</Label>
-                            <Input 
+                            <Input
                                 value={motoData.anoModelo?.toString()}
-                                onChangeText={(text) => setMotoData(prev => ({...prev, anoModelo: text}))}
+                                onChangeText={(text) => setMotoData(prev => ({ ...prev, anoModelo: text }))}
                                 keyboardType="numeric"
                             />
                         </InputGroup>
                         <InputGroup>
                             <Label>Marca</Label>
-                            <Input 
+                            <Input
                                 value={motoData.marca}
-                                onChangeText={(text) => setMotoData(prev => ({...prev, marca: text}))}
+                                onChangeText={(text) => setMotoData(prev => ({ ...prev, marca: text }))}
                                 autoCapitalize="words"
                             />
                         </InputGroup>
                         <InputGroup>
                             <Label>Chassi</Label>
-                            <Input 
+                            <Input
                                 value={motoData.chassi}
-                                onChangeText={(text) => setMotoData(prev => ({...prev, chassi: text}))}
+                                onChangeText={(text) => setMotoData(prev => ({ ...prev, chassi: text }))}
                                 autoCapitalize="words"
                                 maxLength={17}
                             />
                         </InputGroup>
                         <InputGroup>
                             <Label>Renavam</Label>
-                            <Input 
+                            <Input
                                 value={motoData.renavam}
-                                onChangeText={(text) => setMotoData(prev => ({...prev, renavam: text}))}
+                                onChangeText={(text) => setMotoData(prev => ({ ...prev, renavam: text }))}
                                 autoCapitalize="words"
                                 maxLength={11}
                             />
@@ -460,18 +527,18 @@ export default function MotoEdit({ route, navigation }) {
                     {/* Seção de Foto da Moto */}
                     <Section>
                         <SectionTitle>Foto da Moto</SectionTitle>
-                        
+
                         {/* Renderização condicional: mostrar foto ou botão de upload */}
                         {motoData.fotoUrl ? (
                             <>
                                 {/* Se tiver foto, mostrar a imagem */}
                                 <ImagemMoto
-                                    source={{uri: motoData.fotoUrl}}
+                                    source={{ uri: motoData.fotoUrl }}
                                     resizeMode={isWebDesktop ? 'contain' : 'cover'}
-                        
+
                                 />
                                 <FileActionContainer>
-                                    <DeleteButton onPress={handleDeleteImage}>
+                                    <DeleteButton onPress={handleDeletePhoto}>
                                         <DeleteButtonText>Excluir Foto</DeleteButtonText>
                                     </DeleteButton>
                                 </FileActionContainer>
@@ -494,7 +561,7 @@ export default function MotoEdit({ route, navigation }) {
                     <DeleteMotoButton onPress={handleDeleteMoto}>
                         <DeleteMotoButtonText>Excluir Moto</DeleteMotoButtonText>
                     </DeleteMotoButton>
-                    
+
                 </Form>
             </ScrollView>
         </Container>

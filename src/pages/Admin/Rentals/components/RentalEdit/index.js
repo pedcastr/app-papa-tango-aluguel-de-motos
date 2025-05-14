@@ -260,7 +260,6 @@ export default function RentalEdit({ route, navigation }) {
                 
                 if (atualizacoesContratos.length > 0) {
                     await Promise.all(atualizacoesContratos);
-                    console.log(`${atualizacoesContratos.length} contratos atualizados`);
                 }
             }
             
@@ -277,13 +276,11 @@ export default function RentalEdit({ route, navigation }) {
                 
                 if (atualizacoesUsuarios.length > 0) {
                     await Promise.all(atualizacoesUsuarios);
-                    console.log(`${atualizacoesUsuarios.length} usuários atualizados`);
                 }
             }
             
             // 3. Finalmente, excluir o documento do aluguel do Firestore
             await deleteDoc(doc(db, "alugueis", aluguelId));
-            console.log("Documento do aluguel excluído com sucesso");
             
             showMessage("Sucesso", "Aluguel excluído permanentemente com sucesso!");
             navigation.goBack();

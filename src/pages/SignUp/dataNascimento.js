@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { useFocusEffect } from '@react-navigation/native'; 
+import { View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Pressable, Keyboard, ActivityIndicator, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import LottieAnimation from "../../components/LottieAnimation"; 
-import { useRoute } from "@react-navigation/native"; 
+import LottieAnimation from "../../components/LottieAnimation";
+import { useRoute } from "@react-navigation/native";
 
-import { 
+import {
     Background,
     Container,
     AreaAnimacao,
@@ -20,7 +21,7 @@ import {
 } from './styles';
 
 export default function DataNascimento({ navigation }) {
-    const route = useRoute(); 
+    const route = useRoute();
     const { nome, nomeCompleto, cpf } = route.params;
     const [dataNascimento, setDataNascimento] = useState('');
     const [dataNascimentoError, setDataNascimentoError] = useState({ dataNascimento: '' });
@@ -28,10 +29,10 @@ export default function DataNascimento({ navigation }) {
     const [sucesso, setSucesso] = useState(false);
 
 
-    useFocusEffect( 
-        useCallback(() => { 
-            setSucesso(false); 
-        }, []) 
+    useFocusEffect(
+        useCallback(() => {
+            setSucesso(false);
+        }, [])
     );
 
     // Função para formatar a DataNascimento enquanto digita e ele ficar com aquela formatação que vemos em vários sites
@@ -42,11 +43,11 @@ export default function DataNascimento({ navigation }) {
         if (numerosSomente.length > 0) {
             // Formata como DD
             numeroFormatado = numerosSomente.substring(0, 2);
-            
+
             if (numerosSomente.length > 2) {
                 // Formata como DD/MM
                 numeroFormatado = `${numerosSomente.substring(0, 2)}/${numerosSomente.substring(2, 4)}`;
-                
+
                 if (numerosSomente.length > 4) {
                     // Formata como DD/MM/AAAA
                     numeroFormatado = `${numerosSomente.substring(0, 2)}/${numerosSomente.substring(2, 4)}/${numerosSomente.substring(4, 8)}`;
@@ -110,11 +111,11 @@ export default function DataNascimento({ navigation }) {
 
         Keyboard.dismiss();
         setLoading(true);
-        
+
         try {
             setSucesso(true); // Mostra a animação json de sucesso
             setTimeout(() => {
-                navigation.navigate('Email', { nome, nomeCompleto, cpf, dataNascimento }); 
+                navigation.navigate('Email', { nome, nomeCompleto, cpf, dataNascimento });
             }, 2000); // Aguarda 2.0 segundos antes de navegar
         } catch (error) {
             console.error('Erro ao processar data de nascimento:', error);
@@ -126,7 +127,7 @@ export default function DataNascimento({ navigation }) {
 
 
     return (
-        <Pressable 
+        <Pressable
             onPress={Platform.OS !== 'web' ? () => Keyboard.dismiss() : undefined}
             style={{ flex: 1 }}
         >
@@ -143,37 +144,39 @@ export default function DataNascimento({ navigation }) {
                 </ViewAnimacao>
             ) : (
                 <Background>
-                    <Container>
-                        <MaterialIcons 
-                            name="arrow-back" 
+                    <View style={{ padding: 16 }}>
+                        <MaterialIcons
+                            name="arrow-back"
                             size={28}
                             color="#fff"
                             style={{ marginTop: 10 }}
-                            onPress={() => navigation.goBack()} 
+                            onPress={() => navigation.goBack()}
                         />
+                    </View>
+                    <Container>
                         <AreaInput>
                             <TextPage>Digite sua data de nascimento</TextPage>
-                                <Input 
-                                    value={dataNascimento}
-                                    placeholder='00/00/0000'
-                                    placeholderTextColor="rgb(207, 207, 207)"
-                                    onChangeText={(text) => {
-                                        const dataFormatada = mascaraDataNascimento(text);
-                                        setDataNascimento(dataFormatada);
+                            <Input
+                                value={dataNascimento}
+                                placeholder='00/00/0000'
+                                placeholderTextColor="rgb(207, 207, 207)"
+                                onChangeText={(text) => {
+                                    const dataFormatada = mascaraDataNascimento(text);
+                                    setDataNascimento(dataFormatada);
 
-                                        setDataNascimentoError(prev => ({ ...prev, dataNascimento: '' }));
-                                    }}
-                                    keyboardType='numeric'
-                                    maxLength={10}
-                                    error={!!dataNascimentoError.dataNascimento}
-                                />
+                                    setDataNascimentoError(prev => ({ ...prev, dataNascimento: '' }));
+                                }}
+                                keyboardType='numeric'
+                                maxLength={10}
+                                error={!!dataNascimentoError.dataNascimento}
+                            />
                             {dataNascimentoError.dataNascimento ? <ErrorText>{dataNascimentoError.dataNascimento}</ErrorText> : null}
                         </AreaInput>
-                            
+
                         {dataNascimento.length > 0 && (
                             <AreaButtonContinuar>
                                 <ButtonContinuar onPress={handleContinuar} disabled={loading}>
-                                {loading ? <ActivityIndicator color="#fff" /> : <TextButtonContinuar>Continuar</TextButtonContinuar>}
+                                    {loading ? <ActivityIndicator color="#fff" /> : <TextButtonContinuar>Continuar</TextButtonContinuar>}
                                 </ButtonContinuar>
                             </AreaButtonContinuar>
                         )}

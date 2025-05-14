@@ -21,9 +21,9 @@ import {
 } from './styles';
 
 export default function ListaTrocasOleo({ navigation }) {
-  // Estados para controlar as trocas de óleo e o estado do refresh
-  const [trocasOleo, setTrocasOleo] = useState([]); // Estado para armazenar as trocas de óleo carregadas do Firestore
-  const [refreshing, setRefreshing] = useState(false); // Estado para controlar o estado de refresh
+
+  const [trocasOleo, setTrocasOleo] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
   const isFocused = useIsFocused(); // Hook para verificar se a tela está em foco
 
   // Função para dá refresh e carregar as trocas de óleo do Firestore quando o usuário acessa a tela
@@ -42,8 +42,8 @@ export default function ListaTrocasOleo({ navigation }) {
   const carregarTrocasOleo = async () => {
     try {
       const userEmail = auth.currentUser.email; // Obtém o email do usuário autenticado
-      const userDocRef = doc(db, "users", userEmail); 
-      const trocasRef = collection(userDocRef, "trocasOleo"); 
+      const userDocRef = doc(db, "users", userEmail);
+      const trocasRef = collection(userDocRef, "trocasOleo");
       const q = query(
         trocasRef,
         orderBy("dataUpload", "desc"),
@@ -53,7 +53,7 @@ export default function ListaTrocasOleo({ navigation }) {
       const querySnapshot = await getDocs(q); // Esta linha executa a query definida anteriormente e retorna um snapshot (foto instantânea) dos documentos encontrados.
       const trocas = []; // Cria um array vazio que vai armazenar os dados formatados das trocas de óleo.
       querySnapshot.forEach((doc) => { // Para cada documento, cria um novo objeto com os dados do documento e o adiciona ao array de trocas.
-        trocas.push({ id: doc.id, ...doc.data() }); 
+        trocas.push({ id: doc.id, ...doc.data() });
       });
 
       setTrocasOleo(trocas);
@@ -73,7 +73,7 @@ export default function ListaTrocasOleo({ navigation }) {
   // Componente que renderiza cada item da lista de trocas
   const renderTrocaOleo = ({ item }) => (
     <ButtonDetalhesTroca
-      onPress={() => navigation.navigate('DetalhesTrocaOleo', { troca: item })}
+      onPress={() => navigation.navigate('Detalhes da Troca de Óleo', { troca: item })}
     >
       <ViewTrocaInfo>
         <TextData>Data: {item.dataUpload}</TextData>
@@ -90,11 +90,11 @@ export default function ListaTrocasOleo({ navigation }) {
     <Container>
       {/* Header com botão de voltar e título */}
       <Header>
-        <MaterialIcons 
-          name="arrow-back" 
-          size={28} 
+        <MaterialIcons
+          name="arrow-back"
+          size={28}
           color="#000"
-          onPress={() => navigation.goBack()} 
+          onPress={() => navigation.goBack()}
         />
         {trocasOleo.length > 0 && (
           <TextTitleLista>
@@ -117,12 +117,12 @@ export default function ListaTrocasOleo({ navigation }) {
                 refreshing={refreshing}
                 onRefresh={onRefresh}
                 colors={["#CB2921"]}
-                tintColor="#CB2921" 
+                tintColor="#CB2921"
               />
             }
           />
           <ButtonNovaTroca
-            onPress={() => navigation.navigate('TrocaOleo')}
+            onPress={() => navigation.navigate('Troca de Óleo')}
           >
             <TextButtonNovaTroca>Informar nova troca de óleo</TextButtonNovaTroca>
           </ButtonNovaTroca>
@@ -130,7 +130,7 @@ export default function ListaTrocasOleo({ navigation }) {
       ) : (
         <ContainerSemTrocas>
           <ButtonNovaTroca
-            onPress={() => navigation.navigate('TrocaOleo')}
+            onPress={() => navigation.navigate('Troca de Óleo')}
           >
             <TextButtonSemTrocas>Registrar Primeira Troca</TextButtonSemTrocas>
           </ButtonNovaTroca>

@@ -1,6 +1,5 @@
 import React, { useContext } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import AuthRoutes from './auth.routes'; // Importamos o componente AuthRoutes
 import AppRoutes from './app.routes'; // Importamos o componente AppRoutes
 import AdminRoutes from './admin.routes'; // Importamos o componente AdminRoutes (Rotas do Admin)
 import LandingRoutes from './landing.routes'; // Importamos o componente LandingRoutes
@@ -35,6 +34,6 @@ export default function Routes() {
       return <AdminRoutes />;
     }
   
-    // Se o usuário estiver logado e o cadastro estiver finalizado/aprovado, segue para AppRoutes. Caso contrário, segue para AuthRoutes.
+    // Se o usuário estiver logado e o cadastro estiver finalizado/aprovado, segue para AppRoutes. Caso contrário, segue para LandingRoutes.
     return user && cadastroConcluido ? <AppRoutes /> : <LandingRoutes />;
 }

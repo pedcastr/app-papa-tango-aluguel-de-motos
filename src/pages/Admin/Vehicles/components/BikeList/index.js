@@ -63,12 +63,10 @@ export default function BikeList({ navigation, route }) {
      */
     useEffect(() => {
         if (route.params?.deletedBikeId) {
-            console.log(`Detectada exclusão da moto: ${route.params.deletedBikeId}`);
            
             // Remova a moto do cache local
             const bikeId = route.params.deletedBikeId;
             if (bikesCache.current.has(bikeId)) {
-                console.log(`Removendo moto ${bikeId} do cache após exclusão`);
                 bikesCache.current.delete(bikeId);
             }
            
@@ -394,7 +392,6 @@ export default function BikeList({ navigation, route }) {
                    
                     // Listener para mudanças na coleção de motos
                     bikesUnsubscribe = onSnapshot(collection(db, "motos"), (snapshot) => {
-                        console.log("Mudança detectada na coleção de motos");
                        
                         // Processa as mudanças
                         snapshot.docChanges().forEach(change => {
@@ -435,7 +432,6 @@ export default function BikeList({ navigation, route }) {
                    
                     // Listener para mudanças na coleção de usuários
                     usersUnsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-                        console.log("Mudança detectada na coleção de usuários");
                        
                         // Processa as mudanças
                         snapshot.docChanges().forEach(change => {
@@ -503,7 +499,6 @@ export default function BikeList({ navigation, route }) {
            
             // Cleanup function - remove os listeners quando a tela perde o foco
             return () => {
-                console.log("Removendo listeners");
                 if (bikesUnsubscribe) bikesUnsubscribe();
                 if (usersUnsubscribe) usersUnsubscribe();
             };

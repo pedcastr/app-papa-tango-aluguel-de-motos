@@ -1,20 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Linking, Keyboard, Alert, ActivityIndicator, View, StyleSheet, Platform } from 'react-native';
+import { Linking, Keyboard, Alert, ActivityIndicator, View, StyleSheet, Platform, Text } from 'react-native';
 import { MaterialIcons } from "@expo/vector-icons";
-import FloatingLabelInput from '../../components/FloatingLabelInput'; // importando o componente de input
 import { FontAwesome } from '@expo/vector-icons';
 import Logo from '../../assets/LogoTransparente.svg'; // importei o pm install react-native-svg react-native-svg-transformer para usar a imagem em svg
 import { FeedbackModal } from '../../components/FeedbackModal'; // importando o modal de feedback
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db  } from '../../services/firebaseConfig';
+import { auth, db } from '../../services/firebaseConfig';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { markUserAsRegistered } from '../../services/notificationService';
 import { registerForPushNotifications } from '../../services/notificationService';
-import {   
-    Background, 
-    Container, 
+import {
+    Background,
+    Container,
     ScrollContent,
     ContentContainer,
     AreaInput,
@@ -42,7 +41,7 @@ export default function SignIn({ navigation }) {
     const [feedbackVisible, setFeedbackVisible] = useState(false);
     const [feedback, setFeedback] = useState({ type: '', title: '', message: '' })
     const [loading, setLoading] = useState(false);
-    const {setCadastroConcluido} = useContext(AuthContext); // estado para setar o cadastro como concluido no AuthContext
+    const { setCadastroConcluido } = useContext(AuthContext); // estado para setar o cadastro como concluido no AuthContext
     const [passwordVisible, setPasswordVisible] = useState(false); // Estado para controlar a visibilidade da senha
 
     const platformStyles = StyleSheet.create({
@@ -91,6 +90,15 @@ export default function SignIn({ navigation }) {
         };
     }, []);
 
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
+
     // Validação de email
     const validarEmail = (email) => {
         const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -100,23 +108,23 @@ export default function SignIn({ navigation }) {
     // Função de autenticação
     const fazerLogin = async () => {
         Keyboard.dismiss();
-        
+
         let novosErros = {};
-    
+
         if (!email.trim()) {
             novosErros.email = 'Digite seu e-mail';
         } else if (!validarEmail(email)) {
             novosErros.email = 'Digite um e-mail válido';
         }
-    
+
         if (!senha.trim()) {
             novosErros.senha = 'Digite sua senha';
         } else if (senha.length < 6) {
             novosErros.senha = 'A senha deve ter no mínimo 6 caracteres';
         }
-    
+
         setErros(novosErros);
-    
+
         if (Object.keys(novosErros).length > 0) {
             setLoading(false);
             return;
@@ -142,7 +150,7 @@ export default function SignIn({ navigation }) {
             }
 
             const userData = userDoc.data();
-            
+
             // Verifica aprovação apenas para usuários normais
             if (userData.role !== 'admin' && userData.aprovado === false) {
                 setFeedback({
@@ -163,7 +171,6 @@ export default function SignIn({ navigation }) {
             await signInWithEmailAndPassword(auth, emailFormatado, senha);
             await registerForPushNotifications();
             await markUserAsRegistered(); // Marca o usuário como registrado para manipular receber ou não notificação de ainda não foi registrado.
-            console.log('Usuário autenticado e aprovado'); 
 
         } catch (error) {
             if (error.code === 'auth/invalid-credential' || // erro de credenciais inválidas
@@ -190,7 +197,7 @@ export default function SignIn({ navigation }) {
     // Função para alterar a senha
     const resetarSenha = useCallback(async () => {
         if (loadingReset) return;
-        
+
         setErros({});
         setSenha('');
 
@@ -206,7 +213,7 @@ export default function SignIn({ navigation }) {
 
         try {
             setLoadingReset(true);
-            
+
             const response = await fetch("https://enviaremailresetsenha-q3zrn7ctxq-uc.a.run.app", {
                 method: 'POST',
                 headers: {
@@ -251,23 +258,23 @@ export default function SignIn({ navigation }) {
     // Função para abrir WhatsApp
     const abrirWhatsApp = useCallback(() => {
         if (loadingSupport) return;
-        
+
         setLoadingSupport(true);
         const telefone = '5585992684035';
         const mensagem = 'Olá! Preciso de ajuda :)';
         const urlWhatsapp = `whatsapp://send?phone=${telefone}&text=${encodeURIComponent(mensagem)}`;
-        
+
         Linking.canOpenURL(urlWhatsapp)
             .then(suportado => {
                 if (suportado) {
                     return Linking.openURL(urlWhatsapp);
                 } else {
-                    Alert.alert('WhatsApp não está instalado');
+                    showMessage('WhatsApp não está instalado');
                 }
             })
             .catch(erro => {
                 console.error('Erro ao abrir WhatsApp:', erro);
-                Alert.alert('Não foi possível abrir o WhatsApp');
+                showMessage('Não foi possível abrir o WhatsApp');
             })
             .finally(() => {
                 setLoadingSupport(false);
@@ -275,114 +282,139 @@ export default function SignIn({ navigation }) {
     }, [loadingSupport]);
 
     return (
-            <Background>
-                <Container>
-                    <ScrollContent>
-                        <ContentContainer keyboardVisible={tecladoVisivel}>
-                            <Logo width={180} height={160} style={{ marginBottom: 20 }}/>
-                            <AreaInput>
-                                    <Input
-                                        placeholder="Email"
-                                        value={email}
-                                        onChangeText={(texto) => {
-                                            setEmail(texto);
-                                            setErros(prev => ({...prev, email: ''}));
-                                        }}
-                                        keyboardType="email-address"
-                                        autoCapitalize="none"
-                                        autoCorrect={false}
-                                        error={!!erros.email}
-                                    />
-                                    {erros.email ? <ErrorText>{erros.email}</ErrorText> : null}
-                                    
-                                    <Input
-                                        placeholder='Senha'
-                                        value={senha}
-                                        onChangeText={(texto) => {
-                                            setSenha(texto);
-                                            setErros(prev => ({...prev, senha: ''}));
-                                        }}
-                                        secureTextEntry={!passwordVisible}
-                                        error={!!erros.senha}
-                                    />
-                                    <ButtonIconPassaword // Botão de olho
-                                    onPress={() => setPasswordVisible(!passwordVisible)} // Função para alternar a visibilidade da senha
-                                    >
-                                        <MaterialIcons name={passwordVisible ? 'visibility' : 'visibility-off'} size={24} color="#666" />
-                                    </ButtonIconPassaword>
-                                    {erros.senha ? <ErrorText>{erros.senha}</ErrorText> : null}
-                            </AreaInput>
+        <Background>
+            <Container>
+                <ScrollContent>
+                    <ContentContainer keyboardVisible={tecladoVisivel}>
+                        <Logo width={180} height={160} style={{ marginBottom: 20 }} />
+                        <AreaInput>
+                            <Input
+                                placeholder="Email"
+                                value={email}
+                                onChangeText={(texto) => {
+                                    setEmail(texto);
+                                    setErros(prev => ({ ...prev, email: '' }));
+                                }}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                error={!!erros.email}
+                            />
+                            {erros.email ? <ErrorText>{erros.email}</ErrorText> : null}
 
-                            {(email.length > 0 || senha.length > 0) && (
-                                <ButtonEsqueceuSenha onPress={resetarSenha}>
-                                    {loadingReset ? (
-                                        <ActivityIndicator size="small" color="rgb(40, 94, 211)" />
-                                    ) : (
-                                        <TextButtonEsqueceuSenha>Esqueceu a senha?</TextButtonEsqueceuSenha>
-                                    )}
-                                </ButtonEsqueceuSenha>
-                            )}
-
-                            <ButtonAcessar 
-                                onPress={fazerLogin}
-                                activeOpacity={0.8}
-                                disabled={loading}
-                                style={platformStyles.buttonShadow}
+                            <Input
+                                placeholder='Senha'
+                                value={senha}
+                                onChangeText={(texto) => {
+                                    setSenha(texto);
+                                    setErros(prev => ({ ...prev, senha: '' }));
+                                }}
+                                secureTextEntry={!passwordVisible}
+                                error={!!erros.senha}
+                            />
+                            <ButtonIconPassaword // Botão de olho
+                                onPress={() => setPasswordVisible(!passwordVisible)} // Função para alternar a visibilidade da senha
                             >
-                                {loading ? <ActivityIndicator color="#fff" /> : <TextButtonAcessar>Acessar</TextButtonAcessar> }
-                                
-                            </ButtonAcessar>
+                                <MaterialIcons name={passwordVisible ? 'visibility' : 'visibility-off'} size={24} color="#666" />
+                            </ButtonIconPassaword>
+                            {erros.senha ? <ErrorText>{erros.senha}</ErrorText> : null}
+                        </AreaInput>
 
-                            {!tecladoVisivel && (
-                                    <ButtonCriarConta 
-                                        onPress={() => navigation.navigate('nome')}
-                                        activeOpacity={0.7}
-                                    >
-                                        <TextButtonCriar>Criar uma conta</TextButtonCriar>
-                                    </ButtonCriarConta>
-                            )}
-                        </ContentContainer>
-                    </ScrollContent>
-                
-                    {!tecladoVisivel && (
-                        <BottomButtonsContainer>
-                            <ButtonSuporte 
+                        {(email.length > 0 || senha.length > 0) && (
+                            <ButtonEsqueceuSenha onPress={resetarSenha}>
+                                {loadingReset ? (
+                                    <ActivityIndicator size="small" color="rgb(40, 94, 211)" />
+                                ) : (
+                                    <TextButtonEsqueceuSenha>Esqueceu a senha?</TextButtonEsqueceuSenha>
+                                )}
+                            </ButtonEsqueceuSenha>
+                        )}
+
+                        <ButtonAcessar
+                            onPress={fazerLogin}
+                            activeOpacity={0.8}
+                            disabled={loading}
+                            style={platformStyles.buttonShadow}
+                        >
+                            {loading ? <ActivityIndicator color="#fff" /> : <TextButtonAcessar>Acessar</TextButtonAcessar>}
+
+                        </ButtonAcessar>
+
+                        {!tecladoVisivel && (
+                            <ButtonCriarConta
+                                onPress={() => navigation.navigate('Nome')}
+                                activeOpacity={0.7}
+                            >
+                                <TextButtonCriar>Criar uma conta</TextButtonCriar>
+                            </ButtonCriarConta>
+                        )}
+                    </ContentContainer>
+                </ScrollContent>
+
+                {!tecladoVisivel && (
+                    <View>
+                    <BottomButtonsContainer>
+                        <ButtonSuporte
                             onPress={abrirWhatsApp}
                             activeOpacity={0.8}
-                            >
+                        >
                             {loadingSupport ? (
                                 <TextButtonSuporte>Abrindo Whatsapp...</TextButtonSuporte>
                             ) : (
                                 <TextButtonSuporte>Ajuda</TextButtonSuporte>
                             )}
                             <FontAwesome name="whatsapp" size={24} color="#00000" marginLeft={5} />
-                            </ButtonSuporte>
-                        </BottomButtonsContainer>
-                    )}
+                        </ButtonSuporte>
+                    </BottomButtonsContainer>
+                    <View style={{
+                        flexDirection: 'row',
+                        justifyContent: 'center',
+                        marginTop: 0,
+                        marginBottom: 5
+                    }}>
+                        <Text style={{
+                            color: '#667',
+                            fontSize: 14,
+                            textAlign: 'center'
+                        }}>
+                            Ao continuar, você concorda com nossa{' '}
+                            <Text
+                                style={{
+                                    color: '#CB2921',
+                                    textDecorationLine: 'underline'
+                                }}
+                                onPress={() => Linking.openURL('https://pedcastr.github.io/politica-privacidade-papa-tango/')}
+                            >
+                                Política de Privacidade
+                            </Text>
+                        </Text>
+                    </View>
+                    </View>
+                )}
 
-                    {feedbackVisible && (
-                        <View 
-                            style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                zIndex: 9999
-                            }}
-                        >
-                            <FeedbackModal
-                                visible={feedbackVisible}
-                                {...feedback}
-                                onClose={() => setFeedbackVisible(false)}
-                            />
-                        </View>
-                    )}
-                </Container>
-            </Background>
-        );
+                {feedbackVisible && (
+                    <View
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            zIndex: 9999
+                        }}
+                    >
+                        <FeedbackModal
+                            visible={feedbackVisible}
+                            {...feedback}
+                            onClose={() => setFeedbackVisible(false)}
+                        />
+                    </View>
+                )}
+            </Container>
+        </Background>
+    );
 }
 

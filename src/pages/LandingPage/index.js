@@ -67,18 +67,18 @@ export default function LandingPage() {
 
   // Função para navegar para a tela de login
   const handleLoginPress = () => {
-    navigation.navigate('SignIn');
+    navigation.navigate('Login');
   };
 
   // Função para navegar para a tela de cadastro
   const handleRegisterPress = () => {
-    navigation.navigate('nome');
+    navigation.navigate('Nome');
   };
 
   // Função para abrir o WhatsApp
   const openWhatsApp = () => {
     const phone = '5585992684035';
-    const message = 'Olá! Gostaria de saber mais sobre a Papa Tango.';
+    const message = Platform.OS === 'android' ? 'Olá! Vim do App e gostaria de saber mais sobre a Papa Tango.' : 'Olá! Vim do site e gostaria de saber mais sobre a Papa Tango.';
     const url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`;
     
     Linking.canOpenURL(url)
@@ -99,9 +99,7 @@ export default function LandingPage() {
     Linking.openURL(instagramUrl).catch(err => console.error('Erro ao abrir Instagram:', err));
   };
 
-  // Determina a plataforma
-  const isNative = Platform.OS === 'ios' || Platform.OS === 'android';
-  const isWebMobile = Platform.OS === 'web' && window.innerWidth < 768;
+  // Determina a plataforma pelo tamnho da janela
   const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
 
   return (
@@ -112,7 +110,7 @@ export default function LandingPage() {
       {/* Cabeçalho com logo e botão de login */}
       <Header>
         <LogoContainer>
-          <Logo source={require('../../assets/Logo.png')} resizeMode="cover" style={{ width: 80, height: 50 }} />
+          <Logo source={require('../../assets/Logo.png')} resizeMode="cover"/>
         </LogoContainer>
         <LoginButton onPress={handleLoginPress}>
           <LoginButtonText>Entrar</LoginButtonText>
@@ -217,14 +215,6 @@ export default function LandingPage() {
             >
               <StoreImage 
                 source={require('../../assets/google-play-badge.png')} 
-                resizeMode="contain" 
-              />
-            </StoreButton>
-            <StoreButton 
-              onPress={() => Linking.openURL('https://apps.apple.com/br/')}
-            >
-              <StoreImage 
-                source={require('../../assets/app-store-badge.png')} 
                 resizeMode="contain" 
               />
             </StoreButton>

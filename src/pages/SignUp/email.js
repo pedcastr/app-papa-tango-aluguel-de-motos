@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from "react";
-import { useFocusEffect } from '@react-navigation/native'; 
-import { Keyboard, Alert, ActivityIndicator, Platform, Pressable} from "react-native";
+import { View } from "react-native";
+import { useFocusEffect } from '@react-navigation/native';
+import { Keyboard, Alert, ActivityIndicator, Platform, Pressable } from "react-native";
 import { MaterialIcons } from '@expo/vector-icons';
 import LottieAnimation from "../../components/LottieAnimation";
-import { useRoute } from "@react-navigation/native"; // Para pegar o userId e nome, cpf passados pela navegação
+import { useRoute } from "@react-navigation/native";
 
 import {
     Background,
@@ -12,27 +13,35 @@ import {
     TextPage,
     Input,
     ErrorText,
-    AreaButtonContinuar, 
-    ButtonContinuar, 
+    AreaButtonContinuar,
+    ButtonContinuar,
     TextButtonContinuar,
     AreaAnimacao,
     ViewAnimacao,
 } from "./styles";
 
 export default function Email({ navigation }) {
-    const route = useRoute(); 
+    const route = useRoute();
     const { nome, nomeCompleto, cpf, dataNascimento } = route.params;
     const [email, setEmail] = useState('');
     const [erros, setErros] = useState({ email: '' });
     const [loading, setLoading] = useState(false);
-    const [sucesso, setSucesso] = useState(false); 
+    const [sucesso, setSucesso] = useState(false);
 
-    // Usado para pausar a animação json quando o usuário retorna para essa tela
-    useFocusEffect( 
-        useCallback(() => { 
-            setSucesso(false); 
-        }, []) 
+    useFocusEffect(
+        useCallback(() => {
+            setSucesso(false);
+        }, [])
     );
+
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
 
     // Função para validar o formato do e-mail
     const validarEmail = (email) => {
@@ -44,15 +53,15 @@ export default function Email({ navigation }) {
     const emailContinuar = async () => {
         Keyboard.dismiss();
         setLoading(true);
-    
+
         let novosErros = {};
-    
+
         if (!validarEmail(email)) {
             novosErros.email = "Digite um e-mail válido";
         }
-    
+
         setErros(novosErros);
-    
+
         if (Object.keys(novosErros).length === 0) {
             try {
 
@@ -62,25 +71,25 @@ export default function Email({ navigation }) {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email })
                 });
-    
+
                 const data = await response.json();
-    
+
                 setSucesso(true);
-    
+
                 setTimeout(() => {
                     if (data.success) {
-                        navigation.navigate("EmailVerification", { email, nome, nomeCompleto, cpf, dataNascimento });
+                        navigation.navigate("Verificação de Email", { email, nome, nomeCompleto, cpf, dataNascimento });
                     } else {
-                        Alert.alert("Erro", "Falha ao enviar o código, tente novamente.");
+                        showMessage("Erro", "Falha ao enviar o código, tente novamente.");
                     }
                 }, 1500);
-               
+
             } catch (error) {
-                Alert.alert("Erro", "Por favor, tente novamente mais tarde.");
+                showMessage("Erro", "Por favor, tente novamente mais tarde.");
                 console.error("Erro ao salvar e-mail ou enviar código:", error);
             }
         }
-    
+
         setLoading(false);
     };
 
@@ -93,17 +102,17 @@ export default function Email({ navigation }) {
                 <ViewAnimacao>
                     <AreaAnimacao>
                         <LottieAnimation
-                        source={require("../../assets/animacao.json")}
-                        autoPlay
-                        loop={false}
-                        speed={2}
+                            source={require("../../assets/animacao.json")}
+                            autoPlay
+                            loop={false}
+                            speed={2}
                         />
                     </AreaAnimacao>
                 </ViewAnimacao>
             ) : (
 
                 <Background>
-                    <Container>
+                    <View style={{ padding: 16 }}>
                         <MaterialIcons
                             name="arrow-back"
                             size={28}
@@ -111,7 +120,8 @@ export default function Email({ navigation }) {
                             style={{ marginTop: 10 }}
                             onPress={() => navigation.goBack()}
                         />
-
+                    </View>
+                    <Container>
                         <AreaInput>
                             <TextPage>Digite seu email</TextPage>
                             <Input

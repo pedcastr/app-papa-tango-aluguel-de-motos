@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, ActivityIndicator, View } from 'react-native';
+import { Alert, ActivityIndicator, Platform } from 'react-native';
 import { db } from '../../../../../services/firebaseConfig';
-import { collection, getDocs, onSnapshot  } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { MaterialIcons } from '@expo/vector-icons';
 import FilterPanel from '../../../../../components/FilterPanel';
 import {
@@ -27,32 +27,32 @@ export default function RentalList({ navigation }) {
     const [filteredRentals, setFilteredRentals] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    
+
     // Estados para filtros
     const [filterByStatus, setFilterByStatus] = useState('todos');
     const [filterByValorMensal, setFilterByValorMensal] = useState('todos');
-    
+
     useEffect(() => {
         // Usar onSnapshot para atualizações em tempo real
         const rentalsRef = collection(db, "alugueis");
-        
+
         const unsubscribe = onSnapshot(rentalsRef, async (querySnapshot) => {
             try {
                 // Buscar todas as motos de uma vez para evitar múltiplas consultas
                 const motosSnapshot = await getDocs(collection(db, "motos"));
                 const motosMap = {};
-                
+
                 motosSnapshot.docs.forEach(doc => {
                     motosMap[doc.id] = doc.data();
                 });
-                
+
                 const rentalsData = querySnapshot.docs.map(doc => {
                     const rentalData = {
                         id: doc.id,
                         ...doc.data(),
                         status: doc.data().ativo === false ? 'inativo' : 'ativo'
                     };
-                    
+
                     // Adicionar informações da moto
                     if (rentalData.motoId && motosMap[rentalData.motoId]) {
                         const motoData = motosMap[rentalData.motoId];
@@ -62,38 +62,38 @@ export default function RentalList({ navigation }) {
                         rentalData.motoModelo = "Moto não encontrada";
                         rentalData.motoPlaca = "N/A";
                     }
-                    
+
                     return rentalData;
                 });
-                
+
                 setRentals(rentalsData);
                 // Aplicar filtros iniciais
                 applyFilters(rentalsData);
             } catch (error) {
                 console.error("Erro ao carregar aluguéis:", error);
-                Alert.alert('Erro', 'Falha ao carregar aluguéis');
+                showMessage('Erro', 'Falha ao carregar aluguéis');
             } finally {
                 setLoading(false);
             }
         }, (error) => {
             console.error("Erro na assinatura do Firestore:", error);
-            Alert.alert("Erro", "Falha ao monitorar atualizações de aluguéis");
+            showMessage("Erro", "Falha ao monitorar atualizações de aluguéis");
             setLoading(false);
         });
-        
+
         // Limpar a assinatura quando o componente for desmontado
         return () => unsubscribe();
     }, []);
-    
+
     // Efeito para aplicar filtros quando os filtros mudarem
     useEffect(() => {
         applyFilters(rentals);
     }, [searchTerm, filterByStatus, filterByValorMensal]);
-    
+
     // Função para aplicar filtros
     const applyFilters = (data = rentals) => {
         let result = [...data];
-        
+
         // Aplicar filtro de busca
         if (searchTerm) {
             const searchLower = searchTerm.toLowerCase();
@@ -103,12 +103,12 @@ export default function RentalList({ navigation }) {
                 (rental.motoPlaca && rental.motoPlaca.toLowerCase().includes(searchLower))
             );
         }
-        
+
         // Aplicar filtro de status
         if (filterByStatus !== 'todos') {
             result = result.filter(rental => rental.status === filterByStatus);
         }
-        
+
         // Aplicar filtro de valor mensal
         if (filterByValorMensal !== 'todos') {
             switch (filterByValorMensal) {
@@ -123,10 +123,19 @@ export default function RentalList({ navigation }) {
                     break;
             }
         }
-        
+
         setFilteredRentals(result);
     };
-    
+
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
+
     // Configuração das seções de filtro
     const filterSections = [
         {
@@ -182,7 +191,7 @@ export default function RentalList({ navigation }) {
             ]
         }
     ];
-    
+
     // Contagem de filtros ativos
     const getActiveFiltersCount = () => {
         let count = 0;
@@ -190,17 +199,17 @@ export default function RentalList({ navigation }) {
         if (filterByValorMensal !== 'todos') count++;
         return count;
     };
-    
+
     // Função para navegar para o formulário de criação
     const handleAddRental = () => {
         navigation.navigate('RentalForm');
     };
-    
+
     // Função para navegar para a tela de edição
     const handleEditRental = (rental) => {
         navigation.navigate('RentalEdit', { rental });
     };
-    
+
     // Formatação de valores monetários
     const formatCurrency = (value) => {
         return new Intl.NumberFormat('pt-BR', {
@@ -208,7 +217,7 @@ export default function RentalList({ navigation }) {
             currency: 'BRL'
         }).format(value);
     };
-    
+
     // Renderização do componente
     return (
         <Container>
@@ -222,7 +231,7 @@ export default function RentalList({ navigation }) {
                 addButtonIcon="add"
                 searchPlaceholder="Buscar aluguel, modelo ou placa..."
             />
-            
+
             {loading ? (
                 <LoadingContainer>
                     <ActivityIndicator size="large" color="#CB2921" />

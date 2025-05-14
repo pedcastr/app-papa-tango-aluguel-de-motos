@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 
-import HomeStack from './stacks/HomeStack'; 
+import Home from '../pages/Home';
 import FinanceiroStack from './stacks/FinanceiroStack';
 import ManutencaoStack from './stacks/manutencaoStack';
 
@@ -48,8 +48,8 @@ export default function TabRoutes() {
             }}
         >
             <Tab.Screen
-                name="Inicio"
-                component={HomeStack} // HomeStack é a stack criada em ./stacks/HomeStack.js responsável por navegar entre as telas do Home
+                name="Início"
+                component={Home}
                 options={{
                     tabBarIcon: ({ focused }) => (
                         <Ionicons
@@ -69,7 +69,7 @@ export default function TabRoutes() {
                         }}>
                             Início
                         </Text>
-                    )
+                    ),
                 }}
             />
 
@@ -121,7 +121,8 @@ export default function TabRoutes() {
                         }}>
                             Manutenção
                         </Text>
-                    )
+                    ),
+                    title: 'Manutenção',
                 }}
             />
 

@@ -20,6 +20,7 @@ export const Container = styled.View`
     width: ${Platform.OS === 'web' ? '100%' : 'auto'};
     max-width: ${Platform.OS === 'web' ? '600px' : 'auto'};
     margin: ${Platform.OS === 'web' ? '0 auto' : '0'};
+    margin-top: -30px;
 `;
 
 export const AreaInput = styled.View`
@@ -47,7 +48,7 @@ export const Input = styled.TextInput.attrs(props => ({
     })
 }))`
     background-color: ${props => props.error ? '#FFE8E8' : '#F5F5F5'};
-    border: ${props => props.error ? '2px rgb(57, 74, 224)' : 'none'};
+    border: ${props => props.error ? '2px rgb(0, 0, 0)' : 'none'};
     padding-left: 10px;
     padding-right: 10px;
     border-radius: 15px;
@@ -86,8 +87,9 @@ export const SmallInput = styled(Input)`
 `;
 
 export const ErrorText = styled.Text`
-    color: rgb(57, 74, 224);
+    color: rgb(0, 0, 0);
     font-size: 14px;
+    font-weight: 500;
     margin-top: -2px;
     margin-bottom: 5px;
     margin-left: 5px;

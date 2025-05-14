@@ -4,7 +4,7 @@ import { auth, db, storage } from '../../services/firebaseConfig';
 import { getDoc, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker'; 
+import * as ImagePicker from 'expo-image-picker';
 import { ImagePickerModal } from '../../components/ImagePickerModal';
 import NotificationBell from '../../components/NotificationBell';
 
@@ -54,12 +54,21 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [loadingSupport, setLoadingSupport] = useState(false);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
-    
+
 
     // Carrega os dados e pagamentos pendentes ao iniciar o componente
     useEffect(() => {
         carregarDados();
     }, []);
+
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
 
     // Função para abrir o seletor de fotos (usando ActionSheetIOS no iOS)
     const abrirSeletorFotos = useCallback(() => {
@@ -72,7 +81,6 @@ export default function Home() {
                     message: 'Como você deseja adicionar sua foto?'
                 },
                 (buttonIndex) => {
-                    console.log('ActionSheet: botão selecionado:', buttonIndex);
                     if (buttonIndex === 1) {
                         abrirCamera();
                     } else if (buttonIndex === 2) {
@@ -89,25 +97,25 @@ export default function Home() {
     const carregarDados = async () => {
         try {
             setLoading(true);
-    
+
             const userDoc = await getDoc(doc(db, 'users', auth.currentUser.email));
             const userData = userDoc.data();
             setUserData(userData);
-            
+
             // se o usuário tiver uma foto de perfil, carrega a foto
             if (userData.photoURL) {
                 setUserPhoto(userData.photoURL);
             }
-    
+
             if (userData.motoAlugada && userData.motoAlugadaId) {
                 // Carrega dados da moto
                 const motoDoc = await getDoc(doc(db, 'motos', userData.motoAlugadaId));
                 setMotoData(motoDoc.data());
-    
+
                 // Carrega dados do aluguel
                 const aluguelDoc = await getDoc(doc(db, 'alugueis', userData.aluguelAtivoId));
                 setAluguelData(aluguelDoc.data());
-                
+
                 // Carrega dados do contrato usando contratoId
                 const contratoDoc = await getDoc(doc(db, 'contratos', userData.contratoId));
                 const contratoData = contratoDoc.data();
@@ -126,26 +134,26 @@ export default function Home() {
     const abrirGaleria = async () => {
         try {
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            
+
             if (status !== 'granted') {
-                alert('Precisamos de permissão para acessar suas fotos!');
+                showMessage('Precisamos de permissão para acessar suas fotos!');
                 return;
             }
-            
+
             const resultado = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
                 aspect: [1, 1],
                 quality: 1,
             });
-            
+
             if (!resultado.canceled && resultado.assets && resultado.assets[0]) {
                 const { uri } = resultado.assets[0];
                 uploadPhoto(uri);
             }
         } catch (error) {
             console.error('Erro ao abrir galeria:', error);
-            alert('Erro ao abrir a galeria de fotos. Por favor, tente novamente.');
+            showMessage('Erro ao abrir a galeria de fotos. Por favor, tente novamente.');
         }
     };
 
@@ -153,25 +161,25 @@ export default function Home() {
     const abrirCamera = async () => {
         try {
             const { status } = await ImagePicker.requestCameraPermissionsAsync();
-            
+
             if (status !== 'granted') {
-                alert('Precisamos de permissão para acessar sua câmera!');
+                showMessage('Precisamos de permissão para acessar sua câmera!');
                 return;
             }
-            
+
             const resultado = await ImagePicker.launchCameraAsync({
                 allowsEditing: true,
                 aspect: [1, 1],
                 quality: 1,
             });
-            
+
             if (!resultado.canceled && resultado.assets && resultado.assets[0]) {
                 const { uri } = resultado.assets[0];
                 uploadPhoto(uri);
             }
         } catch (error) {
             console.error('Erro ao abrir câmera:', error);
-            alert('Erro ao abrir a câmera. Por favor, tente novamente.');
+            showMessage('Erro ao abrir a câmera. Por favor, tente novamente.');
         }
     };
 
@@ -181,22 +189,22 @@ export default function Home() {
             setUploadingPhoto(true);
             // Cria referência no storage
             const storageRef = ref(storage, `profile/${auth.currentUser.email}/avatar.jpg`);
-            
+
             // Converte URI para blob
             const response = await fetch(uri);
             const blob = await response.blob();
-            
+
             // Faz upload do arquivo
             await uploadBytes(storageRef, blob);
-            
+
             // Obtém URL do arquivo
             const photoURL = await getDownloadURL(storageRef);
-            
+
             // Atualiza URL no Firestore
             await updateDoc(doc(db, 'users', auth.currentUser.email), {
                 photoURL: photoURL
             });
-            
+
             // Atualiza estado
             setUserPhoto(photoURL);
         } catch (error) {
@@ -209,23 +217,23 @@ export default function Home() {
     // Função para abrir WhatsApp
     const handleWhatsapp = useCallback(() => {
         if (loadingSupport) return;
-        
+
         setLoadingSupport(true);
         const telefone = '5585992684035';
         const mensagem = 'Olá! Já estou logado no app da Papa Tango e quero alugar uma moto :)';
         const urlWhatsapp = `whatsapp://send?phone=${telefone}&text=${encodeURIComponent(mensagem)}`;
-        
+
         Linking.canOpenURL(urlWhatsapp)
             .then(suportado => {
                 if (suportado) {
                     return Linking.openURL(urlWhatsapp);
                 } else {
-                    Alert.alert('WhatsApp não está instalado');
+                    showMessage('WhatsApp não está instalado');
                 }
             })
             .catch(erro => {
                 console.error('Erro ao abrir WhatsApp:', erro);
-                Alert.alert('Não foi possível abrir o WhatsApp');
+                showMessage('Não foi possível abrir o WhatsApp');
             })
             .finally(() => {
                 setLoadingSupport(false);
@@ -244,13 +252,13 @@ export default function Home() {
     // Função para calcular tempo de locação
     const calcularTempoLocacao = (dataInicio) => {
         if (!dataInicio || !dataInicio.toDate) return "Carregando...";
-        
+
         try {
             const inicio = dataInicio.toDate();
             const hoje = new Date();
-            const diffMeses = (hoje.getFullYear() - inicio.getFullYear()) * 12 + 
-                             (hoje.getMonth() - inicio.getMonth());
-            
+            const diffMeses = (hoje.getFullYear() - inicio.getFullYear()) * 12 +
+                (hoje.getMonth() - inicio.getMonth());
+
             if (diffMeses < 1) return "Menos de 1 mês";
             if (diffMeses === 1) return "1 mês";
             return `${diffMeses} meses`;
@@ -262,104 +270,104 @@ export default function Home() {
 
     return (
         <Background>
-        <Container>
-            <ViewPadding>
-                <Header>
-                    <WelcomeText>Olá, {userData?.nome}</WelcomeText>
-                    <View style={{ 
-                        flexDirection: 'row', 
-                        alignItems: 'center',
-                        justifyContent: 'flex-end'
-                    }}>
-                        {/* Componente de notificação */}
-                        <NotificationBell userType="client" color='#FFFFFF' />
-                        
-                        <ProfileButton onPress={() => setModalVisible(true)}>
-                        {userPhoto ? (
-                            <ProfileImage source={{ uri: userPhoto }} />
-                        ) : (
-                            <MaterialCommunityIcons name="account-circle" size={50} color="#fff" />
-                        )}
-                        </ProfileButton>
-                    </View>
-                </Header>
+            <Container>
+                <ViewPadding>
+                    <Header>
+                        <WelcomeText>Olá, {userData?.nome}</WelcomeText>
+                        <View style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'flex-end'
+                        }}>
+                            {/* Componente de notificação */}
+                            <NotificationBell userType="client" color='#FFFFFF' />
 
-                {loading ? (
-                    <LoadingContainer>
-                        <ActivityIndicator size="large" color="#CB2921" />
-                    </LoadingContainer>
-                ) : (
-                    <>
-                        {contratoAtivo ? (
-                            contratoAtivo.statusContrato === true ? (
-                                <MotoContainer>
-                                    <TitleText>Moto Alugada</TitleText>
-                                    <MotoImage source={{ uri: motoData?.fotoUrl }} />
-                                    <InfoContainer>
-                                        <VeiculoInfo>
-                                            <InfoTitle>Dados do Veículo</InfoTitle>
-                                            <InfoText>
-                                                <InfoLabel>Placa:</InfoLabel> {motoData?.placa}
-                                            </InfoText>
-                                            <InfoText>
-                                                <InfoLabel>Marca:</InfoLabel> {motoData?.marca}
-                                            </InfoText>
-                                            <InfoText>
-                                                <InfoLabel>Modelo:</InfoLabel> {motoData?.modelo}
-                                            </InfoText>
-                                            <InfoText>
-                                                <InfoLabel>Ano:</InfoLabel> {motoData?.anoModelo}
-                                            </InfoText>
-                                            <InfoText>
-                                                <InfoLabel>Chassi:</InfoLabel> {motoData?.chassi}
-                                            </InfoText>
-                                            <InfoText>
-                                                <InfoLabel>Renavam:</InfoLabel> {motoData?.renavam}
-                                            </InfoText>
-                                        </VeiculoInfo>
-                                        <LocacaoInfo>
-                                            <InfoTitle>Dados da Locação</InfoTitle>
-                                            <InfoText>
-                                                <InfoLabel>Valor Semanal: </InfoLabel>R$ {aluguelData?.valorSemanal}
-                                            </InfoText>
-                                            <InfoText>
-                                                <InfoLabel>Valor Mensal: </InfoLabel>R$ {aluguelData?.valorMensal}
-                                            </InfoText>
-                                            <InfoText>
-                                                <InfoLabel>Caução: </InfoLabel>R$ {aluguelData?.valorCaucao}
-                                            </InfoText>
-                                            <InfoText>
-                                                <InfoLabel>Tempo: </InfoLabel>{contratoAtivo?.dataInicio ? calcularTempoLocacao(contratoAtivo.dataInicio) : 'Carregando...'}
-                                            </InfoText>
-                                            <InfoText>
-                                                <InfoLabel>Pagamento: </InfoLabel>{contratoAtivo?.tipoRecorrenciaPagamento === 'semanal' ? 'Semanal' : 'Mensal'}
-                                            </InfoText>
-                                        </LocacaoInfo>
-                                    </InfoContainer>
-                                </MotoContainer>
-                            ) : (
-                                <EmptyContainer>
-                                    <MaterialCommunityIcons name="emoticon-sad-outline" size={300} color={Platform.OS === 'web' ? 'rgb(185, 187, 185)' : "#CB2921"} />
-                                    <EmptyText>{userData?.nome}, seu contrato de locação está encerrado</EmptyText>
-                                    <WhatsappButton 
-                                    onPress={handleWhatsapp}
-                                    activeOpacity={0.8}
-                                    >
-                                        {loadingSupport ? (
-                                            <WhatsappText>Abrindo Whatsapp...</WhatsappText>
-                                        ) : (
-                                            <WhatsappText>Alugar Novamente</WhatsappText>
-                                        )}
-                                    </WhatsappButton>
-                                </EmptyContainer>
-                            )
+                            <ProfileButton onPress={() => setModalVisible(true)}>
+                                {userPhoto ? (
+                                    <ProfileImage source={{ uri: userPhoto }} />
+                                ) : (
+                                    <MaterialCommunityIcons name="account-circle" size={50} color="#fff" />
+                                )}
+                            </ProfileButton>
+                        </View>
+                    </Header>
+
+                    {loading ? (
+                        <LoadingContainer>
+                            <ActivityIndicator size="large" color="#CB2921" />
+                        </LoadingContainer>
+                    ) : (
+                        <>
+                            {contratoAtivo ? (
+                                contratoAtivo.statusContrato === true ? (
+                                    <MotoContainer>
+                                        <TitleText>Moto Alugada</TitleText>
+                                        <MotoImage source={{ uri: motoData?.fotoUrl }} />
+                                        <InfoContainer>
+                                            <VeiculoInfo>
+                                                <InfoTitle>Dados do Veículo</InfoTitle>
+                                                <InfoText>
+                                                    <InfoLabel>Placa:</InfoLabel> {motoData?.placa}
+                                                </InfoText>
+                                                <InfoText>
+                                                    <InfoLabel>Marca:</InfoLabel> {motoData?.marca}
+                                                </InfoText>
+                                                <InfoText>
+                                                    <InfoLabel>Modelo:</InfoLabel> {motoData?.modelo}
+                                                </InfoText>
+                                                <InfoText>
+                                                    <InfoLabel>Ano:</InfoLabel> {motoData?.anoModelo}
+                                                </InfoText>
+                                                <InfoText>
+                                                    <InfoLabel>Chassi:</InfoLabel> {motoData?.chassi}
+                                                </InfoText>
+                                                <InfoText>
+                                                    <InfoLabel>Renavam:</InfoLabel> {motoData?.renavam}
+                                                </InfoText>
+                                            </VeiculoInfo>
+                                            <LocacaoInfo>
+                                                <InfoTitle>Dados da Locação</InfoTitle>
+                                                <InfoText>
+                                                    <InfoLabel>Valor Semanal: </InfoLabel>R$ {aluguelData?.valorSemanal}
+                                                </InfoText>
+                                                <InfoText>
+                                                    <InfoLabel>Valor Mensal: </InfoLabel>R$ {aluguelData?.valorMensal}
+                                                </InfoText>
+                                                <InfoText>
+                                                    <InfoLabel>Caução: </InfoLabel>R$ {aluguelData?.valorCaucao}
+                                                </InfoText>
+                                                <InfoText>
+                                                    <InfoLabel>Tempo: </InfoLabel>{contratoAtivo?.dataInicio ? calcularTempoLocacao(contratoAtivo.dataInicio) : 'Carregando...'}
+                                                </InfoText>
+                                                <InfoText>
+                                                    <InfoLabel>Pagamento: </InfoLabel>{contratoAtivo?.tipoRecorrenciaPagamento === 'semanal' ? 'Semanal' : 'Mensal'}
+                                                </InfoText>
+                                            </LocacaoInfo>
+                                        </InfoContainer>
+                                    </MotoContainer>
+                                ) : (
+                                    <EmptyContainer>
+                                        <MaterialCommunityIcons name="emoticon-sad-outline" size={300} color={Platform.OS === 'web' ? 'rgb(185, 187, 185)' : "#CB2921"} />
+                                        <EmptyText>{userData?.nome}, seu contrato de locação está encerrado</EmptyText>
+                                        <WhatsappButton
+                                            onPress={handleWhatsapp}
+                                            activeOpacity={0.8}
+                                        >
+                                            {loadingSupport ? (
+                                                <WhatsappText>Abrindo Whatsapp...</WhatsappText>
+                                            ) : (
+                                                <WhatsappText>Alugar Novamente</WhatsappText>
+                                            )}
+                                        </WhatsappButton>
+                                    </EmptyContainer>
+                                )
                             ) : (
                                 <EmptyContainer>
                                     <MaterialCommunityIcons name="emoticon-sad-outline" size={300} color={Platform.OS === 'web' ? 'rgb(185, 187, 185)' : "#CB2921"} />
                                     <EmptyText>{userData?.nome}, você não possui moto alugada na Papa Tango</EmptyText>
-                                    <WhatsappButton 
-                                    onPress={handleWhatsapp}
-                                    activeOpacity={0.8}
+                                    <WhatsappButton
+                                        onPress={handleWhatsapp}
+                                        activeOpacity={0.8}
                                     >
                                         {loadingSupport ? (
                                             <WhatsappText>Abrindo Whatsapp...</WhatsappText>
@@ -388,7 +396,7 @@ export default function Home() {
                                             {userPhoto ? (
                                                 <ProfileImage large source={{ uri: userPhoto }} />
                                             ) : (
-                                                <MaterialCommunityIcons name="account-circle" size={100} color= "#1E1E1E" />
+                                                <MaterialCommunityIcons name="account-circle" size={100} color="#1E1E1E" />
                                             )}
                                             <EditPhotoButton onPress={abrirSeletorFotos}>
                                                 <MaterialCommunityIcons name="camera" size={20} color="#fff" />
@@ -421,7 +429,7 @@ export default function Home() {
                     </Modal>
                     {/* Modal para opções de escolha de foto na plataforma Android e web */}
                     {Platform.OS !== 'ios' && (
-                        <ImagePickerModal 
+                        <ImagePickerModal
                             visible={modalVisible2}
                             onClose={() => setModalVisible2(false)}
                             onGalleryPress={() => {
@@ -434,8 +442,8 @@ export default function Home() {
                             }}
                         />
                     )}
-            </ViewPadding>
-        </Container>
+                </ViewPadding>
+            </Container>
         </Background>
     );
 }

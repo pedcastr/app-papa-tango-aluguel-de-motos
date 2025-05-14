@@ -1,4 +1,7 @@
 import styled from 'styled-components/native';
+import  { Platform } from 'react-native';
+
+const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
 
 export const Container = styled.SafeAreaView`
     flex: 1;
@@ -41,7 +44,7 @@ export const WebViewContainer = styled.View`
 
 export const Button = styled.TouchableOpacity`
     background-color: #888888;
-    margin-top: 60px;
+    margin-top: ${isWebDesktop ? '5px' : '60px'};
     max-width: 500px;
     padding: 15px;
     border-radius: 25px;

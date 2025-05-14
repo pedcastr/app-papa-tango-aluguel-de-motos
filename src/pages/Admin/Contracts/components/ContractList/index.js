@@ -30,14 +30,14 @@ export default function ContractList({ navigation }) {
     const [contracts, setContracts] = useState([]);
     const [filteredContracts, setFilteredContracts] = useState([]);
     const [loading, setLoading] = useState(true);
-    
+
     // Estados para filtros
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('todos');
     const [clienteFilter, setClienteFilter] = useState('todos');
     const [aluguelFilter, setAluguelFilter] = useState('todos');
     const [motoFilter, setMotoFilter] = useState('todos');
-    
+
     // Listas de opções para filtros
     const [clientesDisponiveis, setClientesDisponiveis] = useState([]);
     const [alugueisDisponiveis, setAlugueisDisponiveis] = useState([]);
@@ -48,13 +48,13 @@ export default function ContractList({ navigation }) {
 
     useEffect(() => {
         let isMounted = true;
-        
+
         // Função para aplicar filtro recebido
         const applyInitialFilter = async () => {
             try {
                 // Verificar se há um filtro salvo
                 let filterValue = null;
-                
+
                 // Tentar obter do AsyncStorage
                 const asyncStorageFilter = await AsyncStorage.getItem('contractListFilter');
                 if (asyncStorageFilter) {
@@ -62,7 +62,7 @@ export default function ContractList({ navigation }) {
                     // Limpar o filtro após usá-lo
                     await AsyncStorage.removeItem('contractListFilter');
                 }
-                
+
                 // Para web, verificar também o sessionStorage
                 if (Platform.OS === 'web' && !filterValue) {
                     const sessionFilter = sessionStorage.getItem('contractListFilter');
@@ -72,17 +72,16 @@ export default function ContractList({ navigation }) {
                         sessionStorage.removeItem('contractListFilter');
                     }
                 }
-                
+
                 if (filterValue && isMounted) {
-                    console.log('Aplicando filtro de contratos:', filterValue);
-                    
+
                     // Aplicar o filtro salvo
                     if (filterValue === 'ativos') {
-                        setStatusFilter('ativo'); // Note que aqui usamos 'ativo' (não 'ativos')
+                        setStatusFilter('ativo'); 
                     } else {
                         setStatusFilter('todos');
                     }
-                    
+
                     // Garantir que os dados estejam carregados antes de aplicar o filtro
                     if (contracts.length > 0) {
                         // Aplicar os filtros aos dados com um pequeno delay
@@ -97,23 +96,22 @@ export default function ContractList({ navigation }) {
                 console.error('Erro ao recuperar filtro de contratos:', error);
             }
         };
-        
+
         // Executar ao montar o componente
         applyInitialFilter();
-        
+
         // Configurar listener para eventos de filtro (web)
         const handleFilterEvent = (event) => {
             if (!isMounted) return;
-            
+
             const { filter } = event.detail;
-            console.log('Evento de filtro de contratos recebido:', filter);
-            
+
             if (filter === 'ativos') {
-                setStatusFilter('ativo'); // Note que aqui usamos 'ativo' (não 'ativos')
+                setStatusFilter('ativo'); 
             } else {
                 setStatusFilter('todos');
             }
-            
+
             // Aplicar os filtros aos dados com um pequeno delay
             setTimeout(() => {
                 if (isMounted && contracts.length > 0) {
@@ -121,12 +119,12 @@ export default function ContractList({ navigation }) {
                 }
             }, 300);
         };
-        
+
         // Adicionar listener apenas no ambiente web
         if (Platform.OS === 'web') {
             document.addEventListener('applyContractFilter', handleFilterEvent);
         }
-        
+
         // Cleanup
         return () => {
             isMounted = false;
@@ -135,30 +133,29 @@ export default function ContractList({ navigation }) {
             }
         };
     }, [contracts]);
-    
-    // Adicione este useEffect para verificar o filtro quando o componente recebe foco
+
+    // UseEffect para verificar o filtro quando o componente recebe foco
     useEffect(() => {
         let isMounted = true;
-        
+
         // Função para verificar e aplicar o filtro quando o componente recebe foco
         const checkFilterOnFocus = async () => {
             if (Platform.OS === 'web') return; // Apenas para mobile
-            
+
             try {
                 const filter = await AsyncStorage.getItem('contractListFilter');
                 const timestamp = await AsyncStorage.getItem('contractListFilterTimestamp');
-                
+
                 // Verificar se temos um filtro e um timestamp
                 if (filter && timestamp && isMounted) {
-                    console.log('Aplicando filtro de contratos no foco:', filter);
-                    
+
                     // Aplicar o filtro
                     if (filter === 'ativos') {
-                        setStatusFilter('ativo'); // Note que aqui usamos 'ativo' (não 'ativos')
+                        setStatusFilter('ativo'); 
                     } else {
                         setStatusFilter('todos');
                     }
-                    
+
                     // Aplicar os filtros aos dados
                     if (contracts.length > 0) {
                         setTimeout(() => {
@@ -167,7 +164,7 @@ export default function ContractList({ navigation }) {
                             }
                         }, 300);
                     }
-                    
+
                     // Limpar o filtro após aplicá-lo para permitir alterações futuras
                     await AsyncStorage.removeItem('contractListFilter');
                     await AsyncStorage.removeItem('contractListFilterTimestamp');
@@ -176,23 +173,23 @@ export default function ContractList({ navigation }) {
                 console.error('Erro ao verificar filtro no foco:', error);
             }
         };
-        
+
         // Configurar listener para o evento de foco
         const unsubscribe = navigation.addListener('focus', checkFilterOnFocus);
-        
+
         // Verificar filtro ao montar o componente
         checkFilterOnFocus();
-        
+
         // Cleanup
         return () => {
             isMounted = false;
             unsubscribe();
         };
-    }, [navigation, contracts]);    
+    }, [navigation, contracts]);
 
     useEffect(() => {
         setLoading(true);
-        
+
         const unsubscribe = onSnapshot(
             collection(db, "contratos"),
             (querySnapshot) => {
@@ -203,23 +200,32 @@ export default function ContractList({ navigation }) {
                         ...data
                     };
                 });
-                
+
                 setContracts(contractsData);
                 setFilteredContracts(contractsData);
-                
+
                 // Extrair listas únicas para filtros
                 extractFilterOptions(contractsData);
-                
+
                 setLoading(false);
             },
             (error) => {
-                Alert.alert('Erro', 'Falha ao monitorar contratos: ' + error.message);
+                showMessage('Erro', 'Falha ao monitorar contratos: ' + error.message);
                 setLoading(false);
             }
         );
         return () => unsubscribe();
     }, []);
-    
+
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
+
     // Extrair opções únicas para filtros
     const extractFilterOptions = (contractsData) => {
         // Extrair clientes únicos
@@ -227,19 +233,19 @@ export default function ContractList({ navigation }) {
             .map(contract => contract.cliente)
             .filter(cliente => cliente && cliente.trim() !== '')
         )].sort();
-        
+
         // Extrair aluguéis únicos
         const alugueis = [...new Set(contractsData
             .map(contract => contract.aluguelId)
             .filter(aluguel => aluguel && aluguel.trim() !== '')
         )].sort();
-        
+
         // Extrair motos únicas
         const motos = [...new Set(contractsData
             .map(contract => contract.motoId)
             .filter(moto => moto && moto.trim() !== '')
         )].sort();
-        
+
         setClientesDisponiveis(clientes);
         setAlugueisDisponiveis(alugueis);
         setMotosDisponiveis(motos);
@@ -248,7 +254,7 @@ export default function ContractList({ navigation }) {
     // Aplicar todos os filtros
     const applyAllFilters = useCallback(() => {
         let filtered = [...contracts];
-        
+
         // Filtrar por termo de busca
         if (searchTerm.trim()) {
             const searchTermLower = searchTerm.toLowerCase();
@@ -256,10 +262,10 @@ export default function ContractList({ navigation }) {
                 (contract.id && contract.id.toLowerCase().includes(searchTermLower)) ||
                 (contract.cliente && contract.cliente.toLowerCase().includes(searchTermLower)) ||
                 (contract.aluguelId && contract.aluguelId.toLowerCase().includes(searchTermLower)) ||
-                (contract.motoId && contract.motoId.toLowerCase().includes(searchTermLower)) 
+                (contract.motoId && contract.motoId.toLowerCase().includes(searchTermLower))
             );
         }
-        
+
         // Filtrar por status
         if (statusFilter !== 'todos') {
             filtered = filtered.filter(contract => {
@@ -267,65 +273,65 @@ export default function ContractList({ navigation }) {
                 return statusFilter === 'ativo' ? isActive : !isActive;
             });
         }
-        
+
         // Filtrar por cliente
         if (clienteFilter !== 'todos') {
             filtered = filtered.filter(contract =>
                 contract.cliente && contract.cliente === clienteFilter
             );
         }
-        
+
         // Filtrar por aluguel
         if (aluguelFilter !== 'todos') {
             filtered = filtered.filter(contract =>
                 contract.aluguelId && contract.aluguelId === aluguelFilter
             );
         }
-        
+
         // Filtrar por moto
         if (motoFilter !== 'todos') {
             filtered = filtered.filter(contract =>
                 contract.motoId && contract.motoId === motoFilter
             );
         }
-        
+
         setFilteredContracts(filtered);
     }, [contracts, searchTerm, statusFilter, clienteFilter, aluguelFilter, motoFilter]);
-    
+
     // Aplicar filtros quando qualquer filtro mudar
     useEffect(() => {
         applyAllFilters();
     }, [applyAllFilters]);
-    
+
     // Funções para manipular mudanças de filtro
     const handleSearchChange = (text) => {
         setSearchTerm(text);
     };
-    
+
     const handleStatusFilter = (status) => {
         setStatusFilter(status);
     };
-    
+
     const handleClienteFilter = (cliente) => {
         setClienteFilter(cliente);
     };
-    
+
     const handleAluguelFilter = (aluguel) => {
         setAluguelFilter(aluguel);
     };
-    
+
     const handleMotoFilter = (moto) => {
         setMotoFilter(moto);
     };
-    
+
     // Contar filtros ativos
     const countActiveFilters = () => {
         return (statusFilter !== 'todos' ? 1 : 0) +
-               (clienteFilter !== 'todos' ? 1 : 0) +
-               (aluguelFilter !== 'todos' ? 1 : 0) +
-               (motoFilter !== 'todos' ? 1 : 0);
+            (clienteFilter !== 'todos' ? 1 : 0) +
+            (aluguelFilter !== 'todos' ? 1 : 0) +
+            (motoFilter !== 'todos' ? 1 : 0);
     };
-    
+
     // Preparar seções de filtro
     const getFilterSections = () => {
         const sections = [
@@ -353,7 +359,7 @@ export default function ContractList({ navigation }) {
                 ]
             }
         ];
-        
+
         // Adicionar seção de clientes se houver clientes disponíveis
         if (clientesDisponiveis.length > 0) {
             sections.push({
@@ -374,7 +380,7 @@ export default function ContractList({ navigation }) {
                 ]
             });
         }
-        
+
         // Adicionar seção de aluguéis se houver aluguéis disponíveis
         if (alugueisDisponiveis.length > 0) {
             sections.push({
@@ -395,7 +401,7 @@ export default function ContractList({ navigation }) {
                 ]
             });
         }
-        
+
         // Adicionar seção de motos se houver motos disponíveis
         if (motosDisponiveis.length > 0) {
             sections.push({
@@ -416,16 +422,16 @@ export default function ContractList({ navigation }) {
                 ]
             });
         }
-        
+
         return sections;
     };
 
     const formatDate = (timestamp) => {
         if (!timestamp) return 'Data não disponível';
-        
+
         if (timestamp.toDate && typeof timestamp.toDate === 'function') {
             const date = timestamp.toDate();
-            
+
             return date.toLocaleDateString('pt-BR', {
                 day: '2-digit',
                 month: '2-digit',
@@ -523,16 +529,16 @@ export default function ContractList({ navigation }) {
                                 </DetailStatus>
                             </DetailRow>
                             <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                            
+
                             {contract.urlContrato ? (
                                 <>
                                     <DocumentTitle>
                                         Contrato (PDF)
                                     </DocumentTitle>
-                                    
+
                                     <PdfContainer>
-                                        <PdfViewer 
-                                            uri={contract.urlContrato} 
+                                        <PdfViewer
+                                            uri={contract.urlContrato}
                                             fileName={`Contrato-${contract.contratoId || contract.id}.pdf`}
                                             height={isWebDesktop ? 600 : 300}
                                         />

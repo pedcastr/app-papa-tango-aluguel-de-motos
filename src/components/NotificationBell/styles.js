@@ -38,15 +38,16 @@ export const NotificationHeader = styled.View`
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
+  background-color: #CB2921;
   padding: 20px;
   border-bottom-width: 1px;
-  border-bottom-color: #f0f0f0;
+  border-bottom-color:rgb(129, 128, 128); 
 `;
 
 export const NotificationTitle = styled.Text`
   font-size: 18px;
   font-weight: bold;
-  color: #333;
+  color: #FFFFFF;
 `;
 
 export const CloseButton = styled.TouchableOpacity`

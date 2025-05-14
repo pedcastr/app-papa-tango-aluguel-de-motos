@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from "react";
-import { useFocusEffect } from '@react-navigation/native'; 
+import { View } from "react-native";
+import { useFocusEffect } from '@react-navigation/native';
 import { Keyboard, Platform, ActivityIndicator, Alert, Pressable, ScrollView } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import LottieAnimation from "../../components/LottieAnimation";
@@ -25,25 +26,33 @@ import {
 
 export default function Endereco({ navigation }) {
     const route = useRoute();
-    const { email, nome, nomeCompleto, phoneNumber, cpf, dataNascimento } = route.params; 
+    const { email, nome, nomeCompleto, phoneNumber, cpf, dataNascimento } = route.params;
     const [loading, setLoading] = useState(false);
-    const [erro, setErro] = useState({ cep : '' });
-    const [erroNumero, setErroNumero] = useState(''); 
+    const [erro, setErro] = useState({ cep: '' });
+    const [erroNumero, setErroNumero] = useState('');
     const [cep, setCep] = useState('');
     const [numero, setNumero] = useState('');
-    const [enderecoDados, setEnderecoDados] = useState(null); 
+    const [enderecoDados, setEnderecoDados] = useState(null);
     const [mostrarCampos, setMostrarCampos] = useState(false); // Estado para controlar a exibição dos campos
-    const inputRef = useRef(null); 
+    const inputRef = useRef(null);
     const [inputCepFocused, setInputCepFocused] = useState(false); // Estado para controlar a exibição do input de CEP
-    const [sucesso, setSucesso] = useState(false); 
+    const [sucesso, setSucesso] = useState(false);
     const [enderecoValido, setEnderecoValido] = useState(false); //estado para controlar visibilidade do botão continuar
 
-    // Usado para pausar a animação json quando o usuário retorna para essa tela
-    useFocusEffect( 
-        useCallback(() => { 
-            setSucesso(false); 
-        }, []) 
+    useFocusEffect(
+        useCallback(() => {
+            setSucesso(false);
+        }, [])
     );
+
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
 
     // Função para remover os caracteres não numéricos do CEP e verificar se ele tem 8 dígitos
     const validarCep = (numero) => {
@@ -67,7 +76,7 @@ export default function Endereco({ navigation }) {
     // Função para buscar dados do CEP usando a API ViaCEP
     const buscarCep = async () => {
         if (cep.length < 8) {
-            setErro({cep: 'Digite um CEP válido'});
+            setErro({ cep: 'Digite um CEP válido' });
             return;
         }
 
@@ -78,9 +87,9 @@ export default function Endereco({ navigation }) {
         try {
             const cepLimpo = cep.replace(/\D/g, '');
             const response = await api.get(`/${cepLimpo}/json`);
-            
+
             if (response.data.erro) {
-                setErro({cep: 'CEP não encontrado'});
+                setErro({ cep: 'CEP não encontrado' });
                 setLoading(false);
                 return;
             }
@@ -91,7 +100,7 @@ export default function Endereco({ navigation }) {
             setNumero('');
             Keyboard.dismiss();
         } catch (error) {
-            setErro({cep: 'Erro ao buscar CEP'});
+            setErro({ cep: 'Erro ao buscar CEP' });
             console.log('ERRO:', error);
         }
 
@@ -118,14 +127,14 @@ export default function Endereco({ navigation }) {
                 estado: enderecoDados.uf
             };
 
-            setSucesso(true); // Mostrar a animação json de sucesso
+            setSucesso(true);
 
             setTimeout(() => {
-                navigation.navigate("comprovanteDeEndereco", { email, nome, nomeCompleto, phoneNumber, dadosEndereco, cpf, dataNascimento });
-            }, 1500); // Aguarda 1.5 segundos antes de navegar
-            
+                navigation.navigate("Comprovante de Endereço", { email, nome, nomeCompleto, phoneNumber, dadosEndereco, cpf, dataNascimento });
+            }, 1500);
+
         } catch (error) {
-            Alert.alert("Erro", "Erro ao salvar endereço.");
+            showMessage("Erro", "Erro ao salvar endereço.");
             console.error("Erro ao salvar endereço:", error);
         }
 
@@ -133,38 +142,39 @@ export default function Endereco({ navigation }) {
     };
 
     return (
-            <Pressable 
-                onPress={Platform.OS !== 'web' ? () => Keyboard.dismiss() : undefined}
-                style={{ flex: 1 }}
-                setInputCepFocused={false}
-            >
+        <Pressable
+            onPress={Platform.OS !== 'web' ? () => Keyboard.dismiss() : undefined}
+            style={{ flex: 1 }}
+            setInputCepFocused={false}
+        >
             {sucesso ? (
                 <ViewAnimacao>
                     <AreaAnimacao>
                         <LottieAnimation
-                        source={require("../../assets/animacao.json")}
-                        autoPlay
-                        loop={false}
-                        speed={2}
+                            source={require("../../assets/animacao.json")}
+                            autoPlay
+                            loop={false}
+                            speed={2}
                         />
                     </AreaAnimacao>
                 </ViewAnimacao>
             ) : (
-                
+
                 <Background>
+                    <View style={{ padding: 16 }}>
+                        <MaterialIcons
+                            name="arrow-back"
+                            size={28}
+                            color="#fff"
+                            style={{ marginTop: 10 }}
+                            onPress={() => navigation.goBack()}
+                        />
+                    </View>
                     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
                         <Container>
-                            <MaterialIcons
-                                name="arrow-back"
-                                size={28}
-                                color="#fff"
-                                style={{ marginTop: 10 }}
-                                onPress={() => navigation.goBack()}
-                            />
-
                             <AreaInput>
                                 <TextPage>Digite seu CEP</TextPage>
-                                <Input 
+                                <Input
                                     value={cep}
                                     placeholder="00000-000"
                                     placeholderTextColor="rgb(207, 207, 207)"
@@ -174,7 +184,7 @@ export default function Endereco({ navigation }) {
 
                                         const numerosSomente = text.replace(/\D/g, '');
                                         setEnderecoValido(validarCep(numerosSomente));
-                                        
+
                                         setErro(prev => ({ ...prev, cep: "" }));
                                     }}
                                     keyboardType="numeric"
@@ -186,7 +196,7 @@ export default function Endereco({ navigation }) {
                             </AreaInput>
 
                             {erro.cep && <ErrorText>{erro.cep}</ErrorText>}
-                            
+
                             {cep.length > 0 && (
                                 <AreaButtonContinuar>
                                     <ButtonContinuar onPress={buscarCep} disabled={loading}>
@@ -202,16 +212,16 @@ export default function Endereco({ navigation }) {
                             {!inputCepFocused && mostrarCampos && (
                                 <>
                                     <AreaInput>
-                                        <TextPage style={{color: 'black'}}>Logradouro</TextPage>
-                                        <Input 
+                                        <TextPage style={{ color: 'black' }}>Logradouro</TextPage>
+                                        <Input
                                             value={enderecoDados.logradouro}
                                             editable={false}
                                         />
                                     </AreaInput>
 
-                                <RowContainer>
+                                    <RowContainer>
                                         <HalfAreaInput>
-                                            <TextPage style={{color: 'black'}}>Número</TextPage>
+                                            <TextPage style={{ color: 'black' }}>Número</TextPage>
                                             <SmallInput
                                                 value={numero}
                                                 onChangeText={(text) => {
@@ -222,35 +232,35 @@ export default function Endereco({ navigation }) {
                                                 error={!!erroNumero}
                                             />
                                             {erroNumero !== '' && (
-                                            <ErrorText style={{color: 'red'}}>{erroNumero}</ErrorText>
+                                                <ErrorText style={{ color: 'red' }}>{erroNumero}</ErrorText>
                                             )}
 
                                         </HalfAreaInput>
-                                            <HalfAreaInput>
-                                            <TextPage style={{color: 'black'}}>Bairro</TextPage>
-                                            <SmallInput 
+                                        <HalfAreaInput>
+                                            <TextPage style={{ color: 'black' }}>Bairro</TextPage>
+                                            <SmallInput
                                                 value={enderecoDados.bairro}
                                                 editable={false}
                                             />
                                         </HalfAreaInput>
-                                </RowContainer>
+                                    </RowContainer>
 
-                                <RowContainer>
-                                    <HalfAreaInput>
-                                        <TextPage style={{color: 'black'}}>Cidade</TextPage>
-                                        <SmallInput 
-                                            value={enderecoDados.localidade}
-                                            editable={false}
-                                        />
-                                    </HalfAreaInput>
+                                    <RowContainer>
+                                        <HalfAreaInput>
+                                            <TextPage style={{ color: 'black' }}>Cidade</TextPage>
+                                            <SmallInput
+                                                value={enderecoDados.localidade}
+                                                editable={false}
+                                            />
+                                        </HalfAreaInput>
 
-                                    <HalfAreaInput>
-                                        <TextPage style={{color: 'black'}}>Estado</TextPage>
-                                        <SmallInput 
-                                            value={enderecoDados.uf}
-                                            editable={false}
-                                        />
-                                    </HalfAreaInput>
+                                        <HalfAreaInput>
+                                            <TextPage style={{ color: 'black' }}>Estado</TextPage>
+                                            <SmallInput
+                                                value={enderecoDados.uf}
+                                                editable={false}
+                                            />
+                                        </HalfAreaInput>
                                     </RowContainer>
 
                                     <AreaButtonContinuar>

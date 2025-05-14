@@ -8,8 +8,8 @@ import {
 } from 'react-native';
 
 export default function SplashAnimation() {
-    const larAnimada = useRef(new Animated.Value(300)).current;
-    const altAnimada = useRef(new Animated.Value(300)).current;
+    const larAnimada = useRef(new Animated.Value(250)).current;
+    const altAnimada = useRef(new Animated.Value(250)).current;
     const opacidadeAnimada = useRef(new Animated.Value(0)).current;
   
     useEffect(() => {
@@ -21,12 +21,12 @@ export default function SplashAnimation() {
         }),
         Animated.parallel([
           Animated.timing(larAnimada, {
-            toValue: 400,
+            toValue: 350,
             duration: 1000,
             useNativeDriver: false,
           }),
           Animated.timing(altAnimada, {
-            toValue: 400,
+            toValue: 350,
             duration: 1000,
             useNativeDriver: false,
           }),

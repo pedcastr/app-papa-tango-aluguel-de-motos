@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
-import { ActivityIndicator, Keyboard } from 'react-native'; 
+import { ActivityIndicator, Keyboard } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import PdfViewer from '../../../../../components/PdfViewerAdmin';
 import { storage, db } from '../../../../../services/firebaseConfig';
@@ -12,7 +12,7 @@ import Constants from 'expo-constants';
 import { FeedbackModal } from '../../../../../components/FeedbackModal';
 import ProgressModal from '../../../../../components/ProgressModal';
 import { MaterialIcons } from '@expo/vector-icons';
-import api from '../../../../../services/api'; 
+import api from '../../../../../services/api';
 import {
     Container,
     Form,
@@ -34,7 +34,7 @@ import {
 
 export default function UserForm({ navigation }) {
     const auth = getAuth();
-    
+
     const [formData, setFormData] = useState({
         nome: '',
         nomeCompleto: '',
@@ -42,7 +42,7 @@ export default function UserForm({ navigation }) {
         dataNascimento: '',
         email: '',
         telefone: '',
-        senha: '', 
+        senha: '',
         endereco: {
             logradouro: '',
             numero: '',
@@ -81,7 +81,7 @@ export default function UserForm({ navigation }) {
     const [feedback, setFeedback] = useState({ type: '', title: '', message: '' });
     const [pdfUriCnh, setPdfUriCnh] = useState(null); // Armazena a URI local do PDF da CNH para visualização.
     const [pdfUriComprovante, setPdfUriComprovante] = useState(null); // Armazena a URI local do PDF do comprovante de endereço para visualização.
-    
+
     // Estados para o modal de progresso
     const [loadingVisible, setLoadingVisible] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -91,11 +91,11 @@ export default function UserForm({ navigation }) {
     const buscarCep = async (cep) => {
         Keyboard.dismiss();
         if (cep.length !== 8) return;
-        
+
         try {
             setLoadingCep(true);
             const response = await api.get(`${cep}/json`);
-            
+
             if (response.data.erro) {
                 setFeedback({
                     type: 'error',
@@ -105,7 +105,7 @@ export default function UserForm({ navigation }) {
                 setFeedbackVisible(true);
                 return;
             }
-            
+
             setFormData(prev => ({
                 ...prev,
                 endereco: {
@@ -139,11 +139,11 @@ export default function UserForm({ navigation }) {
                     type: 'application/pdf',
                     copyToCacheDirectory: true,
                 });
-                
+
                 // Pega o arquivo PDF selecionado
                 const file = result.assets ? result.assets[0] : result;
                 const localUri = file.uri;
-                
+
                 // Atualiza o estado do preview do PDF baseado no tipo
                 if (type === 'cnh') {
                     setPdfUriCnh(localUri);
@@ -201,7 +201,7 @@ export default function UserForm({ navigation }) {
                         }
                     }));
                 }
-            } 
+            }
             // Upload de Imagem
             else {
                 result = await ImagePicker.launchImageLibraryAsync({
@@ -211,11 +211,11 @@ export default function UserForm({ navigation }) {
                     quality: 0.8,
                     includeBase64: false
                 });
-        
+
                 if (!result.assets || result.assets.length === 0) return; // verfica se alguma imagem foi selecionada
-        
+
                 const file = result.assets[0]; // pega a primeira imagem selecionada
-                
+
                 // Armazena localmente para upload posterior
                 if (type.includes('cnh')) {
                     const docType = type.split('/')[1]; // frente ou verso
@@ -230,7 +230,7 @@ export default function UserForm({ navigation }) {
                             }
                         }
                     }));
-                    
+
                     // Atualiza a visualização
                     setFormData(prev => ({
                         ...prev,
@@ -257,7 +257,7 @@ export default function UserForm({ navigation }) {
                             }
                         }
                     }));
-                    
+
                     // Atualiza a visualização
                     setFormData(prev => ({
                         ...prev,
@@ -280,7 +280,7 @@ export default function UserForm({ navigation }) {
                             type: file.type || 'image/jpeg'
                         }
                     }));
-                    
+
                     // Atualiza a visualização
                     setFormData(prev => ({
                         ...prev,
@@ -309,7 +309,7 @@ export default function UserForm({ navigation }) {
             const updatedFormData = { ...formData };
             const totalUploads = Object.values(localFiles).flat().filter(Boolean).length;
             let completedUploads = 0;
-            
+
             // Função para atualizar o progresso
             const updateProgress = (status) => {
                 completedUploads++;
@@ -317,17 +317,17 @@ export default function UserForm({ navigation }) {
                 setUploadProgress(progress);
                 setUploadStatus(status);
             };
-            
+
             // Upload da CNH frente
             if (localFiles.cnh.frente) {
                 setUploadStatus('Enviando CNH (frente)...');
                 const storagePath = `users/${emailFormatado}/cnh/frente_${Date.now()}.jpg`;
                 const storageRef = ref(storage, storagePath);
-                
+
                 const blob = await fetch(localFiles.cnh.frente.uri).then(r => r.blob());
                 await uploadBytes(storageRef, blob);
                 const downloadURL = await getDownloadURL(storageRef);
-                
+
                 updatedFormData.cnh.frente = {
                     arquivoUrl: downloadURL,
                     dataUpload: new Date().toLocaleDateString('pt-BR', {
@@ -343,17 +343,17 @@ export default function UserForm({ navigation }) {
                 };
                 updateProgress('CNH (frente) enviada');
             }
-            
+
             // Upload da CNH verso
             if (localFiles.cnh.verso) {
                 setUploadStatus('Enviando CNH (verso)...');
                 const storagePath = `users/${emailFormatado}/cnh/verso_${Date.now()}.jpg`;
                 const storageRef = ref(storage, storagePath);
-                
+
                 const blob = await fetch(localFiles.cnh.verso.uri).then(r => r.blob());
                 await uploadBytes(storageRef, blob);
                 const downloadURL = await getDownloadURL(storageRef);
-                
+
                 updatedFormData.cnh.verso = {
                     arquivoUrl: downloadURL,
                     dataUpload: new Date().toLocaleDateString('pt-BR', {
@@ -369,17 +369,17 @@ export default function UserForm({ navigation }) {
                 };
                 updateProgress('CNH (verso) enviada');
             }
-            
+
             // Upload da CNH PDF
             if (localFiles.cnh.pdf) {
                 setUploadStatus('Enviando CNH (PDF)...');
                 const storagePath = `users/${emailFormatado}/cnh/pdf_${Date.now()}.pdf`;
                 const storageRef = ref(storage, storagePath);
-                
+
                 const blob = await fetch(localFiles.cnh.pdf.uri).then(r => r.blob());
                 await uploadBytes(storageRef, blob);
                 const downloadURL = await getDownloadURL(storageRef);
-                
+
                 updatedFormData.cnh.pdf = {
                     arquivoUrl: downloadURL,
                     dataUpload: new Date().toLocaleDateString('pt-BR', {
@@ -395,17 +395,17 @@ export default function UserForm({ navigation }) {
                 };
                 updateProgress('CNH (PDF) enviada');
             }
-            
+
             // Upload do comprovante de endereço (imagem)
             if (localFiles.comprovanteEndereco.arquivo) {
                 setUploadStatus('Enviando comprovante de endereço...');
                 const storagePath = `users/${emailFormatado}/comprovantes/foto_${Date.now()}.jpg`;
                 const storageRef = ref(storage, storagePath);
-                
+
                 const blob = await fetch(localFiles.comprovanteEndereco.arquivo.uri).then(r => r.blob());
                 await uploadBytes(storageRef, blob);
                 const downloadURL = await getDownloadURL(storageRef);
-                
+
                 updatedFormData.comprovanteEndereco.arquivo = {
                     arquivoUrl: downloadURL,
                     dataUpload: new Date().toLocaleDateString('pt-BR', {
@@ -421,17 +421,17 @@ export default function UserForm({ navigation }) {
                 };
                 updateProgress('Comprovante de endereço enviado');
             }
-            
+
             // Upload do comprovante de endereço PDF
             if (localFiles.comprovanteEndereco.pdf) {
                 setUploadStatus('Enviando comprovante de endereço (PDF)...');
                 const storagePath = `users/${emailFormatado}/comprovantes/doc_${Date.now()}.pdf`;
                 const storageRef = ref(storage, storagePath);
-                
+
                 const blob = await fetch(localFiles.comprovanteEndereco.pdf.uri).then(r => r.blob());
                 await uploadBytes(storageRef, blob);
                 const downloadURL = await getDownloadURL(storageRef);
-                
+
                 updatedFormData.comprovanteEndereco.pdf = {
                     arquivoUrl: downloadURL,
                     dataUpload: new Date().toLocaleDateString('pt-BR', {
@@ -447,17 +447,17 @@ export default function UserForm({ navigation }) {
                 };
                 updateProgress('Comprovante de endereço (PDF) enviado');
             }
-            
+
             // Upload da selfie
             if (localFiles.selfie) {
                 setUploadStatus('Enviando selfie...');
                 const storagePath = `users/${emailFormatado}/selfie/selfie_${Date.now()}.jpg`;
                 const storageRef = ref(storage, storagePath);
-                
+
                 const blob = await fetch(localFiles.selfie.uri).then(r => r.blob());
                 await uploadBytes(storageRef, blob);
                 const downloadURL = await getDownloadURL(storageRef);
-                
+
                 updatedFormData.selfie = {
                     arquivoUrl: downloadURL,
                     dataUpload: new Date().toLocaleDateString('pt-BR', {
@@ -526,55 +526,55 @@ export default function UserForm({ navigation }) {
 
         const { cnh, comprovanteEndereco, selfie } = formData;
 
-            // Verifica se o PDF da CNH foi enviado
-            const temPdfCnh = cnh && cnh.pdf && cnh.pdf.arquivoUrl;
+        // Verifica se o PDF da CNH foi enviado
+        const temPdfCnh = cnh && cnh.pdf && cnh.pdf.arquivoUrl;
 
-            if (!temPdfCnh) {
-                // Se não tem PDF, precisa ter frente E verso
-                const temFrenteCnh = cnh && cnh.frente && cnh.frente.arquivoUrl;
-                const temVersoCnh = cnh && cnh.verso && cnh.verso.arquivoUrl;
-                
-                if (!temFrenteCnh || !temVersoCnh) {
-                    setFeedback({
-                        type: 'error',
-                        title: 'Documentação Incompleta',
-                        message: 'Envie a CNH digital ou frente e verso da CNH física'
-                    });
-                    return false;
-                }
-            }
+        if (!temPdfCnh) {
+            // Se não tem PDF, precisa ter frente E verso
+            const temFrenteCnh = cnh && cnh.frente && cnh.frente.arquivoUrl;
+            const temVersoCnh = cnh && cnh.verso && cnh.verso.arquivoUrl;
 
-            // Verifica se tem pelo menos um comprovante de endereço
-            const temComprovanteArquivo = comprovanteEndereco.arquivo && comprovanteEndereco.arquivo.arquivoUrl;
-            const temComprovantePdf = comprovanteEndereco.pdf && comprovanteEndereco.pdf.arquivoUrl;
-
-            if (!temComprovanteArquivo && !temComprovantePdf) {
+            if (!temFrenteCnh || !temVersoCnh) {
                 setFeedback({
                     type: 'error',
                     title: 'Documentação Incompleta',
-                    message: 'Envie o comprovante de endereço'
+                    message: 'Envie a CNH digital ou frente e verso da CNH física'
                 });
                 return false;
             }
+        }
 
-            // Verifica se tem selfie
-            const temSelfie = selfie && selfie.arquivoUrl;
+        // Verifica se tem pelo menos um comprovante de endereço
+        const temComprovanteArquivo = comprovanteEndereco.arquivo && comprovanteEndereco.arquivo.arquivoUrl;
+        const temComprovantePdf = comprovanteEndereco.pdf && comprovanteEndereco.pdf.arquivoUrl;
 
-            if (!temSelfie) {
-                setFeedback({
-                    type: 'error',
-                    title: 'Documentação Incompleta',
-                    message: 'Envie a selfie com a CNH'
-                });
-                return false;
-            }
+        if (!temComprovanteArquivo && !temComprovantePdf) {
+            setFeedback({
+                type: 'error',
+                title: 'Documentação Incompleta',
+                message: 'Envie o comprovante de endereço'
+            });
+            return false;
+        }
 
-            return true;
+        // Verifica se tem selfie
+        const temSelfie = selfie && selfie.arquivoUrl;
+
+        if (!temSelfie) {
+            setFeedback({
+                type: 'error',
+                title: 'Documentação Incompleta',
+                message: 'Envie a selfie com a CNH'
+            });
+            return false;
+        }
+
+        return true;
     };
 
     const handleRemoveDocument = (type) => {
         const [docType, subType] = type.split('/');
-        
+
         // Remove CNH (frente, verso ou pdf)
         if (docType === 'cnh') {
             setFormData(prev => ({
@@ -584,7 +584,7 @@ export default function UserForm({ navigation }) {
                     [subType]: null
                 }
             }));
-            
+
             // Também remove do estado local
             setLocalFiles(prev => ({
                 ...prev,
@@ -593,7 +593,7 @@ export default function UserForm({ navigation }) {
                     [subType]: null
                 }
             }));
-            
+
             // Limpa o preview do PDF se necessário
             if (subType === 'pdf') {
                 setPdfUriCnh(null);
@@ -608,7 +608,7 @@ export default function UserForm({ navigation }) {
                     [subType === 'pdf' ? 'pdf' : 'arquivo']: null
                 }
             }));
-            
+
             // Também remove do estado local
             setLocalFiles(prev => ({
                 ...prev,
@@ -617,7 +617,7 @@ export default function UserForm({ navigation }) {
                     [subType === 'pdf' ? 'pdf' : 'arquivo']: null
                 }
             }));
-            
+
             // Limpa o preview do PDF se necessário
             if (subType === 'pdf') {
                 setPdfUriComprovante(null);
@@ -629,7 +629,7 @@ export default function UserForm({ navigation }) {
                 ...prev,
                 [docType]: null
             }));
-            
+
             // Também remove do estado local
             setLocalFiles(prev => ({
                 ...prev,
@@ -643,12 +643,12 @@ export default function UserForm({ navigation }) {
             setFeedbackVisible(true);
             return;
         }
-    
+
         try {
             setLoadingVisible(true);
             setUploadProgress(0);
             setUploadStatus('Iniciando cadastro...');
-            
+
             // Configuração do Firebase para a instância secundária
             const {
                 firebaseApiKey,
@@ -658,8 +658,8 @@ export default function UserForm({ navigation }) {
                 firebaseMessagingSenderId,
                 firebaseAppId,
                 firebaseMeasurementId
-              } = Constants.expoConfig.extra;
-              
+            } = Constants.expoConfig.extra;
+
             const firebaseConfig = {
                 apiKey: firebaseApiKey,
                 authDomain: firebaseAuthDomain,
@@ -669,7 +669,7 @@ export default function UserForm({ navigation }) {
                 appId: firebaseAppId,
                 measurementId: firebaseMeasurementId
             };
-            
+
             // Tenta obter a instância secundária se já existir, ou cria uma nova
             let secondaryApp;
             try {
@@ -678,31 +678,31 @@ export default function UserForm({ navigation }) {
                 // Se não existir, cria uma nova instância
                 secondaryApp = initializeApp(firebaseConfig, "secondary");
             }
-            
+
             // Obtém a instância de autenticação do app secundário
             const secondaryAuth = getAuth(secondaryApp);
-            
+
             const emailFormatado = formData.email.toLowerCase().trim();
-            
+
             // Criar usuário na autenticação do Firebase usando a instância secundária
             setUploadStatus('Criando conta de usuário...');
             const userCredential = await createUserWithEmailAndPassword(
-                secondaryAuth, 
-                emailFormatado, 
+                secondaryAuth,
+                emailFormatado,
                 formData.senha
             );
-            
+
             const user = userCredential.user;
             setUploadProgress(0.2);
-            
+
             // Fazer upload dos arquivos
             setUploadStatus('Enviando documentos...');
             const updatedFormData = await uploadAllFiles(emailFormatado);
-            
+
             // Salvar dados no Firestore
             setUploadStatus('Salvando informações...');
             setUploadProgress(0.9);
-            
+
             await setDoc(doc(db, "users", emailFormatado), {
                 uid: user.uid,
                 nome: updatedFormData.nome,
@@ -723,13 +723,13 @@ export default function UserForm({ navigation }) {
                 contratoId: '',
                 motoAlugadaId: ''
             });
-            
+
             // Deslogar o usuário da instância secundária
             await secondaryAuth.signOut();
-            
+
             setUploadProgress(1);
             setUploadStatus('Cadastro concluído!');
-            
+
             // Pequeno delay para mostrar que o cadastro foi concluído
             setTimeout(() => {
                 setLoadingVisible(false);
@@ -741,13 +741,13 @@ export default function UserForm({ navigation }) {
                 setFeedbackVisible(true);
                 navigation.goBack();
             }, 1000);
-            
+
         } catch (error) {
             setLoadingVisible(false);
             console.log('Erro ao cadastrar usuário:', error);
-            
+
             let errorMessage = 'Falha ao cadastrar usuário';
-            
+
             // Tratamento de erros específicos de autenticação
             if (error.code === 'auth/email-already-in-use') {
                 errorMessage = 'Este email já está sendo usado por outra conta';
@@ -756,7 +756,7 @@ export default function UserForm({ navigation }) {
             } else if (error.code === 'auth/invalid-email') {
                 errorMessage = 'Email inválido';
             }
-            
+
             setFeedback({
                 type: 'error',
                 title: 'Erro',
@@ -776,35 +776,35 @@ export default function UserForm({ navigation }) {
                         <Label>Primeiro Nome</Label>
                         <Input
                             value={formData.nome}
-                            onChangeText={(text) => setFormData(prev => ({...prev, nome: text}))}
+                            onChangeText={(text) => setFormData(prev => ({ ...prev, nome: text }))}
                         />
                     </InputGroup>
                     <InputGroup>
                         <Label>Nome Completo</Label>
                         <Input
                             value={formData.nomeCompleto}
-                            onChangeText={(text) => setFormData(prev => ({...prev, nomeCompleto: text}))}
+                            onChangeText={(text) => setFormData(prev => ({ ...prev, nomeCompleto: text }))}
                         />
                     </InputGroup>
                     <InputGroup>
                         <Label>CPF</Label>
                         <Input
                             value={formData.cpf}
-                            onChangeText={(text) => setFormData(prev => ({...prev, cpf: text}))}
+                            onChangeText={(text) => setFormData(prev => ({ ...prev, cpf: text }))}
                         />
                     </InputGroup>
                     <InputGroup>
                         <Label>Data de Nascimento</Label>
                         <Input
                             value={formData.dataNascimento}
-                            onChangeText={(text) => setFormData(prev => ({...prev, dataNascimento: text}))}
+                            onChangeText={(text) => setFormData(prev => ({ ...prev, dataNascimento: text }))}
                         />
                     </InputGroup>
                     <InputGroup>
                         <Label>Email</Label>
                         <Input
                             value={formData.email}
-                            onChangeText={(text) => setFormData(prev => ({...prev, email: text}))}
+                            onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
                             keyboardType="email-address"
                             autoCapitalize="none"
                         />
@@ -813,7 +813,7 @@ export default function UserForm({ navigation }) {
                         <Label>Senha</Label>
                         <Input
                             value={formData.senha}
-                            onChangeText={(text) => setFormData(prev => ({...prev, senha: text})) }
+                            onChangeText={(text) => setFormData(prev => ({ ...prev, senha: text }))}
                             keyboardType="password"
                         />
                     </InputGroup>
@@ -821,7 +821,7 @@ export default function UserForm({ navigation }) {
                         <Label>Telefone</Label>
                         <Input
                             value={formData.telefone}
-                            onChangeText={(text) => setFormData(prev => ({...prev, telefone: text}))}
+                            onChangeText={(text) => setFormData(prev => ({ ...prev, telefone: text }))}
                             keyboardType="phone-pad"
                             maxLength={11}
                         />
@@ -840,9 +840,9 @@ export default function UserForm({ navigation }) {
                                 const cepNumerico = text.replace(/\D/g, '');
                                 setFormData(prev => ({
                                     ...prev,
-                                    endereco: {...prev.endereco, cep: cepNumerico}
+                                    endereco: { ...prev.endereco, cep: cepNumerico }
                                 }));
-                                
+
                                 // Se o CEP tiver 8 dígitos, busca automaticamente
                                 if (cepNumerico.length === 8) {
                                     buscarCep(cepNumerico);
@@ -851,7 +851,7 @@ export default function UserForm({ navigation }) {
                             keyboardType="numeric"
                             maxLength={8}
                         />
-                        {loadingCep && <ActivityIndicator size="small" color="#E74C3C" style={{position: 'absolute', right: 15}} />}
+                        {loadingCep && <ActivityIndicator size="small" color="#E74C3C" style={{ position: 'absolute', right: 15 }} />}
                     </InputGroup>
                     <InputGroup>
                         <Label>Logradouro</Label>
@@ -859,7 +859,7 @@ export default function UserForm({ navigation }) {
                             value={formData.endereco.logradouro}
                             onChangeText={(text) => setFormData(prev => ({
                                 ...prev,
-                                endereco: {...prev.endereco, logradouro: text}
+                                endereco: { ...prev.endereco, logradouro: text }
                             }))}
                         />
                     </InputGroup>
@@ -869,7 +869,7 @@ export default function UserForm({ navigation }) {
                             value={formData.endereco.numero}
                             onChangeText={(text) => setFormData(prev => ({
                                 ...prev,
-                                endereco: {...prev.endereco, numero: text}
+                                endereco: { ...prev.endereco, numero: text }
                             }))}
                             keyboardType="numeric"
                         />
@@ -880,7 +880,7 @@ export default function UserForm({ navigation }) {
                             value={formData.endereco.bairro}
                             onChangeText={(text) => setFormData(prev => ({
                                 ...prev,
-                                endereco: {...prev.endereco, bairro: text}
+                                endereco: { ...prev.endereco, bairro: text }
                             }))}
                         />
                     </InputGroup>
@@ -890,7 +890,7 @@ export default function UserForm({ navigation }) {
                             value={formData.endereco.cidade}
                             onChangeText={(text) => setFormData(prev => ({
                                 ...prev,
-                                endereco: {...prev.endereco, cidade: text}
+                                endereco: { ...prev.endereco, cidade: text }
                             }))}
                         />
                     </InputGroup>
@@ -900,7 +900,7 @@ export default function UserForm({ navigation }) {
                             value={formData.endereco.estado}
                             onChangeText={(text) => setFormData(prev => ({
                                 ...prev,
-                                endereco: {...prev.endereco, estado: text}
+                                endereco: { ...prev.endereco, estado: text }
                             }))}
                         />
                     </InputGroup>
@@ -909,7 +909,7 @@ export default function UserForm({ navigation }) {
                 {/* Seção de Documentos */}
                 <Section>
                     <SectionTitle>Documentos</SectionTitle>
-                    
+
                     {/* CNH Física */}
                     <DocumentSection>
                         <Label>CNH - Frente</Label>
@@ -918,8 +918,8 @@ export default function UserForm({ navigation }) {
                         </UploadButton>
                         {formData.cnh.frente && (
                             <DocumentPreview>
-                                <DocumentPreviewImage 
-                                    source={{ uri: formData.cnh.frente.arquivoUrl }} 
+                                <DocumentPreviewImage
+                                    source={{ uri: formData.cnh.frente.arquivoUrl }}
                                 />
                                 <RemoveButton onPress={() => handleRemoveDocument('cnh/frente')}>
                                     <MaterialIcons name="close" size={24} color="#FFF" />
@@ -935,8 +935,8 @@ export default function UserForm({ navigation }) {
                         </UploadButton>
                         {formData.cnh.verso && (
                             <DocumentPreview>
-                                <DocumentPreviewImage 
-                                    source={{ uri: formData.cnh.verso.arquivoUrl }} 
+                                <DocumentPreviewImage
+                                    source={{ uri: formData.cnh.verso.arquivoUrl }}
                                 />
                                 <RemoveButton onPress={() => handleRemoveDocument('cnh/verso')}>
                                     <MaterialIcons name="close" size={24} color="#FFF" />
@@ -974,8 +974,8 @@ export default function UserForm({ navigation }) {
                         </UploadButton>
                         {formData.comprovanteEndereco.arquivo && (
                             <DocumentPreview>
-                                <DocumentPreviewImage 
-                                    source={{ uri: formData.comprovanteEndereco.arquivo.arquivoUrl }} 
+                                <DocumentPreviewImage
+                                    source={{ uri: formData.comprovanteEndereco.arquivo.arquivoUrl }}
                                 />
                                 <RemoveButton onPress={() => handleRemoveDocument('comprovantes/arquivo')}>
                                     <MaterialIcons name="close" size={24} color="#FFF" />
@@ -1011,8 +1011,8 @@ export default function UserForm({ navigation }) {
                         </UploadButton>
                         {formData.selfie && (
                             <DocumentPreview>
-                                <DocumentPreviewImage 
-                                    source={{ uri: formData.selfie.arquivoUrl }} 
+                                <DocumentPreviewImage
+                                    source={{ uri: formData.selfie.arquivoUrl }}
                                     resizeMode="contain"
                                 />
                                 <RemoveButton onPress={() => handleRemoveDocument('selfie')}>
