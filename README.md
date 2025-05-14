@@ -15,7 +15,7 @@
   <a href="#configuração-do-mercado-pago">Configuração do Mercado Pago</a> •
   <a href="#execução">Execução</a> •
   <a href="#deploy">Deploy</a> •
-  <a href="#politica-de-privacidade">Política de Privacidade</a> •
+  <a href="#política-de-privacidade">Política de Privacidade</a> •
   <a href="#atualizações">Atualizações</a> •
   <a href="#licença">Licença</a> •
   <a href="#contato">Contato</a>
