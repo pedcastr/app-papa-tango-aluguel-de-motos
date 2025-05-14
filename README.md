@@ -1,7 +1,7 @@
 # Papa Tango - Aluguel de Motos
 
 <p align="center">
-  <img src="screenshots/logo.png" alt="Logo Papa Motos" width="200"/>
+  <img src="screenshots/Logo.png" alt="Logo Papa Motos" width="200"/>
 </p>
 
 <p align="center">
