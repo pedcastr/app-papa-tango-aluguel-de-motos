@@ -51,5 +51,4 @@ functions/.runtimeconfig.json
 functions/service-account.json
 
 # Arquivos de configuração do Firebase
-GoogleService-Info.plist
 
