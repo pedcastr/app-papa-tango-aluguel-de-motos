@@ -76,8 +76,8 @@ export default {
       usesNonExemptEncryption: false
     },
     associatedDomains: [
-      "applinks:papatango.com.br", 
-      "applinks:www.papatango.com.br"
+      "applinks:papatangoalugueldemotos.com.br", 
+      "applinks:www.papatangoalugueldemotos.com.br"
     ],
   },
   android: {
@@ -111,12 +111,12 @@ export default {
         data: [
           {
             scheme: "https",
-            host: "papatango.com.br",
+            host: "papatangoalugueldemotos.com.br",
             pathPrefix: "/"
           },
           {
             scheme: "https",
-            host: "www.papatango.com.br",
+            host: "www.papatangoalugueldemotos.com.br",
             pathPrefix: "/"
           },
           {
