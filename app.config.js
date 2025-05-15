@@ -87,7 +87,7 @@ export default {
     },
     useNextNotificationsApi: true,
     newArchEnabled: true,
-    package: "com.app_papa_motos",
+    package: "com.papatango.alugueldemotos",
     permissions: [
       "CAMERA",
       "READ_EXTERNAL_STORAGE",

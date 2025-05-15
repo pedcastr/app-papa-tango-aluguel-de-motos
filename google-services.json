@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:249638574909:android:f2236e4ae79f424047c354",
+        "mobilesdk_app_id": "1:249638574909:android:72ccf32c955ca91a47c354",
         "android_client_info": {
-          "package_name": "com.app_papa_motos" 
+          "package_name": "com.papatango.alugueldemotos"
         }
       },
       "oauth_client": [],
