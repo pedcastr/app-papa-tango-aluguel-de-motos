@@ -190,7 +190,7 @@ export const SelectedItemTitle = styled.Text`
 
 export const SelectedItemDetail = styled.Text`
     font-size: 14px;
-    color: #666;
+    color: #667;
     margin-top: 5px;
     margin-bottom: 10px;
 `;

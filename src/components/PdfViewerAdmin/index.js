@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, TouchableOpacity, Text, Platform, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
@@ -7,7 +7,28 @@ import * as Sharing from 'expo-sharing';
 
 export default function PdfViewer({ uri, fileName, onRemove, height = 500 }) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isLocalFile, setIsLocalFile] = useState(false);
   
+  // Verifica se o arquivo é local ou remoto
+  useEffect(() => {
+    // Verifica se o URI é uma URL web ou um arquivo local
+    const checkIfLocalFile = () => {
+      if (!uri) return false;
+      
+      // Se estiver na web, verifica se o URI começa com blob: ou data:
+      if (Platform.OS === 'web') {
+        return uri.startsWith('blob:') || 
+               uri.startsWith('data:') || 
+               (!uri.startsWith('http://') && !uri.startsWith('https://'));
+      }
+      
+      // Para dispositivos nativos, verifica se não é uma URL web
+      return !(uri.startsWith('http://') || uri.startsWith('https://'));
+    };
+    
+    setIsLocalFile(checkIfLocalFile());
+  }, [uri]);
+
   // Determina a plataforma
   const isNative = Platform.OS === 'ios' || Platform.OS === 'android';
   const isWeb = Platform.OS === 'web';
@@ -59,7 +80,7 @@ export default function PdfViewer({ uri, fileName, onRemove, height = 500 }) {
       setIsLoading(false);
     }
   };
-  
+
   // Função para baixar o PDF (web)
   const handleDownloadPdf = () => {
     if (isWeb && uri) {
@@ -72,7 +93,7 @@ export default function PdfViewer({ uri, fileName, onRemove, height = 500 }) {
       document.body.removeChild(link);
     }
   };
-  
+
   // Prepara a URL para visualização via Google Docs
   const getGoogleDocsViewerUrl = (url) => {
     if (!url) return null;
@@ -80,9 +101,43 @@ export default function PdfViewer({ uri, fileName, onRemove, height = 500 }) {
     // Retorna a URL formatada para o Google Docs Viewer
     return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
   };
-  
-  // Renderiza o visualizador de PDF para web
-  if (isWeb) {
+
+  // Renderiza o visualizador simplificado para arquivos locais na web
+  if (isWeb && isLocalFile) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.pdfIconContainer}>
+          <MaterialIcons name="picture-as-pdf" size={80} color="#CB2921" style={{ marginBottom: 10, marginTop: 10 }} />
+          <Text style={styles.fileName} numberOfLines={2} ellipsizeMode="middle">
+            PDF Selecionado: <Text style={[styles.fileName, styles.bold]}>{fileName || "Documento PDF"}</Text>
+          </Text>
+          <Text style={styles.infoText}>
+            Visualização prévia não disponível para arquivos locais. Use o botão abaixo para baixar o PDF.
+          </Text>
+        </View>
+        
+        <View style={styles.buttonRow}>
+          <TouchableOpacity 
+            style={styles.buttonDownload} 
+            onPress={handleDownloadPdf}
+          >
+            <MaterialIcons name="file-download" size={18} color="#fff" />
+            <Text style={styles.buttonText}>Baixar PDF</Text>
+          </TouchableOpacity>
+          
+          {onRemove && (
+            <TouchableOpacity style={styles.buttonCancel} onPress={onRemove}>
+              <MaterialIcons name="close" size={18} color="#fff" />
+              <Text style={styles.buttonText}>Remover</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // Renderiza o visualizador de PDF para web com URLs remotas
+  if (isWeb && isWebUrl) {
     // Usar Google Docs Viewer para evitar download automático
     const googleDocsUrl = getGoogleDocsViewerUrl(uri);
     
@@ -110,7 +165,7 @@ export default function PdfViewer({ uri, fileName, onRemove, height = 500 }) {
       </View>
     );
   }
-  
+
   // Para dispositivos nativos, usamos o Google Docs Viewer
   if (isNative && isWebUrl) {
     const googleDocsUrl = getGoogleDocsViewerUrl(uri);
@@ -148,8 +203,8 @@ export default function PdfViewer({ uri, fileName, onRemove, height = 500 }) {
           </View>
           
           <View style={styles.buttonRow}>
-            <TouchableOpacity 
-              style={styles.buttonDownload} 
+            <TouchableOpacity
+              style={styles.buttonDownload}
               onPress={downloadPdf}
               disabled={isLoading}
             >
@@ -163,7 +218,7 @@ export default function PdfViewer({ uri, fileName, onRemove, height = 500 }) {
       );
     }
   }
-  
+
   // Fallback para visualização simples (ícone de PDF)
   return (
     <View style={styles.container}>
@@ -178,8 +233,8 @@ export default function PdfViewer({ uri, fileName, onRemove, height = 500 }) {
       </View>
       
       <View style={styles.buttonRow}>
-        <TouchableOpacity 
-          style={styles.buttonDownload} 
+        <TouchableOpacity
+          style={styles.buttonDownload}
           onPress={downloadPdf}
           disabled={isLoading}
         >

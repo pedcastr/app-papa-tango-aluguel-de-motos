@@ -766,6 +766,50 @@ export default function UserForm({ navigation }) {
         }
     };
 
+    // Funções de formatação para máscaras
+    const formatarDataNascimento = (texto) => {
+        // Remove todos os caracteres não numéricos
+        const numeros = texto.replace(/\D/g, '');
+
+        // Aplica a máscara DD/MM/AAAA
+        if (numeros.length <= 2) {
+            return numeros;
+        } else if (numeros.length <= 4) {
+            return `${numeros.slice(0, 2)}/${numeros.slice(2)}`;
+        } else {
+            return `${numeros.slice(0, 2)}/${numeros.slice(2, 4)}/${numeros.slice(4, 8)}`;
+        }
+    };
+
+    const formatarCPF = (texto) => {
+        // Remove todos os caracteres não numéricos
+        const numeros = texto.replace(/\D/g, '');
+
+        // Aplica a máscara 000.000.000-00
+        if (numeros.length <= 3) {
+            return numeros;
+        } else if (numeros.length <= 6) {
+            return `${numeros.slice(0, 3)}.${numeros.slice(3)}`;
+        } else if (numeros.length <= 9) {
+            return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6)}`;
+        } else {
+            return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6, 9)}-${numeros.slice(9, 11)}`;
+        }
+    };
+
+    const formataTelefone = (texto) => {
+        // Remove todos os caracteres não numéricos
+        const numeros = texto.replace(/\D/g, '');
+        // Aplica a máscara (00) 00000-0000
+        if (numeros.length <= 2) {
+            return numeros;
+        } else if (numeros.length <= 7) {
+            return `(${numeros.slice(0, 2)}) ${numeros.slice(2)}`;
+        } else {
+            return `(${numeros.slice(0, 2)}) ${numeros.slice(2 , 7)}${numeros.slice(7, 11)}`;
+        };
+    }
+
     return (
         <Container>
             <Form>
@@ -777,6 +821,7 @@ export default function UserForm({ navigation }) {
                         <Input
                             value={formData.nome}
                             onChangeText={(text) => setFormData(prev => ({ ...prev, nome: text }))}
+                            placeholder='Ex: Pedro'
                         />
                     </InputGroup>
                     <InputGroup>
@@ -784,20 +829,33 @@ export default function UserForm({ navigation }) {
                         <Input
                             value={formData.nomeCompleto}
                             onChangeText={(text) => setFormData(prev => ({ ...prev, nomeCompleto: text }))}
+                            placeholder='Ex: Pedro Henrique de Castro Martins'
                         />
                     </InputGroup>
                     <InputGroup>
                         <Label>CPF</Label>
                         <Input
                             value={formData.cpf}
-                            onChangeText={(text) => setFormData(prev => ({ ...prev, cpf: text }))}
+                            onChangeText={(text) => setFormData(prev => ({ 
+                                ...prev, 
+                                cpf: formatarCPF(text)
+                            }))}
+                            keyboardType='numeric'
+                            maxLength={14}
+                            placeholder='000.000.000-00'
                         />
                     </InputGroup>
                     <InputGroup>
                         <Label>Data de Nascimento</Label>
                         <Input
                             value={formData.dataNascimento}
-                            onChangeText={(text) => setFormData(prev => ({ ...prev, dataNascimento: text }))}
+                            onChangeText={(text) => setFormData(prev => ({ 
+                                ...prev, 
+                                dataNascimento: formatarDataNascimento(text)
+                            }))}
+                            keyboardType='numeric'
+                            maxLength={10}
+                            placeholder='DD/MM/AAAA'
                         />
                     </InputGroup>
                     <InputGroup>
@@ -807,6 +865,7 @@ export default function UserForm({ navigation }) {
                             onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            placeholder='exemplo@email.com'
                         />
                     </InputGroup>
                     <InputGroup>
@@ -815,15 +874,20 @@ export default function UserForm({ navigation }) {
                             value={formData.senha}
                             onChangeText={(text) => setFormData(prev => ({ ...prev, senha: text }))}
                             keyboardType="password"
+                            placeholder='J*****@1020'
                         />
                     </InputGroup>
                     <InputGroup>
                         <Label>Telefone</Label>
                         <Input
                             value={formData.telefone}
-                            onChangeText={(text) => setFormData(prev => ({ ...prev, telefone: text }))}
+                            onChangeText={(text) => setFormData(prev => ({ 
+                                ...prev, 
+                                telefone: formataTelefone(text)
+                            }))}
                             keyboardType="phone-pad"
-                            maxLength={11}
+                            maxLength={12}
+                            placeholder='(00) 00000-0000'
                         />
                     </InputGroup>
                 </Section>
@@ -840,7 +904,10 @@ export default function UserForm({ navigation }) {
                                 const cepNumerico = text.replace(/\D/g, '');
                                 setFormData(prev => ({
                                     ...prev,
-                                    endereco: { ...prev.endereco, cep: cepNumerico }
+                                    endereco: { 
+                                        ...prev.endereco, 
+                                        cep: cepNumerico 
+                                    }
                                 }));
 
                                 // Se o CEP tiver 8 dígitos, busca automaticamente
@@ -850,6 +917,7 @@ export default function UserForm({ navigation }) {
                             }}
                             keyboardType="numeric"
                             maxLength={8}
+                            placeholder='00000-000'
                         />
                         {loadingCep && <ActivityIndicator size="small" color="#E74C3C" style={{ position: 'absolute', right: 15 }} />}
                     </InputGroup>
@@ -920,6 +988,7 @@ export default function UserForm({ navigation }) {
                             <DocumentPreview>
                                 <DocumentPreviewImage
                                     source={{ uri: formData.cnh.frente.arquivoUrl }}
+                                    resizeMode="contain"
                                 />
                                 <RemoveButton onPress={() => handleRemoveDocument('cnh/frente')}>
                                     <MaterialIcons name="close" size={24} color="#FFF" />
@@ -937,6 +1006,7 @@ export default function UserForm({ navigation }) {
                             <DocumentPreview>
                                 <DocumentPreviewImage
                                     source={{ uri: formData.cnh.verso.arquivoUrl }}
+                                    resizeMode="contain"
                                 />
                                 <RemoveButton onPress={() => handleRemoveDocument('cnh/verso')}>
                                     <MaterialIcons name="close" size={24} color="#FFF" />
@@ -956,7 +1026,7 @@ export default function UserForm({ navigation }) {
                                 <PdfViewer
                                     uri={pdfUriCnh}
                                     fileName={formData.cnh.pdf?.nome || "CNH_Digital.pdf"}
-                                    height={400}
+                                    height={300}
                                     onRemove={() => {
                                         setPdfUriCnh(null);
                                         handleRemoveDocument('cnh/pdf');
@@ -976,6 +1046,7 @@ export default function UserForm({ navigation }) {
                             <DocumentPreview>
                                 <DocumentPreviewImage
                                     source={{ uri: formData.comprovanteEndereco.arquivo.arquivoUrl }}
+                                    resizeMode="contain"
                                 />
                                 <RemoveButton onPress={() => handleRemoveDocument('comprovantes/arquivo')}>
                                     <MaterialIcons name="close" size={24} color="#FFF" />
@@ -993,7 +1064,7 @@ export default function UserForm({ navigation }) {
                                 <PdfViewer
                                     uri={pdfUriComprovante}
                                     fileName={formData.comprovanteEndereco.pdf?.nome || "Comprovante_Endereco.pdf"}
-                                    height={400}
+                                    height={300}
                                     onRemove={() => {
                                         setPdfUriComprovante(null);
                                         handleRemoveDocument('comprovantes/pdf');

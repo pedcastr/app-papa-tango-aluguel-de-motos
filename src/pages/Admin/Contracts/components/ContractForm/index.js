@@ -108,22 +108,28 @@ export default function ContractForm({ navigation }) {
     const getNextContratoId = async () => {
         try {
             const contratosRef = collection(db, "contratos");
-            const q = query(contratosRef, orderBy("contratoId", "desc"), limit(1));
-            const querySnapshot = await getDocs(q);
 
-            let nextId = "contrato1";
+            // Buscar todos os contratos para garantir que temos o maior ID
+            const querySnapshot = await getDocs(contratosRef);
 
-            if (!querySnapshot.empty) {
-                const lastDoc = querySnapshot.docs[0];
-                const lastId = lastDoc.data().contratoId;
+            let maxNumber = 0;
 
-                if (lastId && lastId.startsWith("contrato")) {
-                    const lastNumber = parseInt(lastId.replace("contrato", ""), 10);
-                    if (!isNaN(lastNumber)) {
-                        nextId = `contrato${lastNumber + 1}`;
+            // Iterar por todos os documentos para encontrar o maior número
+            querySnapshot.forEach((doc) => {
+                const contratoId = doc.data().contratoId;
+                if (contratoId && contratoId.startsWith("contrato")) {
+                    const numberPart = contratoId.substring(8); // Remove "contrato"
+                    const number = parseInt(numberPart, 10);
+                    if (!isNaN(number) && number > maxNumber) {
+                        maxNumber = number;
                     }
                 }
-            }
+            });
+
+            // Incrementar o maior número encontrado
+            const nextNumber = maxNumber + 1;
+            const nextId = `contrato${nextNumber}`;
+
 
             setNextContratoId(nextId);
             setContractData(prev => ({ ...prev, contratoId: nextId }));
@@ -687,8 +693,7 @@ export default function ContractForm({ navigation }) {
                                 <DocumentTitle>
                                     Contrato (PDF)
                                 </DocumentTitle>
-
-                                <FilePreviewText>Arquivo: {pdfFile.name}</FilePreviewText>
+                                
                                 <FilePreviewText>Tamanho: {(pdfFile.size / 1024).toFixed(2)} KB</FilePreviewText>
 
                                 <PdfContainer>

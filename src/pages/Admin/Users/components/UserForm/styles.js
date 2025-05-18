@@ -87,7 +87,7 @@ export const RemoveButton = styled.TouchableOpacity`
 
 export const PdfContainer = styled.View`
     margin-top: 10px;
-    height: ${isWebDesktop ? '500px' : '410px'};
+    height: ${isWebDesktop ? '300px' : '380px'};
     border-radius: 5px;
     overflow: hidden;
     position: relative;

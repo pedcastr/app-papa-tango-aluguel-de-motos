@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, ActivityIndicator, ScrollView, View, Platform } from 'react-native';
 import { db, storage } from '../../../../../services/firebaseConfig';
-import { doc, setDoc, collection, query, orderBy, limit, getDocs  } from 'firebase/firestore';
+import { doc, setDoc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -79,22 +79,27 @@ export default function CadastroMoto({ navigation }) {
     const getNextMotoId = async () => {
         try {
             const motosRef = collection(db, "motos");
-            const q = query(motosRef, orderBy("id", "desc"), limit(1));
-            const querySnapshot = await getDocs(q);
 
-            let nextId = "moto1";
+            // Buscar todas as motos para garantir que temos o maior ID
+            const querySnapshot = await getDocs(motosRef);
 
-            if (!querySnapshot.empty) {
-                const lastDoc = querySnapshot.docs[0];
-                const lastId = lastDoc.data().id;
+            let maxNumber = 0;
 
-                if (lastId && lastId.startsWith("moto")) {
-                    const lastNumber = parseInt(lastId.replace("moto", ""), 10);
-                    if (!isNaN(lastNumber)) {
-                        nextId = `moto${lastNumber + 1}`;
+            // Iterar por todos os documentos para encontrar o maior número
+            querySnapshot.forEach((doc) => {
+                const motoId = doc.data().id;
+                if (motoId && motoId.startsWith("moto")) {
+                    const numberPart = motoId.substring(4); // Remove "moto"
+                    const number = parseInt(numberPart, 10);
+                    if (!isNaN(number) && number > maxNumber) {
+                        maxNumber = number;
                     }
                 }
-            }
+            });
+
+            // Incrementar o maior número encontrado
+            const nextNumber = maxNumber + 1;
+            const nextId = `moto${nextNumber}`;
 
             setMotoId(nextId);
         } catch (error) {
@@ -102,6 +107,7 @@ export default function CadastroMoto({ navigation }) {
             showMessage("Erro", "Não foi possível gerar o ID da moto");
         }
     };
+
 
     /**
      * Função para selecionar imagem da galeria

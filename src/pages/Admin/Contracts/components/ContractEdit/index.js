@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, Platform, View, ActivityIndicator, ScrollView } from 'react-native';
+import { Alert, Platform, View, ActivityIndicator, ScrollView, Modal, TouchableOpacity } from 'react-native';
 import { db, storage } from '../../../../../services/firebaseConfig';
 import { doc, updateDoc, Timestamp, collection, getDocs, query, orderBy, deleteDoc, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -61,6 +61,16 @@ export default function ContractEdit({ route, navigation }) {
     const [showUsersList, setShowUsersList] = useState(false);
     const [showMotosList, setShowMotosList] = useState(false);
     const [showAluguelsList, setShowAluguelsList] = useState(false);
+
+    // Estado para o modal
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalType, setModalType] = useState(''); // 'user', 'moto', 'aluguel'
+
+    // Função para abrir o modal com o tipo específico
+    const openModal = (type) => {
+        setModalType(type);
+        setModalVisible(true);
+    };
 
     // Estado para tipo de recorrência
     const [recorrenciaTipo, setRecorrenciaTipo] = useState({
@@ -235,14 +245,13 @@ export default function ContractEdit({ route, navigation }) {
     const handleSelectUser = (user) => {
         setSelectedUser(user);
         setContractData(prev => ({ ...prev, cliente: user.email }));
-        setShowUsersList(false);
+        setModalVisible(false);
     };
-
     // Função para selecionar uma moto
     const handleSelectMoto = (moto) => {
         setSelectedMoto(moto);
         setContractData(prev => ({ ...prev, motoId: moto.id }));
-        setShowMotosList(false);
+        setModalVisible(false);
 
         // Filtrar aluguéis relacionados a esta moto
         const motosAlugueis = alugueis.filter(aluguel => aluguel.motoId === moto.id);
@@ -255,7 +264,7 @@ export default function ContractEdit({ route, navigation }) {
     const handleSelectAluguel = (aluguel) => {
         setSelectedAluguel(aluguel);
         setContractData(prev => ({ ...prev, aluguelId: aluguel.id }));
-        setShowAluguelsList(false);
+        setModalVisible(false);
     };
 
     // Converter o timestamp do Firestore para Date
@@ -559,96 +568,36 @@ export default function ContractEdit({ route, navigation }) {
                                 <SelectedItemContainer>
                                     <SelectedItemTitle>{selectedUser.nome || selectedUser.email}</SelectedItemTitle>
                                     <SelectedItemDetail>{selectedUser.email}</SelectedItemDetail>
-                                    <SelectButton onPress={() => setShowUsersList(!showUsersList)}>
+                                    <SelectButton onPress={() => openModal('user')}>
                                         <SelectButtonText>Trocar Cliente</SelectButtonText>
                                     </SelectButton>
                                 </SelectedItemContainer>
                             ) : (
-                                <SelectButton onPress={() => setShowUsersList(!showUsersList)}>
+                                <SelectButton onPress={() => openModal('user')}>
                                     <SelectButtonText>Selecionar Cliente</SelectButtonText>
                                 </SelectButton>
                             )}
-
-                            {showUsersList && (
-                                <SelectionList>
-                                    {users.length > 0 ? (
-                                        users
-                                            .sort((a, b) => {
-                                                // Primeiro os disponíveis, depois por data de criação (mais recentes primeiro)
-                                                if (a.disponivel && !b.disponivel) return -1;
-                                                if (!a.disponivel && b.disponivel) return 1;
-                                                return 0;
-                                            })
-                                            .map((user) => (
-                                                <SelectionItem
-                                                    key={user.id}
-                                                    onPress={() => handleSelectUser(user)}
-                                                    available={user.disponivel}
-                                                >
-                                                    <SelectionItemText>{user.nome || user.email}</SelectionItemText>
-                                                    <SelectionItemEmail>
-                                                        {user.email} {!user.disponivel && user.contratoId !== contractData.id ? '(Já possui contrato)' : ''}
-                                                    </SelectionItemEmail>
-                                                </SelectionItem>
-                                            ))
-                                    ) : (
-                                        <SelectionItem>
-                                            <SelectionItemText>Nenhum usuário disponível</SelectionItemText>
-                                        </SelectionItem>
-                                    )}
-                                </SelectionList>
-                            )}
                         </InputGroup>
 
-                        {/* Seleção de Moto */}
+                        {/* Seleção de Moto com Modal */}
                         <InputGroup>
                             <Label>Moto</Label>
                             {selectedMoto ? (
                                 <SelectedItemContainer>
                                     <SelectedItemTitle>{selectedMoto.marca} {selectedMoto.modelo}</SelectedItemTitle>
                                     <SelectedItemDetail>Placa: {selectedMoto.placa} | Ano: {selectedMoto.anoModelo}</SelectedItemDetail>
-                                    <SelectButton onPress={() => setShowMotosList(!showMotosList)}>
+                                    <SelectButton onPress={() => openModal('moto')}>
                                         <SelectButtonText>Trocar Moto</SelectButtonText>
                                     </SelectButton>
                                 </SelectedItemContainer>
                             ) : (
-                                <SelectButton onPress={() => setShowMotosList(!showMotosList)}>
+                                <SelectButton onPress={() => openModal('moto')}>
                                     <SelectButtonText>Selecionar Moto</SelectButtonText>
                                 </SelectButton>
                             )}
-
-                            {showMotosList && (
-                                <SelectionList>
-                                    {motos.length > 0 ? (
-                                        motos
-                                            .sort((a, b) => {
-                                                // Primeiro as disponíveis, depois por data de criação (mais recentes primeiro)
-                                                if (a.disponivel && !b.disponivel) return -1;
-                                                if (!a.disponivel && b.disponivel) return 1;
-                                                return 0;
-                                            })
-                                            .map((moto) => (
-                                                <SelectionItem
-                                                    key={moto.id}
-                                                    onPress={() => handleSelectMoto(moto)}
-                                                    available={moto.disponivel}
-                                                >
-                                                    <SelectionItemText>{moto.marca} {moto.modelo}</SelectionItemText>
-                                                    <SelectionItemEmail>
-                                                        Placa: {moto.placa} | Ano: {moto.anoModelo} {!moto.disponivel && moto.id !== contractData.motoId ? '(Já alugada)' : ''}
-                                                    </SelectionItemEmail>
-                                                </SelectionItem>
-                                            ))
-                                    ) : (
-                                        <SelectionItem>
-                                            <SelectionItemText>Nenhuma moto disponível</SelectionItemText>
-                                        </SelectionItem>
-                                    )}
-                                </SelectionList>
-                            )}
                         </InputGroup>
 
-                        {/* Seleção de Aluguel */}
+                        {/* Seleção de Aluguel com Modal */}
                         <InputGroup>
                             <Label>Aluguel</Label>
                             {selectedAluguel ? (
@@ -657,57 +606,14 @@ export default function ContractEdit({ route, navigation }) {
                                     <SelectedItemDetail>
                                         Mensal: R$ {selectedAluguel.valorMensal} | Semanal: R$ {selectedAluguel.valorSemanal} | Caução: R$ {selectedAluguel.valorCaucao}
                                     </SelectedItemDetail>
-                                    <SelectButton onPress={() => setShowAluguelsList(!showAluguelsList)}>
+                                    <SelectButton onPress={() => openModal('aluguel')}>
                                         <SelectButtonText>Trocar Aluguel</SelectButtonText>
                                     </SelectButton>
                                 </SelectedItemContainer>
                             ) : (
-                                <SelectButton onPress={() => setShowAluguelsList(!showAluguelsList)}>
+                                <SelectButton onPress={() => openModal('aluguel')}>
                                     <SelectButtonText>Selecionar Aluguel</SelectButtonText>
                                 </SelectButton>
-                            )}
-
-                            {showAluguelsList && (
-                                <SelectionList>
-                                    {alugueis.length > 0 ? (
-                                        alugueis
-                                            .sort((a, b) => {
-                                                // Primeiro o aluguel atual do contrato
-                                                if (a.id === contractData.aluguelId) return -1;
-                                                if (b.id === contractData.aluguelId) return 1;
-
-                                                // Depois os aluguéis da moto selecionada
-                                                if (selectedMoto) {
-                                                    if (a.motoId === selectedMoto.id && b.motoId !== selectedMoto.id) return -1;
-                                                    if (a.motoId !== selectedMoto.id && b.motoId === selectedMoto.id) return 1;
-                                                }
-
-                                                // Por fim, os aluguéis ativos
-                                                if (a.ativo && !b.ativo) return -1;
-                                                if (!a.ativo && b.ativo) return 1;
-
-                                                return 0;
-                                            })
-                                            .map((aluguel) => (
-                                                <SelectionItem
-                                                    key={aluguel.id}
-                                                    onPress={() => handleSelectAluguel(aluguel)}
-                                                    available={aluguel.id === contractData.aluguelId || !selectedMoto || aluguel.motoId === selectedMoto.id}
-                                                >
-                                                    <SelectionItemText>Aluguel: {aluguel.id}</SelectionItemText>
-                                                    <SelectionItemEmail>
-                                                        Mensal: R$ {aluguel.valorMensal} | Semanal: R$ {aluguel.valorSemanal}
-                                                        {selectedMoto && aluguel.motoId && aluguel.motoId !== selectedMoto.id ?
-                                                            ' (Moto diferente da selecionada)' : ''}
-                                                    </SelectionItemEmail>
-                                                </SelectionItem>
-                                            ))
-                                    ) : (
-                                        <SelectionItem>
-                                            <SelectionItemText>Nenhum aluguel disponível</SelectionItemText>
-                                        </SelectionItem>
-                                    )}
-                                </SelectionList>
                             )}
                         </InputGroup>
 
@@ -802,6 +708,170 @@ export default function ContractEdit({ route, navigation }) {
                     </DeleteButton>
                 </Form>
             </ScrollView>
+            {/* Modal para seleção de itens */}
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={modalVisible}
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={{
+                    flex: 1,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    backgroundColor: 'rgba(0,0,0,0.5)'
+                }}>
+                    <View style={{
+                        width: '90%',
+                        maxHeight: '80%',
+                        backgroundColor: 'white',
+                        borderRadius: 10,
+                        padding: 20,
+                        elevation: 5,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.25,
+                        shadowRadius: 3.84,
+                    }}>
+                        <View style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: 15,
+                            borderBottomWidth: 1,
+                            borderBottomColor: '#E0E0E0',
+                            paddingBottom: 10
+                        }}>
+                            <Label style={{ fontSize: 18, fontWeight: 'bold' }}>
+                                {modalType === 'user' ? 'Selecione um Cliente' :
+                                    modalType === 'moto' ? 'Selecione uma Moto' :
+                                        'Selecione um Aluguel'}
+                            </Label>
+                            <TouchableOpacity onPress={() => setModalVisible(false)}>
+                                <MaterialIcons name="close" size={24} color="#CB2921" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={{ maxHeight: '90%' }}>
+                            {/* Lista de Usuários */}
+                            {modalType === 'user' && (
+                                users.length > 0 ? (
+                                    users
+                                        .sort((a, b) => {
+                                            // Primeiro os disponíveis, depois por data de criação
+                                            if (a.disponivel && !b.disponivel) return -1;
+                                            if (!a.disponivel && b.disponivel) return 1;
+                                            return 0;
+                                        })
+                                        .map((user) => (
+                                            <SelectionItem
+                                                key={user.id}
+                                                onPress={() => handleSelectUser(user)}
+                                                available={user.disponivel}
+                                                style={{ marginBottom: 8 }}
+                                            >
+                                                <SelectionItemText>{user.nome || user.email}</SelectionItemText>
+                                                <SelectionItemEmail>
+                                                    {user.email} {!user.disponivel && user.contratoId !== contractData.id ? '(Já possui contrato)' : ''}
+                                                </SelectionItemEmail>
+                                            </SelectionItem>
+                                        ))
+                                ) : (
+                                    <View style={{ padding: 20, alignItems: 'center' }}>
+                                        <Label>Nenhum usuário disponível</Label>
+                                    </View>
+                                )
+                            )}
+                            {/* Lista de Motos */}
+                            {modalType === 'moto' && (
+                                motos.length > 0 ? (
+                                    motos
+                                        .sort((a, b) => {
+                                            // Primeiro as disponíveis, depois por data de criação
+                                            if (a.disponivel && !b.disponivel) return -1;
+                                            if (!a.disponivel && b.disponivel) return 1;
+                                            return 0;
+                                        })
+                                        .map((moto) => (
+                                            <SelectionItem
+                                                key={moto.id}
+                                                onPress={() => handleSelectMoto(moto)}
+                                                available={moto.disponivel}
+                                                style={{ marginBottom: 8 }}
+                                            >
+                                                <SelectionItemText>{moto.marca} {moto.modelo}</SelectionItemText>
+                                                <SelectionItemEmail>
+                                                    Placa: {moto.placa} | Ano: {moto.anoModelo}
+                                                    {!moto.disponivel && moto.id !== contractData.motoId ? ' (Já alugada)' : ''}
+                                                </SelectionItemEmail>
+                                            </SelectionItem>
+                                        ))
+                                ) : (
+                                    <View style={{ padding: 20, alignItems: 'center' }}>
+                                        <Label>Nenhuma moto disponível</Label>
+                                    </View>
+                                )
+                            )}
+
+                            {/* Lista de Aluguéis */}
+                            {modalType === 'aluguel' && (
+                                alugueis.length > 0 ? (
+                                    alugueis
+                                        .sort((a, b) => {
+                                            // Primeiro o aluguel atual do contrato
+                                            if (a.id === contractData.aluguelId) return -1;
+                                            if (b.id === contractData.aluguelId) return 1;
+
+                                            // Depois os aluguéis da moto selecionada
+                                            if (selectedMoto) {
+                                                if (a.motoId === selectedMoto.id && b.motoId !== selectedMoto.id) return -1;
+                                                if (a.motoId !== selectedMoto.id && b.motoId === selectedMoto.id) return 1;
+                                            }
+
+                                            // Por fim, os aluguéis ativos
+                                            if (a.ativo && !b.ativo) return -1;
+                                            if (!a.ativo && b.ativo) return 1;
+
+                                            return 0;
+                                        })
+                                        .map((aluguel) => (
+                                            <SelectionItem
+                                                key={aluguel.id}
+                                                onPress={() => handleSelectAluguel(aluguel)}
+                                                available={aluguel.id === contractData.aluguelId || !selectedMoto || aluguel.motoId === selectedMoto.id}
+                                                style={{ marginBottom: 8 }}
+                                            >
+                                                <SelectionItemText>Aluguel: {aluguel.id}</SelectionItemText>
+                                                <SelectionItemEmail>
+                                                    Mensal: R$ {aluguel.valorMensal} | Semanal: R$ {aluguel.valorSemanal}
+                                                    {selectedMoto && aluguel.motoId && aluguel.motoId !== selectedMoto.id ?
+                                                        ' (Moto diferente da selecionada)' : ''}
+                                                </SelectionItemEmail>
+                                            </SelectionItem>
+                                        ))
+                                ) : (
+                                    <View style={{ padding: 20, alignItems: 'center' }}>
+                                        <Label>Nenhum aluguel disponível</Label>
+                                    </View>
+                                )
+                            )}
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            onPress={() => setModalVisible(false)}
+                            style={{
+                                marginTop: 15,
+                                padding: 12,
+                                backgroundColor: '#CB2921',
+                                borderRadius: 8,
+                                alignItems: 'center'
+                            }}
+                        >
+                            <UpdateButtonText>Fechar</UpdateButtonText>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </Container>
     );
 }

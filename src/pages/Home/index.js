@@ -55,6 +55,9 @@ export default function Home() {
     const [loadingSupport, setLoadingSupport] = useState(false);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+    const [loadingProfileImage, setLoadingProfileImage] = useState(true);
+    const [loadingMotoImage, setLoadingMotoImage] = useState(true);
+
 
     // Carrega os dados e pagamentos pendentes ao iniciar o componente
     useEffect(() => {
@@ -268,6 +271,16 @@ export default function Home() {
         }
     };
 
+    // Função para lidar com o carregamento completo da imagem de perfil
+    const handleProfileImageLoad = () => {
+        setLoadingProfileImage(false);
+    };
+
+    // Função para lidar com o carregamento completo da imagem da moto
+    const handleMotoImageLoad = () => {
+        setLoadingMotoImage(false);
+    };
+
     return (
         <Background>
             <Container>
@@ -284,7 +297,26 @@ export default function Home() {
 
                             <ProfileButton onPress={() => setModalVisible(true)}>
                                 {userPhoto ? (
-                                    <ProfileImage source={{ uri: userPhoto }} />
+                                    <>
+                                        {loadingProfileImage && (
+                                            <View style={{
+                                                position: 'absolute',
+                                                width: 50,
+                                                height: 50,
+                                                borderRadius: 25,
+                                                justifyContent: 'center',
+                                                alignItems: 'center',
+                                                backgroundColor: '#f0f0f0'
+                                            }}>
+                                                <ActivityIndicator size="small" color="#CB2921" />
+                                            </View>
+                                        )}
+                                        <ProfileImage
+                                            source={{ uri: userPhoto }}
+                                            onLoad={handleProfileImageLoad}
+                                            style={{ opacity: loadingProfileImage ? 0 : 1 }}
+                                        />
+                                    </>
                                 ) : (
                                     <MaterialCommunityIcons name="account-circle" size={50} color="#fff" />
                                 )}
@@ -302,7 +334,26 @@ export default function Home() {
                                 contratoAtivo.statusContrato === true ? (
                                     <MotoContainer>
                                         <TitleText>Moto Alugada</TitleText>
-                                        <MotoImage source={{ uri: motoData?.fotoUrl }} />
+                                        <View style={{ position: 'relative', width: '100%', alignItems: 'center' }}>
+                                            {loadingMotoImage && (
+                                                <View style={{
+                                                    position: 'absolute',
+                                                    width: '100%',
+                                                    height: 200,
+                                                    justifyContent: 'center',
+                                                    alignItems: 'center',
+                                                    backgroundColor: '#f0f0f0',
+                                                    borderRadius: 8
+                                                }}>
+                                                    <ActivityIndicator size="large" color="#CB2921" />
+                                                </View>
+                                            )}
+                                            <MotoImage
+                                                source={{ uri: motoData?.fotoUrl }}
+                                                onLoad={handleMotoImageLoad}
+                                                style={{ opacity: loadingMotoImage ? 0 : 1 }}
+                                            />
+                                        </View>
                                         <InfoContainer>
                                             <VeiculoInfo>
                                                 <InfoTitle>Dados do Veículo</InfoTitle>
@@ -394,7 +445,27 @@ export default function Home() {
                                     ) : (
                                         <>
                                             {userPhoto ? (
-                                                <ProfileImage large source={{ uri: userPhoto }} />
+                                                <>
+                                                    {loadingProfileImage && (
+                                                        <View style={{
+                                                            position: 'absolute',
+                                                            width: 100,
+                                                            height: 100,
+                                                            borderRadius: 50,
+                                                            justifyContent: 'center',
+                                                            alignItems: 'center',
+                                                            backgroundColor: '#f0f0f0'
+                                                        }}>
+                                                            <ActivityIndicator size="small" color="#CB2921" />
+                                                        </View>
+                                                    )}
+                                                    <ProfileImage
+                                                        large
+                                                        source={{ uri: userPhoto }}
+                                                        onLoad={handleProfileImageLoad}
+                                                        style={{ opacity: loadingProfileImage ? 0 : 1 }}
+                                                    />
+                                                </>
                                             ) : (
                                                 <MaterialCommunityIcons name="account-circle" size={100} color="#1E1E1E" />
                                             )}

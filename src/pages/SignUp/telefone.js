@@ -50,7 +50,7 @@ export default function Telefone({ navigation }) {
         let numeroFormatado = numeroLimpo;
         
         if (numeroLimpo.length >= 11) {
-            numeroFormatado = `(${numeroLimpo.slice(0,2)}) ${numeroLimpo.slice(2,7)}-${numeroLimpo.slice(7,11)}`; // Formata o número
+            numeroFormatado = `(${numeroLimpo.slice(0,2)}) ${numeroLimpo.slice(2,7)}${numeroLimpo.slice(7,11)}`; // Formata o número
         }
         
         return numeroFormatado;

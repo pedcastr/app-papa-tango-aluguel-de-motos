@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, ActivityIndicator, View, ScrollView, Platform } from 'react-native';
+import { Alert, ActivityIndicator, View, ScrollView, Platform, Modal, TouchableOpacity } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { db, storage } from '../../../../../services/firebaseConfig';
 import { doc, updateDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -560,15 +561,19 @@ export default function UserEdit({ route, navigation }) {
     const [alugueis, setAlugueis] = useState([]);
     const [contratos, setContratos] = useState([]);
 
-    // Estados para controlar a exibição das listas
-    const [showMotosList, setShowMotosList] = useState(false);
-    const [showAluguelsList, setShowAluguelsList] = useState(false);
-    const [showContratosList, setShowContratosList] = useState(false);
-
     // Estados para armazenar os itens selecionados
     const [selectedMoto, setSelectedMoto] = useState(null);
     const [selectedAluguel, setSelectedAluguel] = useState(null);
     const [selectedContrato, setSelectedContrato] = useState(null);
+
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalType, setModalType] = useState(''); // 'moto', 'aluguel', 'contrato'
+
+    // Função para abrir o modal
+    const openModal = (type) => {
+        setModalType(type);
+        setModalVisible(true);
+    };
 
     // Função para carregar os dados das coleções
     useEffect(() => {
@@ -661,6 +666,19 @@ export default function UserEdit({ route, navigation }) {
         }
     };
 
+    const formataTelefone = (texto) => {
+        // Remove todos os caracteres não numéricos
+        const numeros = texto.replace(/\D/g, '');
+        // Aplica a máscara (00) 00000-0000
+        if (numeros.length <= 2) {
+            return numeros;
+        } else if (numeros.length <= 7) {
+            return `(${numeros.slice(0, 2)}) ${numeros.slice(2)}`;
+        } else {
+            return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}${numeros.slice(7, 11)}`;
+        };
+    }
+
     const formatarCEP = (texto) => {
         // Remove todos os caracteres não numéricos
         const numeros = texto.replace(/\D/g, '');
@@ -680,7 +698,7 @@ export default function UserEdit({ route, navigation }) {
             ...prev,
             motoAlugadaId: moto.id
         }));
-        setShowMotosList(false);
+        setModalVisible(false);
     };
 
     const handleSelectAluguel = (aluguel) => {
@@ -689,7 +707,7 @@ export default function UserEdit({ route, navigation }) {
             ...prev,
             aluguelAtivoId: aluguel.id
         }));
-        setShowAluguelsList(false);
+        setModalVisible(false);
     };
 
     const handleSelectContrato = (contrato) => {
@@ -698,7 +716,7 @@ export default function UserEdit({ route, navigation }) {
             ...prev,
             contratoId: contrato.id
         }));
-        setShowContratosList(false);
+        setModalVisible(false);
     };
 
     // Função para limpar seleção
@@ -794,7 +812,7 @@ export default function UserEdit({ route, navigation }) {
                             />
                         </InputGroup>
 
-                        {/* Seleção de Moto */}
+                        {/* Seleção de Moto com Modal */}
                         <InputGroup>
                             <Label>Qual a moto alugada?</Label>
                             {selectedMoto ? (
@@ -802,7 +820,7 @@ export default function UserEdit({ route, navigation }) {
                                     <SelectedItemTitle>{selectedMoto.marca} {selectedMoto.modelo}</SelectedItemTitle>
                                     <SelectedItemDetail>Placa: {selectedMoto.placa} | Ano: {selectedMoto.anoModelo}</SelectedItemDetail>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
-                                        <SelectButton onPress={() => setShowMotosList(!showMotosList)} style={{ flex: 1, marginRight: 5 }}>
+                                        <SelectButton onPress={() => openModal('moto')} style={{ flex: 1, marginRight: 5 }}>
                                             <SelectButtonText>Trocar Moto</SelectButtonText>
                                         </SelectButton>
                                         <DeleteButton onPress={() => handleClearSelection('moto')} style={{ flex: 1, marginLeft: 5 }}>
@@ -811,28 +829,13 @@ export default function UserEdit({ route, navigation }) {
                                     </View>
                                 </SelectedItemContainer>
                             ) : (
-                                <SelectButton onPress={() => setShowMotosList(!showMotosList)}>
+                                <SelectButton onPress={() => openModal('moto')}>
                                     <SelectButtonText>Selecionar Moto</SelectButtonText>
                                 </SelectButton>
                             )}
-
-                            {showMotosList && (
-                                <SelectionList>
-                                    {motos.map((moto) => (
-                                        <SelectionItem
-                                            key={moto.id}
-                                            onPress={() => handleSelectMoto(moto)}
-                                            available={moto.disponivel}
-                                        >
-                                            <SelectionItemText>{moto.marca} {moto.modelo}</SelectionItemText>
-                                            <SelectionItemEmail>Placa: {moto.placa} | Ano: {moto.anoModelo}</SelectionItemEmail>
-                                        </SelectionItem>
-                                    ))}
-                                </SelectionList>
-                            )}
                         </InputGroup>
 
-                        {/* Seleção de Aluguel */}
+                        {/* Seleção de Aluguel com Modal */}
                         <InputGroup>
                             <Label>Qual o aluguel?</Label>
                             {selectedAluguel ? (
@@ -842,7 +845,7 @@ export default function UserEdit({ route, navigation }) {
                                         Mensal: R$ {selectedAluguel.valorMensal} | Semanal: R$ {selectedAluguel.valorSemanal} | Caução: R$ {selectedAluguel.valorCaucao}
                                     </SelectedItemDetail>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
-                                        <SelectButton onPress={() => setShowAluguelsList(!showAluguelsList)} style={{ flex: 1, marginRight: 5 }}>
+                                        <SelectButton onPress={() => openModal('aluguel')} style={{ flex: 1, marginRight: 5 }}>
                                             <SelectButtonText>Trocar Aluguel</SelectButtonText>
                                         </SelectButton>
                                         <DeleteButton onPress={() => handleClearSelection('aluguel')} style={{ flex: 1, marginLeft: 5 }}>
@@ -851,32 +854,13 @@ export default function UserEdit({ route, navigation }) {
                                     </View>
                                 </SelectedItemContainer>
                             ) : (
-                                <SelectButton onPress={() => setShowAluguelsList(!showAluguelsList)}>
+                                <SelectButton onPress={() => openModal('aluguel')}>
                                     <SelectButtonText>Selecionar Aluguel</SelectButtonText>
                                 </SelectButton>
                             )}
-
-                            {showAluguelsList && (
-                                <SelectionList>
-                                    {alugueis
-                                        .filter(aluguel => !selectedMoto || aluguel.motoId === selectedMoto.id)
-                                        .map((aluguel) => (
-                                            <SelectionItem
-                                                key={aluguel.id}
-                                                onPress={() => handleSelectAluguel(aluguel)}
-                                            >
-                                                <SelectionItemText>Aluguel: {aluguel.id}</SelectionItemText>
-                                                <SelectionItemEmail>
-                                                    Mensal: R$ {aluguel.valorMensal} | Semanal: R$ {aluguel.valorSemanal}
-                                                </SelectionItemEmail>
-                                            </SelectionItem>
-                                        ))
-                                    }
-                                </SelectionList>
-                            )}
                         </InputGroup>
 
-                        {/* Seleção de Contrato */}
+                        {/* Seleção de Contrato com Modal */}
                         <InputGroup>
                             <Label>Qual o contrato?</Label>
                             {selectedContrato ? (
@@ -886,7 +870,7 @@ export default function UserEdit({ route, navigation }) {
                                         Cliente: {selectedContrato.cliente} | Meses: {selectedContrato.mesesContratados}
                                     </SelectedItemDetail>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
-                                        <SelectButton onPress={() => setShowContratosList(!showContratosList)} style={{ flex: 1, marginRight: 5 }}>
+                                        <SelectButton onPress={() => openModal('contrato')} style={{ flex: 1, marginRight: 5 }}>
                                             <SelectButtonText>Trocar Contrato</SelectButtonText>
                                         </SelectButton>
                                         <DeleteButton onPress={() => handleClearSelection('contrato')} style={{ flex: 1, marginLeft: 5 }}>
@@ -895,31 +879,9 @@ export default function UserEdit({ route, navigation }) {
                                     </View>
                                 </SelectedItemContainer>
                             ) : (
-                                <SelectButton onPress={() => setShowContratosList(!showContratosList)}>
+                                <SelectButton onPress={() => openModal('contrato')}>
                                     <SelectButtonText>Selecionar Contrato</SelectButtonText>
                                 </SelectButton>
-                            )}
-
-                            {showContratosList && (
-                                <SelectionList>
-                                    {contratos
-                                        .filter(contrato =>
-                                            (!selectedAluguel || contrato.aluguelId === selectedAluguel.id) &&
-                                            (!selectedMoto || contrato.motoId === selectedMoto.id)
-                                        )
-                                        .map((contrato) => (
-                                            <SelectionItem
-                                                key={contrato.id}
-                                                onPress={() => handleSelectContrato(contrato)}
-                                            >
-                                                <SelectionItemText>Contrato: {contrato.id}</SelectionItemText>
-                                                <SelectionItemEmail>
-                                                    Cliente: {contrato.cliente} | Meses: {contrato.mesesContratados}
-                                                </SelectionItemEmail>
-                                            </SelectionItem>
-                                        ))
-                                    }
-                                </SelectionList>
                             )}
                         </InputGroup>
                     </Section>
@@ -947,8 +909,12 @@ export default function UserEdit({ route, navigation }) {
                             <Label>Telefone</Label>
                             <Input
                                 value={userData.telefone}
-                                onChangeText={(text) => setUserData(prev => ({ ...prev, telefone: text }))}
+                                onChangeText={(text) => setUserData(prev => ({
+                                    ...prev,
+                                    telefone: formataTelefone(text)
+                                }))}
                                 keyboardType="numeric"
+                                maxLength={15}
                             />
                         </InputGroup>
                         <InputGroup>
@@ -1237,6 +1203,138 @@ export default function UserEdit({ route, navigation }) {
                     </Button>
                 </Form>
             </ScrollView>
+            {/* Modal para seleção de itens */}
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={modalVisible}
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={{
+                    flex: 1,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    backgroundColor: 'rgba(0,0,0,0.5)'
+                }}>
+                    <View style={{
+                        width: '90%',
+                        maxHeight: '80%',
+                        backgroundColor: 'white',
+                        borderRadius: 10,
+                        padding: 20,
+                        elevation: 5,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.25,
+                        shadowRadius: 3.84,
+                    }}>
+                        <View style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: 15,
+                            borderBottomWidth: 1,
+                            borderBottomColor: '#E0E0E0',
+                            paddingBottom: 10
+                        }}>
+                            <Label style={{ fontSize: 18, fontWeight: 'bold' }}>
+                                {modalType === 'moto' ? 'Selecione uma Moto' :
+                                    modalType === 'aluguel' ? 'Selecione um Aluguel' :
+                                        'Selecione um Contrato'}
+                            </Label>
+                            <TouchableOpacity onPress={() => setModalVisible(false)}>
+                                <MaterialIcons name="close" size={24} color="#CB2921" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={{ maxHeight: '90%' }}>
+                            {modalType === 'moto' && motos.map((moto) => (
+                                <SelectionItem
+                                    key={moto.id}
+                                    onPress={() => handleSelectMoto(moto)}
+                                    available={moto.disponivel}
+                                    style={{ marginBottom: 8 }}
+                                >
+                                    <SelectionItemText>{moto.marca} {moto.modelo}</SelectionItemText>
+                                    <SelectionItemEmail>Placa: {moto.placa} | Ano: {moto.anoModelo}</SelectionItemEmail>
+                                </SelectionItem>
+                            ))}
+
+                            {modalType === 'aluguel' && alugueis
+                                .filter(aluguel => !selectedMoto || aluguel.motoId === selectedMoto.id)
+                                .map((aluguel) => (
+                                    <SelectionItem
+                                        key={aluguel.id}
+                                        onPress={() => handleSelectAluguel(aluguel)}
+                                        style={{ marginBottom: 8 }}
+                                    >
+                                        <SelectionItemText>Aluguel: {aluguel.id}</SelectionItemText>
+                                        <SelectionItemEmail>
+                                            Mensal: R$ {aluguel.valorMensal} | Semanal: R$ {aluguel.valorSemanal}
+                                        </SelectionItemEmail>
+                                    </SelectionItem>
+                                ))
+                            }
+
+                            {modalType === 'contrato' && contratos
+                                .filter(contrato =>
+                                    (!selectedAluguel || contrato.aluguelId === selectedAluguel.id) &&
+                                    (!selectedMoto || contrato.motoId === selectedMoto.id)
+                                )
+                                .map((contrato) => (
+                                    <SelectionItem
+                                        key={contrato.id}
+                                        onPress={() => handleSelectContrato(contrato)}
+                                        style={{ marginBottom: 8 }}
+                                    >
+                                        <SelectionItemText>Contrato: {contrato.id}</SelectionItemText>
+                                        <SelectionItemEmail>
+                                            Cliente: {contrato.cliente} | Meses: {contrato.mesesContratados}
+                                        </SelectionItemEmail>
+                                    </SelectionItem>
+                                ))
+                            }
+
+                            {/* Mensagem quando não há itens */}
+                            {modalType === 'moto' && motos.length === 0 && (
+                                <View style={{ padding: 20, alignItems: 'center' }}>
+                                    <Label>Nenhuma moto disponível</Label>
+                                </View>
+                            )}
+
+                            {modalType === 'aluguel' &&
+                                alugueis.filter(aluguel => !selectedMoto || aluguel.motoId === selectedMoto.id).length === 0 && (
+                                    <View style={{ padding: 20, alignItems: 'center' }}>
+                                        <Label>Nenhum aluguel disponível para esta moto</Label>
+                                    </View>
+                                )}
+
+                            {modalType === 'contrato' &&
+                                contratos.filter(contrato =>
+                                    (!selectedAluguel || contrato.aluguelId === selectedAluguel.id) &&
+                                    (!selectedMoto || contrato.motoId === selectedMoto.id)
+                                ).length === 0 && (
+                                    <View style={{ padding: 20, alignItems: 'center' }}>
+                                        <Label>Nenhum contrato disponível para esta combinação</Label>
+                                    </View>
+                                )}
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            onPress={() => setModalVisible(false)}
+                            style={{
+                                marginTop: 15,
+                                padding: 12,
+                                backgroundColor: '#CB2921',
+                                borderRadius: 8,
+                                alignItems: 'center'
+                            }}
+                        >
+                            <ButtonText>Fechar</ButtonText>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </Container>
     );
 }
