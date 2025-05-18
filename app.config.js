@@ -3,7 +3,7 @@ import 'dotenv/config';
 export default {
   name: "Papa Tango",
   slug: "papamotos",
-  version: "1.0.0",
+  version: "1.0.5",
   scheme: "papamotors",
   orientation: "portrait",
   updates: {
@@ -114,6 +114,7 @@ export default {
       xxhdpi: "./assets/splash-icon.png",
       xxxhdpi: "./assets/splash-icon.png"
     },
+    versionCode: 5,
     intentFilters: [
       {
         action: "VIEW",
