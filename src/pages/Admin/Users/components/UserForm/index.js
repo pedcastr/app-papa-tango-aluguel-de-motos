@@ -886,7 +886,7 @@ export default function UserForm({ navigation }) {
                                 telefone: formataTelefone(text)
                             }))}
                             keyboardType="phone-pad"
-                            maxLength={12}
+                            maxLength={15}
                             placeholder='(00) 00000-0000'
                         />
                     </InputGroup>
