@@ -114,7 +114,6 @@ export default {
       xxhdpi: "./assets/splash-icon.png",
       xxxhdpi: "./assets/splash-icon.png"
     },
-    versionCode: 5,
     intentFilters: [
       {
         action: "VIEW",
