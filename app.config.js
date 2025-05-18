@@ -104,7 +104,6 @@ export default {
       "VIBRATE"
     ],
     googleServicesFile: "./google-services.json",
-    softwareKeyboardLayoutMode: "pan",
     navigationBarColor: "#CB2921",
     splash: {
       backgroundColor: "#CB2921",
