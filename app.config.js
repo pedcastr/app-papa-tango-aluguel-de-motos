@@ -46,6 +46,14 @@ export default {
         "supportsPictureInPicture": true
       }
     ],
+    [
+      "expo-splash-screen",
+      {
+        "backgroundColor": "#CB2921",
+        "imageResizeMode": "contain",
+        "image": "./assets/splash-icon.png"
+      }
+    ],
     "expo-notifications",
   ],
   notification: {
@@ -76,7 +84,7 @@ export default {
       usesNonExemptEncryption: false
     },
     associatedDomains: [
-      "applinks:papatangoalugueldemotos.com.br", 
+      "applinks:papatangoalugueldemotos.com.br",
       "applinks:www.papatangoalugueldemotos.com.br"
     ],
   },
@@ -92,8 +100,8 @@ export default {
       "CAMERA",
       "READ_EXTERNAL_STORAGE",
       "WRITE_EXTERNAL_STORAGE",
-      "INTERNET", 
-      "VIBRATE"  
+      "INTERNET",
+      "VIBRATE"
     ],
     googleServicesFile: "./google-services.json",
     splash: {
