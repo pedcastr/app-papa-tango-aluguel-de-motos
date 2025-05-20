@@ -157,7 +157,7 @@ export const registerForPushNotifications = async () => {
       projectId = Constants.expoConfig?.extra?.eas?.projectId || 
                   Constants.expoConfig?.extra?.projectId;
       
-      // Fallback para o projectId hardcoded do seu app.config.js
+      // Fallback para o projectId hardcoded do app.config.js
       if (!projectId) {
         projectId = '2d93efbd-1062-4051-bf44-18c916565fb7';
       }
