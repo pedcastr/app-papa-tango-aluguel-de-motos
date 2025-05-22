@@ -280,7 +280,7 @@ export default function CadastroMoto({ navigation }) {
                 </View>
             )}
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView>
                 <Form>
                     {/* Seção de Informações Básicas */}
                     <Section>

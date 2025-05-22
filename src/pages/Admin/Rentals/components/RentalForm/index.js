@@ -268,11 +268,10 @@ export default function RentalForm({ navigation }) {
 
     return (
         <Container>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView>
                 <Form>
                     <Section>
                         <SectionTitle>Dados do Aluguel</SectionTitle>
-
                         <InputGroup>
                             <Label>Moto</Label>
                             {selectedMoto ? (
@@ -323,7 +322,16 @@ export default function RentalForm({ navigation }) {
                             <Input
                                 value={rentalData.valorSemanal}
                                 onChangeText={(text) => {
+                                    // Atualiza o valor semanal
                                     setRentalData(prev => ({ ...prev, valorSemanal: text }));
+
+                                    // Se o texto não estiver vazio, calcula e atualiza o valor mensal
+                                    if (text.trim() !== '' && !isNaN(text)) {
+                                        const valorMensal = (parseFloat(text) * 4).toString();
+                                        setRentalData(prev => ({ ...prev, valorSemanal: text, valorMensal }));
+                                    }
+
+                                    // Limpa o erro se existir
                                     if (errors.valorSemanal) {
                                         setErrors(prev => {
                                             const newErrors = { ...prev };
@@ -344,7 +352,16 @@ export default function RentalForm({ navigation }) {
                             <Input
                                 value={rentalData.valorMensal}
                                 onChangeText={(text) => {
+                                    // Atualiza o valor mensal
                                     setRentalData(prev => ({ ...prev, valorMensal: text }));
+
+                                    // Se o texto não estiver vazio, calcula e atualiza o valor semanal
+                                    if (text.trim() !== '' && !isNaN(text)) {
+                                        const valorSemanal = (parseFloat(text) / 4).toString();
+                                        setRentalData(prev => ({ ...prev, valorMensal: text, valorSemanal }));
+                                    }
+
+                                    // Limpa o erro se existir
                                     if (errors.valorMensal) {
                                         setErrors(prev => {
                                             const newErrors = { ...prev };

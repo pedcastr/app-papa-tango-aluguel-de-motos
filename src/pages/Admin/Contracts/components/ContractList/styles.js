@@ -3,15 +3,19 @@ import { Platform } from 'react-native';
 
 const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
 
-export const Container = styled.ScrollView.attrs({
-    contentContainerStyle: {
-        padding: 20,
-        paddingBottom: 30
-    },
-    nestedScrollEnabled: true
-})`
+export const Container = styled.View`
     flex: 1;
     background-color: #F5F5F5;
+    padding: 16px;
+`;
+
+export const ContractsList = styled.ScrollView.attrs({
+    showsVerticalScrollIndicator: true,
+    contentContainerStyle: {
+        paddingBottom: 20
+    }
+})`
+    flex: 1;
 `;
 
 export const ContractCard = styled.View`
@@ -20,7 +24,6 @@ export const ContractCard = styled.View`
     padding: 15px;
     margin-bottom: 40px;
     elevation: 2;
-    margin-top: -20px;
 `;
 
 export const ContractNumber = styled.Text`
@@ -131,4 +134,11 @@ export const Divider = styled.View`
   background-color: #E0E0E0;
   width: 100%;
   margin: 15px 0;
+`;
+
+export const EmptyText = styled.Text`
+    font-size: 16px;
+    color: #667;
+    text-align: center;
+    margin-top: 26px;
 `;

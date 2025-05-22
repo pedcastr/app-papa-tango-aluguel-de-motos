@@ -16,6 +16,15 @@ export default function TabRoutes() {
     // Verifica se o dispositivo é um desktop web
     const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
 
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = (title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    };
+
     // Função para abrir o WhatsApp após clicar na Tab de atendimento
     const abrirWhatsApp = () => {
         const telefone = '5585992684035';
@@ -27,12 +36,12 @@ export default function TabRoutes() {
                 if (suportado) {
                     return Linking.openURL(urlWhatsapp);
                 } else {
-                    Alert.alert('WhatsApp não está instalado');
+                    showMessage('WhatsApp não está instalado\nSe o App está instalado e o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com');
                 }
             })
             .catch(erro => {
                 console.error('Erro ao abrir WhatsApp:', erro);
-                Alert.alert('Não foi possível abrir o WhatsApp');
+                showMessage('Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com');
             });
     };
 
@@ -54,7 +63,7 @@ export default function TabRoutes() {
                     tabBarIcon: ({ focused }) => (
                         <Ionicons
                             name="home"
-                            size={26} 
+                            size={26}
                             color={focused ? '#CB2921' : '#000'}
                             style={{ marginLeft: isWebDesktop ? 0 : -10 }}
                         />
@@ -78,10 +87,10 @@ export default function TabRoutes() {
                 component={FinanceiroStack} // FinanceiroStack é a stack criada em ./stacks/financeiroStack.js responsável por navegar entre as telas do Financeiro
                 options={{
                     tabBarIcon: ({ focused }) => (
-                        <MaterialIcons 
+                        <MaterialIcons
                             name="request-quote"
-                            size={26} 
-                            color={focused ? '#CB2921' : '#000'} 
+                            size={26}
+                            color={focused ? '#CB2921' : '#000'}
                             style={{ marginLeft: isWebDesktop ? 0 : -13 }}
                         />
                     ),
@@ -104,10 +113,10 @@ export default function TabRoutes() {
                 component={ManutencaoStack} // ManutencaoStack é a stack criada em ./stacks/manutencaoStack.js responsável por navegar entre as telas do Manutenção
                 options={{
                     tabBarIcon: ({ focused }) => (
-                        <MaterialIcons 
+                        <MaterialIcons
                             name="build"
-                            size={26} 
-                            color={focused ? '#CB2921' : '#000'} 
+                            size={26}
+                            color={focused ? '#CB2921' : '#000'}
                             style={{ marginLeft: isWebDesktop ? 0 : -15 }}
                         />
                     ),
@@ -137,9 +146,9 @@ export default function TabRoutes() {
                 }}
                 options={{
                     tabBarIcon: ({ focused }) => (
-                        <Ionicons 
+                        <Ionicons
                             name="logo-whatsapp"
-                            size={26} 
+                            size={26}
                             color={focused ? '#CB2921' : '#000'}
                             style={{ marginLeft: isWebDesktop ? 0 : -10 }}
                         />

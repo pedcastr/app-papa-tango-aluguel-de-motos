@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator, FlatList, TouchableOpacity, Alert, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ActivityIndicator, FlatList, TouchableOpacity, Alert, Platform, Linking } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { auth, db } from '../../services/firebaseConfig';
@@ -35,6 +35,7 @@ const Financeiro = () => {
   const navigation = useNavigation();
 
   const [loading, setLoading] = useState(true);
+  const [loadingSupport, setLoadingSupport] = useState(false);
   const [loadingButtonPagamento, setLoadingButtonPagamento] = useState(false);
   const [loadingButtonDetalhes, setLoadingButtonDetalhes] = useState(false);
   const [payments, setPayments] = useState([]);
@@ -1069,6 +1070,32 @@ const Financeiro = () => {
     }
   };
 
+  // Função para abrir WhatsApp
+  const handleWhatsapp = useCallback(() => {
+    if (loadingSupport) return;
+
+    setLoadingSupport(true);
+    const telefone = '5585992684035';
+    const mensagem = 'Olá! Estou logado no app da Papa Tango e quero alugar uma moto novamente! Já fui cliente de vocês :)';
+    const urlWhatsapp = `whatsapp://send?phone=${telefone}&text=${encodeURIComponent(mensagem)}`;
+
+    Linking.canOpenURL(urlWhatsapp)
+      .then(suportado => {
+        if (suportado) {
+          return Linking.openURL(urlWhatsapp);
+        } else {
+          showMessage('WhatsApp não está instalado\nSe o App está instalado e o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com');
+        }
+      })
+      .catch(erro => {
+        console.error('Erro ao abrir WhatsApp:', erro);
+        showMessage('Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com');
+      })
+      .finally(() => {
+        setLoadingSupport(false);
+      });
+  }, [loadingSupport]);
+
   // Renderizar item da lista de pagamentos 
   const renderPaymentItem = ({ item }) => (
     <Card>
@@ -1231,7 +1258,7 @@ const Financeiro = () => {
 
   {/* Renderizar conteúdo quando não há pagamentos */ }
   const renderEmptyContent = () => {
-    if (!contratoAtivo) {
+    if (!contratoAtivo && !contratoCarregado) {
       return (
         <EmptyContainer>
           <Feather name="alert-circle" size={50} color="#FF3B30" />
@@ -1243,6 +1270,17 @@ const Financeiro = () => {
       );
     }
 
+    // Caso de contrato inativo mas com histórico de pagamentos
+    if (!contratoAtivo && payments.length === 0) {
+      return (
+        <EmptyContainer>
+          <Feather name="credit-card" size={50} color="#CCC" />
+          <EmptyText>Você não possui pagamentos registrados.</EmptyText>
+        </EmptyContainer>
+      );
+    }
+
+    // Caso padrão para usuário sem pagamentos
     return (
       <EmptyContainer>
         <Feather name="credit-card" size={50} color="#CCC" />
@@ -1253,6 +1291,44 @@ const Financeiro = () => {
           </Button>
         )}
       </EmptyContainer>
+    );
+  };
+
+  // Componente para exibir a mensagem de contrato inativo
+  const renderContratoInativoMessage = () => {
+    return (
+      <PaymentInfoContainer style={{
+        backgroundColor: '#f8f9fa',
+        padding: 15,
+        borderRadius: 10,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#e9ecef'
+      }}>
+        <PaymentInfoTitle style={{
+          fontSize: 18,
+          fontWeight: 'bold',
+          marginBottom: 10,
+          color: '#343a40'
+        }}>Contrato Inativo</PaymentInfoTitle>
+
+        <EmptyText style={{
+          textAlign: 'center',
+          marginVertical: 15,
+          color: '#6c757d',
+          lineHeight: 22
+        }}>
+          Você não possui mais um contrato ativo no momento, mas pode visualizar seu histórico de pagamentos abaixo.
+        </EmptyText>
+
+        <Button onPress={handleWhatsapp} style={{ marginTop: 5 }}>
+          {loadingSupport ? (
+            <ButtonText>Abrindo WhatsApp...</ButtonText>
+          ): (
+            <ButtonText>Alugar uma Moto Novamente</ButtonText>
+          )}
+        </Button>
+      </PaymentInfoContainer>
     );
   };
 
@@ -1284,6 +1360,7 @@ const Financeiro = () => {
             renderErrorContent()
           ) : (
             <>
+              {/* Verificar se o usuário tem contrato ativo ou se tem histórico de pagamentos */}
               {contratoAtivo ? (
                 <>
                   {/* Mostrar próximo pagamento apenas se o contrato estiver ativo */}
@@ -1312,13 +1389,45 @@ const Financeiro = () => {
                     }}
                   />
                 </>
+              ) : payments.length > 0 ? (
+                // Contrato inativo mas com histórico de pagamentos
+                <>
+                  {/* Mostrar mensagem de contrato inativo */}
+                  {renderContratoInativoMessage()}
+
+                  <Divider />
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                    <Title style={{ fontSize: 18 }}>Histórico de Pagamentos</Title>
+                    <TouchableOpacity onPress={() => {
+                      setLoading(true);
+                      loadPayments();
+                    }}>
+                      <Feather name="refresh-cw" size={20} color="#CB2921" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <FlatList
+                    data={payments}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderPaymentItem}
+                    contentContainerStyle={{
+                      flexGrow: 1,
+                      paddingBottom: 20
+                    }}
+                  />
+                </>
               ) : (
+                // Sem contrato ativo e sem histórico de pagamentos
                 <EmptyContainer>
                   <Feather name="alert-circle" size={50} color="#FF3B30" />
                   <EmptyText>Você não possui um contrato ativo no momento.</EmptyText>
                   <EmptyText style={{ marginTop: 10, fontSize: 14, color: '#666', textAlign: 'center' }}>
                     Entre em contato com a Papa Tango para mais informações sobre como alugar uma moto.
                   </EmptyText>
+                  <Button onPress={() => navigation.navigate('Home')} style={{ marginTop: 20 }}>
+                    <ButtonText>Alugar uma Moto</ButtonText>
+                  </Button>
                 </EmptyContainer>
               )}
             </>

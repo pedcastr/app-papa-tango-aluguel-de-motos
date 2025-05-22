@@ -5,14 +5,19 @@ const isNative = Platform.OS === 'ios' || Platform.OS === 'android';
 const isWebMobile = Platform.OS === 'web' && window.innerWidth < 768;
 const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
 
-export const Container = styled.ScrollView.attrs({
+export const Container = styled.View`
+    flex: 1;
+    background-color: #F5F5F5;
+    padding: 16px;
+`;
+
+export const UsersList = styled.ScrollView.attrs({
+    showsVerticalScrollIndicator: true,
     contentContainerStyle: {
-        padding: 20,
-        paddingBottom: 30 
+        paddingBottom: 20
     }
 })`
     flex: 1;
-    background-color: #F5F5F5;
 `;
 
 export const UserCard = styled.View`
@@ -44,7 +49,6 @@ export const UserEmail = styled.Text`
     color: #333;
 `;
 
-// Alterando de Text para View para evitar o erro de renderização de texto
 export const TextContainer = styled.View`
     flex-direction: row;
     align-items: center;

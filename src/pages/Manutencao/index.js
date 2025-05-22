@@ -39,7 +39,7 @@ export default function Manutencao({ navigation }) {
     const abrirWhatsAppManutencao = useCallback(() => {
         setLoading(true);
         const telefone = '5585992684035';
-        const mensagem = 'Olá! Preciso de ajuda :)\n\n Já  estou logado no app da Papa Tango e estou com problemas mecânicos na moto';
+        const mensagem = 'Olá! Preciso de ajuda :)\n\nJá estou logado no app da Papa Tango e estou com problemas mecânicos na moto';
         const urlWhatsapp = `whatsapp://send?phone=${telefone}&text=${encodeURIComponent(mensagem)}`;
 
         Linking.canOpenURL(urlWhatsapp)

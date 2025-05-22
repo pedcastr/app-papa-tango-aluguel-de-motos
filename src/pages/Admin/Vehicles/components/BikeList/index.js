@@ -8,6 +8,7 @@ import FilterPanel from '../../../../../components/FilterPanel';
 
 import {
     Container,
+    BikesList,
     BikeCard,
     BikeImage,
     BikeInfo,
@@ -17,7 +18,8 @@ import {
     BikeStatus,
     ActionButton,
     ActionButtonText,
-    EmptyMessage
+    EmptyMessage,
+    EmptyText
 } from './styles';
 
 /**
@@ -33,12 +35,12 @@ export default function BikeList({ navigation, route }) {
     const [rentedBikeIds, setRentedBikeIds] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0); // Estado para forçar re-renderização
-   
+
     // Estados para controle de filtros
     const [statusFilter, setStatusFilter] = useState('todos'); // 'todos', 'alugadas', 'disponiveis'
     const [marcaFilter, setMarcaFilter] = useState('todas'); // 'todas' ou marca específica
     const [marcasDisponiveis, setMarcasDisponiveis] = useState([]); // Lista de marcas disponíveis
-   
+
     // Refs para armazenar dados em cache e controlar atualizações
     const bikesCache = useRef(new Map());
     const usersCache = useRef(new Map());
@@ -63,23 +65,23 @@ export default function BikeList({ navigation, route }) {
      */
     useEffect(() => {
         if (route.params?.deletedBikeId) {
-           
+
             // Remova a moto do cache local
             const bikeId = route.params.deletedBikeId;
             if (bikesCache.current.has(bikeId)) {
                 bikesCache.current.delete(bikeId);
             }
-           
+
             // Força uma atualização completa dos dados
             forceUpdate.current = true;
-           
+
             // Atualiza diretamente os estados para garantir que a UI seja atualizada
             setBikes(prevBikes => prevBikes.filter(bike => bike.id !== bikeId));
             setFilteredBikes(prevFiltered => prevFiltered.filter(bike => bike.id !== bikeId));
-           
+
             // Incrementa refreshKey para forçar re-renderização
             setRefreshKey(prev => prev + 1);
-           
+
             // Limpe o parâmetro para evitar repetição
             navigation.setParams({ deletedBikeId: undefined });
         }
@@ -96,21 +98,21 @@ export default function BikeList({ navigation, route }) {
             if (bikesCache.current.has(bikeId) && bikesCache.current.get(bikeId).fotoUrl) {
                 return bikesCache.current.get(bikeId).fotoUrl;
             }
-           
+
             // Se não tiver em cache, busca do Storage
             const fotosRef = ref(storage, `motos/${bikeId}/fotos`);
             const fotosList = await listAll(fotosRef);
-           
+
             const fotoUrl = fotosList.items.length > 0
                 ? await getDownloadURL(fotosList.items[0])
                 : null;
-               
+
             // Atualiza o cache
             if (bikesCache.current.has(bikeId)) {
                 const bikeData = bikesCache.current.get(bikeId);
                 bikesCache.current.set(bikeId, { ...bikeData, fotoUrl });
             }
-           
+
             return fotoUrl;
         } catch (error) {
             console.log(`Erro ao carregar foto da moto ${bikeId}:`, error);
@@ -123,13 +125,13 @@ export default function BikeList({ navigation, route }) {
      */
     const updateBikesState = async () => {
         if (isUpdating.current && !forceUpdate.current) return;
-       
+
         try {
             isUpdating.current = true;
-           
+
             // Converte o cache de motos para um array
             const bikesArray = Array.from(bikesCache.current.values());
-           
+
             // Carrega imagens apenas para motos que ainda não têm
             const bikesPromises = bikesArray.map(async bike => {
                 if (!bike.fotoUrl) {
@@ -138,23 +140,23 @@ export default function BikeList({ navigation, route }) {
                 }
                 return bike;
             });
-           
+
             const bikesWithImages = await Promise.all(bikesPromises);
-           
+
             // Extrai todas as marcas disponíveis
             const marcas = [...new Set(bikesWithImages
                 .map(bike => bike.marca)
                 .filter(marca => marca && marca.trim() !== '')
             )].sort();
-           
+
             setMarcasDisponiveis(marcas);
-           
+
             // Atualiza os estados
             setBikes(bikesWithImages);
-           
+
             // Aplica os filtros atuais
             applyAllFilters(bikesWithImages);
-           
+
             // Reseta a flag de forçar atualização
             forceUpdate.current = false;
         } catch (error) {
@@ -171,19 +173,19 @@ export default function BikeList({ navigation, route }) {
     const updateRentedStatus = () => {
         // Limpa o status de aluguel de todas as motos
         const rentedIds = [];
-       
+
         // Verifica cada usuário para encontrar motos alugadas
         usersCache.current.forEach(userData => {
             // Verifica ambas as possíveis grafias do campo
             const motoId = userData.motoAlugadaId || userData.motoalugadaId;
-           
+
             // Verifica se motoAlugada é true (como booleano ou string "true")
             const isRented = userData.motoAlugada === true || userData.motoAlugada === "true";
-           
+
             if (isRented && motoId) {
                 const normalizedId = String(motoId).trim();
                 rentedIds.push(normalizedId);
-               
+
                 // Atualiza o status da moto no cache
                 if (bikesCache.current.has(normalizedId)) {
                     const bikeData = bikesCache.current.get(normalizedId);
@@ -191,14 +193,14 @@ export default function BikeList({ navigation, route }) {
                 }
             }
         });
-       
+
         // Atualiza motos não alugadas
         bikesCache.current.forEach((bikeData, bikeId) => {
             if (!rentedIds.includes(bikeId)) {
                 bikesCache.current.set(bikeId, { ...bikeData, alugada: false });
             }
         });
-       
+
         // Atualiza o estado de IDs alugados
         setRentedBikeIds(rentedIds);
     };
@@ -209,7 +211,7 @@ export default function BikeList({ navigation, route }) {
      */
     const applyAllFilters = (bikesData = bikes) => {
         let filtered = bikesData;
-       
+
         // Filtrar por termo de busca
         if (searchTerm.trim()) {
             const searchTermLower = searchTerm.toLowerCase();
@@ -219,7 +221,7 @@ export default function BikeList({ navigation, route }) {
                 (bike.placa && bike.placa.toLowerCase().includes(searchTermLower))
             );
         }
-       
+
         // Filtrar por status
         if (statusFilter !== 'todos') {
             filtered = filtered.filter(bike => {
@@ -227,14 +229,14 @@ export default function BikeList({ navigation, route }) {
                 return statusFilter === 'alugadas' ? isRented : !isRented;
             });
         }
-       
+
         // Filtrar por marca
         if (marcaFilter !== 'todas') {
             filtered = filtered.filter(bike =>
                 bike.marca && bike.marca.trim() === marcaFilter
             );
         }
-       
+
         setFilteredBikes(filtered);
     };
 
@@ -246,9 +248,9 @@ export default function BikeList({ navigation, route }) {
         setStatusFilter(status);
         // Aplicamos o filtro imediatamente com o novo valor
         const newStatusFilter = status;
-        
+
         let filtered = [...bikes];
-        
+
         // Aplicar filtro de busca
         if (searchTerm.trim()) {
             const searchTermLower = searchTerm.toLowerCase();
@@ -258,7 +260,7 @@ export default function BikeList({ navigation, route }) {
                 (bike.placa && bike.placa.toLowerCase().includes(searchTermLower))
             );
         }
-        
+
         // Aplicar filtro de status com o novo valor
         if (newStatusFilter !== 'todos') {
             filtered = filtered.filter(bike => {
@@ -266,14 +268,14 @@ export default function BikeList({ navigation, route }) {
                 return newStatusFilter === 'alugadas' ? isRented : !isRented;
             });
         }
-        
+
         // Aplicar filtro de marca (mantendo o valor atual)
         if (marcaFilter !== 'todas') {
             filtered = filtered.filter(bike =>
                 bike.marca && bike.marca.trim() === marcaFilter
             );
         }
-        
+
         // Atualizar o estado filtrado
         setFilteredBikes(filtered);
     };
@@ -286,9 +288,9 @@ export default function BikeList({ navigation, route }) {
         setMarcaFilter(marca);
         // Aplicamos o filtro imediatamente com o novo valor
         const newMarcaFilter = marca;
-        
+
         let filtered = [...bikes];
-        
+
         // Aplicar filtro de busca
         if (searchTerm.trim()) {
             const searchTermLower = searchTerm.toLowerCase();
@@ -298,7 +300,7 @@ export default function BikeList({ navigation, route }) {
                 (bike.placa && bike.placa.toLowerCase().includes(searchTermLower))
             );
         }
-        
+
         // Aplicar filtro de status (mantendo o valor atual)
         if (statusFilter !== 'todos') {
             filtered = filtered.filter(bike => {
@@ -306,14 +308,14 @@ export default function BikeList({ navigation, route }) {
                 return statusFilter === 'alugadas' ? isRented : !isRented;
             });
         }
-        
+
         // Aplicar filtro de marca com o novo valor
         if (newMarcaFilter !== 'todas') {
             filtered = filtered.filter(bike =>
                 bike.marca && bike.marca.trim() === newMarcaFilter
             );
         }
-        
+
         // Atualizar o estado filtrado
         setFilteredBikes(filtered);
     };
@@ -323,7 +325,7 @@ export default function BikeList({ navigation, route }) {
      */
     const countActiveFilters = () => {
         return (statusFilter !== 'todos' ? 1 : 0) +
-               (marcaFilter !== 'todas' ? 1 : 0);
+            (marcaFilter !== 'todas' ? 1 : 0);
     };
 
     /**
@@ -355,7 +357,7 @@ export default function BikeList({ navigation, route }) {
                 ]
             }
         ];
-        
+
         // Adiciona a seção de marcas apenas se houver marcas disponíveis
         if (marcasDisponiveis.length > 0) {
             sections.push({
@@ -376,7 +378,7 @@ export default function BikeList({ navigation, route }) {
                 ]
             });
         }
-        
+
         return sections;
     };
 
@@ -385,19 +387,19 @@ export default function BikeList({ navigation, route }) {
         useCallback(() => {
             let bikesUnsubscribe = null;
             let usersUnsubscribe = null;
-           
+
             const setupListeners = async () => {
                 try {
                     setLoading(true);
-                   
+
                     // Listener para mudanças na coleção de motos
                     bikesUnsubscribe = onSnapshot(collection(db, "motos"), (snapshot) => {
-                       
+
                         // Processa as mudanças
                         snapshot.docChanges().forEach(change => {
                             const bikeData = change.doc.data();
                             const bikeId = change.doc.id;
-                           
+
                             if (change.type === "added" || change.type === "modified") {
                                 // Adiciona ou atualiza o cache
                                 const currentData = bikesCache.current.get(bikeId) || {};
@@ -413,31 +415,31 @@ export default function BikeList({ navigation, route }) {
                                 // Remove do cache
                                 console.log(`Moto removida: ${bikeId}`);
                                 bikesCache.current.delete(bikeId);
-                               
+
                                 // Atualiza diretamente os estados para garantir que a UI seja atualizada
                                 setBikes(prevBikes => prevBikes.filter(bike => bike.id !== bikeId));
                                 setFilteredBikes(prevFiltered => prevFiltered.filter(bike => bike.id !== bikeId));
                             }
                         });
-                       
+
                         // Atualiza o status de aluguel
                         updateRentedStatus();
-                       
+
                         // Atualiza o estado
                         updateBikesState();
                     }, (error) => {
                         console.log("Erro no listener de motos:", error);
                         setLoading(false);
                     });
-                   
+
                     // Listener para mudanças na coleção de usuários
                     usersUnsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
-                       
+
                         // Processa as mudanças
                         snapshot.docChanges().forEach(change => {
                             const userData = change.doc.data();
                             const userId = change.doc.id;
-                           
+
                             if (change.type === "added" || change.type === "modified") {
                                 // Adiciona ou atualiza o cache
                                 usersCache.current.set(userId, userData);
@@ -446,17 +448,17 @@ export default function BikeList({ navigation, route }) {
                                 usersCache.current.delete(userId);
                             }
                         });
-                       
+
                         // Atualiza o status de aluguel
                         updateRentedStatus();
-                       
+
                         // Atualiza o estado
                         updateBikesState();
                     }, (error) => {
                         console.log("Erro no listener de usuários:", error);
                         setLoading(false);
                     });
-                   
+
                     // Carrega os dados iniciais
                     const loadInitialData = async () => {
                         try {
@@ -465,7 +467,7 @@ export default function BikeList({ navigation, route }) {
                             usersSnapshot.docs.forEach(doc => {
                                 usersCache.current.set(doc.id, doc.data());
                             });
-                           
+
                             // Carrega motos
                             const bikesSnapshot = await getDocs(collection(db, "motos"));
                             bikesSnapshot.docs.forEach(doc => {
@@ -475,10 +477,10 @@ export default function BikeList({ navigation, route }) {
                                     alugada: false
                                 });
                             });
-                           
+
                             // Atualiza o status de aluguel
                             updateRentedStatus();
-                           
+
                             // Atualiza o estado
                             await updateBikesState();
                         } catch (error) {
@@ -486,7 +488,7 @@ export default function BikeList({ navigation, route }) {
                             setLoading(false);
                         }
                     };
-                   
+
                     await loadInitialData();
                 } catch (error) {
                     console.log("Erro ao configurar listeners:", error);
@@ -494,9 +496,9 @@ export default function BikeList({ navigation, route }) {
                     setLoading(false);
                 }
             };
-           
+
             setupListeners();
-           
+
             // Cleanup function - remove os listeners quando a tela perde o foco
             return () => {
                 if (bikesUnsubscribe) bikesUnsubscribe();
@@ -508,12 +510,12 @@ export default function BikeList({ navigation, route }) {
     // Função para lidar com a mudança no termo de busca
     const handleSearchChange = (text) => {
         setSearchTerm(text);
-        
+
         // Aplicar filtros imediatamente com o novo valor
         const newSearchTerm = text;
-        
+
         let filtered = [...bikes];
-        
+
         // Aplicar filtro de busca com o novo valor
         if (newSearchTerm.trim()) {
             const searchTermLower = newSearchTerm.toLowerCase();
@@ -523,7 +525,7 @@ export default function BikeList({ navigation, route }) {
                 (bike.placa && bike.placa.toLowerCase().includes(searchTermLower))
             );
         }
-        
+
         // Aplicar filtro de status
         if (statusFilter !== 'todos') {
             filtered = filtered.filter(bike => {
@@ -531,14 +533,14 @@ export default function BikeList({ navigation, route }) {
                 return statusFilter === 'alugadas' ? isRented : !isRented;
             });
         }
-        
+
         // Aplicar filtro de marca
         if (marcaFilter !== 'todas') {
             filtered = filtered.filter(bike =>
                 bike.marca && bike.marca.trim() === marcaFilter
             );
         }
-        
+
         setFilteredBikes(filtered);
     };
 
@@ -547,24 +549,23 @@ export default function BikeList({ navigation, route }) {
         return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                 <ActivityIndicator size="large" color="#E74C3C" />
+                <EmptyText>Carregando Motos...</EmptyText>
             </View>
         );
     }
 
     return (
         <Container>
-            <View style={{ marginBottom: 20 }}>
-                <FilterPanel
-                    searchTerm={searchTerm}
-                    onSearchChange={handleSearchChange}
-                    onSearch={() => applyAllFilters()}
-                    filterSections={getFilterSections()}
-                    activeFiltersCount={countActiveFilters()}
-                    onAddButtonPress={() => navigation.navigate('BikeForm', { bikes })}
-                    addButtonIcon="add"
-                    searchPlaceholder="Buscar motos..."
-                />
-            </View>
+            <FilterPanel
+                searchTerm={searchTerm}
+                onSearchChange={handleSearchChange}
+                onSearch={() => applyAllFilters()}
+                filterSections={getFilterSections()}
+                activeFiltersCount={countActiveFilters()}
+                onAddButtonPress={() => navigation.navigate('BikeForm', { bikes })}
+                addButtonIcon="add"
+                searchPlaceholder="Buscar motos..."
+            />
 
             {/* Lista de motos ou mensagem de "nenhuma moto encontrada" */}
             {filteredBikes.length === 0 ? (
@@ -572,57 +573,59 @@ export default function BikeList({ navigation, route }) {
                     <EmptyMessage>Nenhuma moto encontrada</EmptyMessage>
                 </View>
             ) : (
-                filteredBikes.map(bike => {
-                    // Verifica diretamente se a moto está na lista de alugadas
-                    const isRented = rentedBikeIds.includes(String(bike.id).trim());
-                   
-                    return (
-                        <BikeCard key={bike.id}>
-                            {bike.fotoUrl && <BikeImage source={{ uri: bike.fotoUrl }} resizeMode={isWebDesktop ? 'contain' : 'cover'} />}
-                            <BikeInfo>
-                                <TextInfo>
-                                    <BikeModel>ID: </BikeModel>
-                                    <InfoBike>{bike.id || 'N/A'}</InfoBike>
-                                </TextInfo>
-                                <TextInfo>
-                                    <BikeModel>Placa: </BikeModel>
-                                    <InfoBike>{bike.placa || 'N/A'}</InfoBike>
-                                </TextInfo>
-                                <TextInfo>
-                                    <BikeModel>Modelo: </BikeModel>
-                                    <InfoBike>{bike.modelo || 'N/A'}</InfoBike>
-                                </TextInfo>
-                                <TextInfo>
-                                    <BikeModel>Ano: </BikeModel>
-                                    <InfoBike>{bike.anoModelo || 'N/A'}</InfoBike>
-                                </TextInfo>
-                                <TextInfo>
-                                    <BikeModel>Marca: </BikeModel>
-                                    <InfoBike>{bike.marca || 'N/A'}</InfoBike>
-                                </TextInfo>
-                                <TextInfo>
-                                    <BikeModel>Chassi: </BikeModel>
-                                    <InfoBike>{bike.chassi || 'N/A'}</InfoBike>
-                                </TextInfo>
-                                <TextInfo>
-                                    <BikeModel>Renavam: </BikeModel>
-                                    <InfoBike>{bike.renavam || 'N/A'}</InfoBike>
-                                </TextInfo>
-                                <BikeStatus available={!isRented}>
-                                    {isRented ? 'Alugada' : 'Disponível'}
-                                </BikeStatus>
-                            </BikeInfo>
-                            <ActionButton onPress={() => navigation.navigate('BikeEdit', {
-                                bike: {
-                                    ...bike,
-                                    alugada: isRented
-                                }
-                            })}>
-                                <ActionButtonText>Editar</ActionButtonText>
-                            </ActionButton>
-                        </BikeCard>
-                    );
-                })
+                <BikesList>
+                    {filteredBikes.map(bike => {
+                        // Verifica diretamente se a moto está na lista de alugadas
+                        const isRented = rentedBikeIds.includes(String(bike.id).trim());
+
+                        return (
+                            <BikeCard key={bike.id}>
+                                {bike.fotoUrl && <BikeImage source={{ uri: bike.fotoUrl }} resizeMode={isWebDesktop ? 'contain' : 'cover'} />}
+                                <BikeInfo>
+                                    <TextInfo>
+                                        <BikeModel>ID: </BikeModel>
+                                        <InfoBike>{bike.id || 'N/A'}</InfoBike>
+                                    </TextInfo>
+                                    <TextInfo>
+                                        <BikeModel>Placa: </BikeModel>
+                                        <InfoBike>{bike.placa || 'N/A'}</InfoBike>
+                                    </TextInfo>
+                                    <TextInfo>
+                                        <BikeModel>Modelo: </BikeModel>
+                                        <InfoBike>{bike.modelo || 'N/A'}</InfoBike>
+                                    </TextInfo>
+                                    <TextInfo>
+                                        <BikeModel>Ano: </BikeModel>
+                                        <InfoBike>{bike.anoModelo || 'N/A'}</InfoBike>
+                                    </TextInfo>
+                                    <TextInfo>
+                                        <BikeModel>Marca: </BikeModel>
+                                        <InfoBike>{bike.marca || 'N/A'}</InfoBike>
+                                    </TextInfo>
+                                    <TextInfo>
+                                        <BikeModel>Chassi: </BikeModel>
+                                        <InfoBike>{bike.chassi || 'N/A'}</InfoBike>
+                                    </TextInfo>
+                                    <TextInfo>
+                                        <BikeModel>Renavam: </BikeModel>
+                                        <InfoBike>{bike.renavam || 'N/A'}</InfoBike>
+                                    </TextInfo>
+                                    <BikeStatus available={!isRented}>
+                                        {isRented ? 'Alugada' : 'Disponível'}
+                                    </BikeStatus>
+                                </BikeInfo>
+                                <ActionButton onPress={() => navigation.navigate('BikeEdit', {
+                                    bike: {
+                                        ...bike,
+                                        alugada: isRented
+                                    }
+                                })}>
+                                    <ActionButtonText>Editar</ActionButtonText>
+                                </ActionButton>
+                            </BikeCard>
+                        );
+                    })}
+                </BikesList>
             )}
         </Container>
     );

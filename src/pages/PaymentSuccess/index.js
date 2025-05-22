@@ -280,6 +280,7 @@ const PaymentSuccess = () => {
     try {
       let message = `
       Pagamento ${formatStatus(paymentData.status)}
+      
       Valor: R$ ${paymentData.transaction_amount.toFixed(2)}
       Método: ${formatPaymentType(paymentData.payment_type_id)}
       Data: ${formatDate(paymentData.date_created)}
@@ -311,16 +312,67 @@ const PaymentSuccess = () => {
       // Adicionar período de locação se existir
       if (paymentData.periodoLocacao) {
         message += `
-      Período: ${paymentData.periodoLocacao}
+      Vencimento: ${paymentData.periodoLocacao}
       `;
       }
 
-      await Share.share({
+      // Adicionar informações específicas de PIX se o pagamento for por PIX
+      if (isPix && paymentData.status !== 'approved') {
+        const pixCode = getPixCode();
+        if (pixCode) {
+          message += `
+        
+        DADOS DO PIX:
+        Código PIX: ${pixCode}
+        `;
+        }
+
+        // Adicionar informação sobre o QR Code
+        message += `
+      QR Code PIX disponível no aplicativo.
+      `;
+      }
+
+      // Adicionar informações específicas de Boleto se o pagamento for por Boleto
+      if (isBoleto && paymentData.status !== 'approved') {
+        const barcodeText = getBarcodeText();
+        if (barcodeText && barcodeText !== 'Código de barras disponível apenas no boleto') {
+          message += `
+        
+        DADOS DO BOLETO:
+        Linha Digitável: ${barcodeText}
+        `;
+        }
+
+        const boletoUrl = getBoletoUrl();
+        if (boletoUrl) {
+          message += `
+        Link do Boleto: ${boletoUrl}
+        `;
+        }
+      }
+
+      // Compartilhar as informações
+      const shareOptions = {
         message,
         title: 'Informações do Pagamento'
-      });
+      };
+
+      // Se estiver no iOS e for um pagamento PIX com QR code, tentar adicionar a imagem
+      if (Platform.OS === 'ios' && isPix && getPixQrCode()) {
+        try {
+          // No iOS, podemos tentar compartilhar a imagem junto com o texto
+          const qrCodeBase64 = getPixQrCode();
+          shareOptions.url = `data:image/png;base64,${qrCodeBase64}`;
+        } catch (error) {
+          console.log('Não foi possível adicionar QR code à mensagem:', error);
+        }
+      }
+
+      await Share.share(shareOptions);
     } catch (error) {
       console.error('Erro ao compartilhar:', error);
+      showMessage('Erro', 'Não foi possível compartilhar as informações do pagamento.');
     }
   };
 
@@ -353,7 +405,7 @@ const PaymentSuccess = () => {
     return null;
   };
 
-  // Modifique a função getPixCode de forma similar
+  // Função getPixCode para pegar o código do QR Code do PIX
   const getPixCode = () => {
     const data = paymentData?.originalData || {};
 
@@ -374,14 +426,29 @@ const PaymentSuccess = () => {
     return '';
   };
 
-  // Modifique a função getBarcodeText
+  // Função getBarcodeText para pegar o código de barras do boleto
   const getBarcodeText = () => {
     const data = paymentData?.originalData || {};
 
-    if (data.paymentDetails &&
-      data.paymentDetails.transaction_details &&
-      data.paymentDetails.transaction_details.digitable_line) {
+    // Verificar todos os caminhos possíveis para a linha digitável
+    if (data.paymentDetails?.transaction_details?.digitable_line) {
       return data.paymentDetails.transaction_details.digitable_line;
+    }
+
+    if (data.transaction_details?.digitable_line) {
+      return data.transaction_details.digitable_line;
+    }
+
+    if (data.point_of_interaction?.transaction_data?.ticket?.digitable_line) {
+      return data.point_of_interaction.transaction_data.ticket.digitable_line;
+    }
+
+    if (data.barcode) {
+      return data.barcode;
+    }
+
+    if (data.digitable_line) {
+      return data.digitable_line;
     }
 
     return 'Código de barras disponível apenas no boleto';

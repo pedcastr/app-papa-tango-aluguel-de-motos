@@ -231,12 +231,12 @@ export default function Home() {
                 if (suportado) {
                     return Linking.openURL(urlWhatsapp);
                 } else {
-                    showMessage('WhatsApp não está instalado');
+                    showMessage('WhatsApp não está instalado\nSe o App está instalado e o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com');
                 }
             })
             .catch(erro => {
                 console.error('Erro ao abrir WhatsApp:', erro);
-                showMessage('Não foi possível abrir o WhatsApp');
+                showMessage('Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com');
             })
             .finally(() => {
                 setLoadingSupport(false);

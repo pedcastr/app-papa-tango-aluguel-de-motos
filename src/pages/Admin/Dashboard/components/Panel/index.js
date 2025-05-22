@@ -49,7 +49,8 @@ import {
     ChartLegendText,
     RefreshButton,
     RefreshButtonText,
-    CardGrid
+    CardGrid,
+    EmptyText
 } from './styles';
 
 export default function DashboardScreen() {
@@ -565,6 +566,7 @@ export default function DashboardScreen() {
         return (
             <LoadingContainer>
                 <ActivityIndicator size="large" color="#CB2921" />
+                <EmptyText>Carregando Dashboard...</EmptyText>
             </LoadingContainer>
         );
     }
@@ -576,7 +578,7 @@ export default function DashboardScreen() {
                 <NotificationBell userType="admin" color="#FFFFFF" />
             </Header>
             <DashboardScrollView
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator={true}
                 contentContainerStyle={{ paddingBottom: 30 }}
             >
                 {/* Seção de Estatísticas Principais */}

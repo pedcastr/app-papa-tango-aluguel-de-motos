@@ -264,16 +264,21 @@ export default function TrocaOleo({ navigation }) {
                 dataUpload: dataAtual
             });
 
-            setUploadStatus('Concluindo...');
+            setUploadStatus('Enviando notificação e e-mail...');
             setUploadProgress(0.95);
 
-            // Enviando email com os dados do usuário e fotos e vídeo
+            setUploadStatus('Concluindo...');
+            setUploadProgress(0.99);
+
+            // Enviando email ao usuário admin e o próprio usuário com os dados, fotos e vídeo
             const functions = getFunctions();
-            const enviarEmailTrocaOleo = httpsCallable(functions, 'enviarEmailTrocaOleo');
+            const enviarEmailsTrocaOleo = httpsCallable(functions, 'enviarEmailsTrocaOleo');
+
+            // Criar um objeto simples sem métodos ou propriedades complexas
             const emailData = {
-                userName,
-                userEmail,
-                userPhone,
+                userName: userName || "",
+                userEmail: userEmail,
+                userPhone: userPhone || "",
                 dataUpload: dataAtual,
                 fotoOleo: urlFotoOleo,
                 fotoNota: urlFotoNota,
@@ -281,7 +286,7 @@ export default function TrocaOleo({ navigation }) {
                 videoOleo: urlVideo
             };
 
-            await enviarEmailTrocaOleo(emailData);
+            await enviarEmailsTrocaOleo(emailData);
 
             setUploadProgress(1);
             setUploadStatus('Concluído com sucesso!');
@@ -295,7 +300,6 @@ export default function TrocaOleo({ navigation }) {
                 message: 'Erro ao enviar documentos. Por favor, tente novamente mais tarde.'
             });
             setFeedbackVisible(true);
-
         } finally {
             setLoading(false);
         }

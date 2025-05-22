@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, FlatList, Alert, Platform } from 'react-native';
+import { View, ActivityIndicator, FlatList, Alert, Platform, TouchableOpacity, Text, TextInput } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { db } from '../../../services/firebaseConfig';
@@ -41,6 +41,15 @@ export default function AdminUserPayments() {
     const [payments, setPayments] = useState([]);
     const [userContract, setUserContract] = useState(null);
     const [pendingPixPayments, setPendingPixPayments] = useState([]);
+
+    // Estados para controlar os modais de pagamento parcial e total manuais
+    const [showPaymentTypeModal, setShowPaymentTypeModal] = useState(false);
+    const [showPartialPaymentModal, setShowPartialPaymentModal] = useState(false);
+    const [partialPaymentValue, setPartialPaymentValue] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [showLatePaymentModal, setShowLatePaymentModal] = useState(false);
+    const [latePaymentValue, setLatePaymentValue] = useState('');
+    const [latePaymentReason, setLatePaymentReason] = useState('');
 
     // Substitua o useEffect atual por este
     useEffect(() => {
@@ -517,111 +526,355 @@ export default function AdminUserPayments() {
             return;
         }
 
-        // Determinar qual valor usar baseado no tipo de recorrência
-        const valorPagamento = userContract.tipoRecorrencia === 'semanal'
-            ? userContract.valorSemanal
-            : userContract.valorMensal;
+        // Abrir o modal de seleção de tipo de pagamento
+        setShowPaymentTypeModal(true);
+    };
 
-        showConfirmation(
-            'Registrar Pagamento',
-            `Deseja registrar um pagamento manual de ${formatCurrency(valorPagamento)} para ${userName}?`,
-            async () => {
-                try {
-                    // Adicionar pagamento ao Firestore
-                    const paymentsRef = collection(db, 'payments');
-                    const now = new Date();
+    // Função para registrar pagamento total
+    const registrarPagamentoTotal = async (valorPagamento) => {
+        try {
+            setIsProcessing(true);
 
-                    const paymentDoc = await addDoc(paymentsRef, {
-                        userEmail: userEmail,
-                        userName: userName,
-                        status: 'approved',
-                        paymentMethod: 'manual',
-                        amount: valorPagamento,
-                        description: `Pagamento ${userContract.tipoRecorrencia}`,
-                        dateCreated: Timestamp.fromDate(now),
-                        date_approved: Timestamp.fromDate(now),
-                        registeredBy: 'admin'
-                    });
+            // Adicionar pagamento ao Firestore
+            const paymentsRef = collection(db, 'payments');
+            const now = new Date();
 
-                    // Enviar notificação ao usuário
-                    const paymentInfo = {
-                        id: paymentDoc.id,
-                        transaction_amount: valorPagamento
-                    };
+            const paymentDoc = await addDoc(paymentsRef, {
+                userEmail: userEmail,
+                userName: userName,
+                status: 'approved',
+                paymentMethod: 'manual',
+                amount: valorPagamento,
+                description: `Pagamento ${userContract.tipoRecorrencia}`,
+                dateCreated: Timestamp.fromDate(now),
+                date_approved: Timestamp.fromDate(now),
+                registeredBy: 'admin',
+                isPagamentoParcial: false
+            });
 
-                    const title = 'Pagamento Registrado';
-                    const body = `Um pagamento de ${formatCurrency(valorPagamento)} foi recebido.`;
-                    const data = {
-                        screen: 'Financeiro',
-                        paymentId: paymentDoc.id
-                    };
+            // Enviar notificação ao usuário
+            const paymentInfo = {
+                id: paymentDoc.id,
+                transaction_amount: valorPagamento
+            };
 
-                    await enviarNotificacaoPeloFirestore(
-                        userEmail,
-                        paymentInfo,
-                        title,
-                        body,
-                        data
-                    );
+            const title = 'Pagamento Registrado';
+            const body = `Um pagamento de ${formatCurrency(valorPagamento)} foi recebido.`;
+            const data = {
+                screen: 'Financeiro',
+                paymentId: paymentDoc.id
+            };
 
-                    // Enviar email de confirmação
-                    const emailSubject = 'Confirmação de Pagamento - Papa Tango';
-                    const emailBody = `
-                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-                            <div style="text-align: center; margin-bottom: 20px;">
-                                <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px;">
-                            </div>
-                            <h2 style="color: #28a745; text-align: center;">Pagamento Confirmado</h2>
-                            <p>Olá ${userName || 'Cliente'},</p>
-                            <p>Um pagamento no valor de <strong>${formatCurrency(valorPagamento)}</strong> foi recebido.</p>
-                            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                                <p><strong>Detalhes do Pagamento:</strong></p>
-                                <p>Data: ${formatDate(now)}</p>
-                                <p>Valor: ${formatCurrency(valorPagamento)}</p>
-                                <p>Método: Manual (registrado pelo administrador)</p>
-                                <p>ID: ${paymentDoc.id}</p>
-                            </div>
-                            <p>Você pode verificar este pagamento no histórico do seu aplicativo.</p>
-                            <div style="text-align: center; margin: 30px 0;">
-                                <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                                    Abrir no Aplicativo
-                                </a>
-                            </div>
-                            <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
-                                Este é um email automático. Por favor, não responda a este email.
-                            </p>
-                        </div>
-                    `;
+            await enviarNotificacaoPeloFirestore(
+                userEmail,
+                paymentInfo,
+                title,
+                body,
+                data
+            );
 
-                    await enviarEmailPeloFirestore(
-                        userEmail,
-                        emailSubject,
-                        emailBody,
-                        {
-                            id: paymentDoc.id,
-                            amount: valorPagamento,
-                            paymentMethod: 'manual',
-                            date: now
-                        }
-                    );
+            // Enviar email de confirmação
+            const emailSubject = 'Confirmação de Pagamento - Papa Tango';
+            const emailBody = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px;">
+                </div>
+                <h2 style="color: #28a745; text-align: center;">Pagamento Confirmado</h2>
+                <p>Olá, ${userName || 'Cliente'},</p>
+                <p>Um pagamento no valor de <strong>${formatCurrency(valorPagamento)}</strong> foi recebido.</p>
+                <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <p><strong>Detalhes do Pagamento:</strong></p>
+                    <p>Data: ${formatDate(now)}</p>
+                    <p>Valor: ${formatCurrency(valorPagamento)}</p>
+                    <p>Método: Manual (registrado pelo administrador)</p>
+                    <p>ID: ${paymentDoc.id}</p>
+                </div>
+                <p>Você pode verificar este pagamento no histórico do seu aplicativo.</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="https://papatangoalugueldemotos.com.br/Financeiro" style="background-color: #CB2921; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        Abrir no Aplicativo
+                    </a>
+                </div>
+                <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
+                    Este é um email automático. Por favor, não responda a este email.
+                </p>
+            </div>
+        `;
 
-                    showMessage('Sucesso', 'Pagamento registrado com sucesso!');
-                } catch (error) {
-                    console.error('Erro ao registrar pagamento:', error);
-                    showMessage('Erro', 'Não foi possível registrar o pagamento.');
+            await enviarEmailPeloFirestore(
+                userEmail,
+                emailSubject,
+                emailBody,
+                {
+                    id: paymentDoc.id,
+                    amount: valorPagamento,
+                    paymentMethod: 'manual',
+                    date: now
                 }
-            }
-        );
+            );
+
+            showMessage('Sucesso', 'Pagamento registrado com sucesso!');
+        } catch (error) {
+            console.error('Erro ao registrar pagamento:', error);
+            showMessage('Erro', 'Não foi possível registrar o pagamento.');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    // Função para registrar pagamento parcial
+    const registrarPagamentoParcial = async (valorTotal, valorParcial) => {
+        try {
+            setIsProcessing(true);
+
+            // Adicionar pagamento ao Firestore
+            const paymentsRef = collection(db, 'payments');
+            const now = new Date();
+
+            // Calcular valor restante
+            const valorRestante = valorTotal - valorParcial;
+
+            // Calcular data limite para pagamento restante (3 dias a partir de hoje)
+            const dataLimite = new Date(now);
+            dataLimite.setDate(dataLimite.getDate() + 3);
+
+            // Calcular multa (2% do valor total)
+            const valorMultaPercentual = valorTotal * 0.02;
+            const valorMultaDiaria = 10; // R$10 por dia
+
+            const paymentDoc = await addDoc(paymentsRef, {
+                userEmail: userEmail,
+                userName: userName,
+                status: 'approved',
+                paymentMethod: 'manual',
+                amount: valorParcial,
+                description: `Pagamento Parcial ${userContract.tipoRecorrencia === 'mensal' ? 'Mensal' : 'Semanal'}`,
+                dateCreated: Timestamp.fromDate(now),
+                date_approved: Timestamp.fromDate(now),
+                registeredBy: 'admin',
+                isPagamentoParcial: true,
+                pagamentoParcialInfo: {
+                    valorTotal: valorTotal,
+                    valorParcial: valorParcial,
+                    valorRestante: valorRestante,
+                    dataLimite: Timestamp.fromDate(dataLimite),
+                    valorMultaPercentual: valorMultaPercentual,
+                    valorMultaDiaria: valorMultaDiaria,
+                    statusPagamentoRestante: 'pendente'
+                }
+            });
+
+            // Enviar notificação ao usuário
+            const paymentInfo = {
+                id: paymentDoc.id,
+                transaction_amount: valorParcial
+            };
+
+            const title = 'Pagamento Parcial Registrado';
+            const body = `Um pagamento parcial de ${formatCurrency(valorParcial)} foi recebido. Restante: ${formatCurrency(valorRestante)} sofrerá multa de 2% sobre o pagamento ${userContract.tipoRecorrencia} + R$10 ao dia de atraso. Você tem até ${formatDate(dataLimite)} para realizar o restante do pagamento.`;
+            const data = {
+                screen: 'Financeiro',
+                paymentId: paymentDoc.id,
+                isPagamentoParcial: true
+            };
+
+            await enviarNotificacaoPeloFirestore(
+                userEmail,
+                paymentInfo,
+                title,
+                body,
+                data
+            );
+
+            // Enviar email de confirmação para pagamento parcial
+            const emailSubject = 'Confirmação de Pagamento Parcial - Papa Tango';
+            const emailBody = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.firebasestorage.app/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px;">
+                </div>
+                <h2 style="color: #ffc107; text-align: center;">Pagamento Parcial Registrado</h2>
+                <p>Olá, ${userName || 'Cliente'},</p>
+                <p>Um pagamento parcial no valor de <strong>${formatCurrency(valorParcial)}</strong> foi recebido.</p>
+                
+                <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #ffeeba;">
+                    <p style="font-weight: bold; color: #856404;">Atenção: Pagamento Parcial</p>
+                    <p>Valor total devido: ${formatCurrency(valorTotal)}</p>
+                    <p>Valor pago: ${formatCurrency(valorParcial)}</p>
+                    <p>Valor restante: ${formatCurrency(valorRestante)}</p>
+                    <p>Data limite para pagamento do restante: ${formatDate(dataLimite)}</p>
+                    <p style="color: #dc3545;">Após a data de hoje, será aplicada multa de 2% (R$ ${valorMultaPercentual.toFixed(2)}) + R$ 10,00 por dia de atraso.</p>
+                </div>
+                
+                <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <p><strong>Detalhes do Pagamento Parcial:</strong></p>
+                    <p>Data: ${formatDate(now)}</p>
+                    <p>Valor Pago: ${formatCurrency(valorParcial)}</p>
+                    <p>Método: Manual (registrado pelo administrador)</p>
+                    <p>ID: ${paymentDoc.id}</p>
+                </div>
+                
+                <p>Para realizar o pagamento do valor restante, entre em contato com nossa equipe no WhatsApp (85) 99268-4035 ou utilize o aplicativo.</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="https://papatangoalugueldemotos.com.br/Financeiro" style="background-color: #CB2921; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        Abrir no Aplicativo
+                    </a>
+                </div>
+                
+                <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
+                    Este é um email automático. Por favor, não responda a este email.
+                </p>
+            </div>
+        `;
+
+            await enviarEmailPeloFirestore(
+                userEmail,
+                emailSubject,
+                emailBody,
+                {
+                    id: paymentDoc.id,
+                    amount: valorParcial,
+                    paymentMethod: 'manual',
+                    date: now,
+                    isPagamentoParcial: true,
+                    valorTotal: valorTotal,
+                    valorRestante: valorRestante,
+                    dataLimite: dataLimite.toISOString()
+                }
+            );
+
+            showMessage('Sucesso', 'Pagamento parcial registrado com sucesso!');
+        } catch (error) {
+            console.error('Erro ao registrar pagamento parcial:', error);
+            showMessage('Erro', 'Não foi possível registrar o pagamento parcial.');
+        }
+    };
+
+    // Função para registrar pagamento com atraso
+    const registrarPagamentoComAtraso = async (valorRegular, valorComAtraso, motivoAtraso) => {
+        try {
+            setIsProcessing(true);
+
+            // Calcular o valor da multa adicional
+            const valorAdicional = valorComAtraso - valorRegular;
+
+            // Adicionar pagamento ao Firestore
+            const paymentsRef = collection(db, 'payments');
+            const now = new Date();
+
+            const paymentDoc = await addDoc(paymentsRef, {
+                userEmail: userEmail,
+                userName: userName,
+                status: 'approved',
+                paymentMethod: 'manual',
+                amount: valorComAtraso,
+                description: `Pagamento ${userContract.tipoRecorrencia === 'semanal' ? 'Semanal' : 'Mensal'} com Atraso`,
+                dateCreated: Timestamp.fromDate(now),
+                date_approved: Timestamp.fromDate(now),
+                registeredBy: 'admin',
+                isPagamentoComAtraso: true,
+                pagamentoAtrasoInfo: {
+                    valorRegular: valorRegular,
+                    valorComAtraso: valorComAtraso,
+                    valorAdicional: valorAdicional,
+                    motivoAtraso: motivoAtraso || 'Multa por atraso'
+                }
+            });
+
+            // Enviar notificação ao usuário
+            const paymentInfo = {
+                id: paymentDoc.id,
+                transaction_amount: valorComAtraso
+            };
+
+            const title = 'Pagamento com Atraso Registrado';
+            const body = `Um pagamento de ${formatCurrency(valorComAtraso)} foi recebido, incluindo ${formatCurrency(valorAdicional)} de multa adicional.`;
+            const data = {
+                screen: 'Financeiro',
+                paymentId: paymentDoc.id
+            };
+
+            await enviarNotificacaoPeloFirestore(
+                userEmail,
+                paymentInfo,
+                title,
+                body,
+                data
+            );
+
+            // Enviar email de confirmação para pagamento com atraso
+            const emailSubject = 'Confirmação de Recebimento de Pagamento com Atraso - Papa Tango';
+            const emailBody = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <img src="https://firebasestorage.googleapis.com/v0/b/papamotos-2988e.appspot.com/o/Logo%2FLogo.png?alt=media&token=08eadf37-3a78-4c7e-8777-4ab2e6668b14" alt="Papa Tango Logo" style="width: 70px; margin-bottom: 20px;">
+            </div>
+            <h2 style="color: #dc3545; text-align: center;">Pagamento com Atraso Registrado</h2>
+            <p>Olá, ${userName || 'Cliente'},</p>
+            <p>Um pagamento no valor de <strong>${formatCurrency(valorComAtraso)}</strong> foi recebido.</p>
+            
+            <div style="background-color: #f8d7da; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #f5c6cb;">
+                <p style="font-weight: bold; color: #721c24;">Detalhes do Pagamento com Atraso:</p>
+                <p>Valor regular: ${formatCurrency(valorRegular)}</p>
+                <p>Valor adicional: ${formatCurrency(valorAdicional)}</p>
+                <p>Motivo: ${motivoAtraso || 'Multa por atraso'}</p>
+            </div>
+            
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p><strong>Detalhes do Pagamento:</strong></p>
+                <p>Data: ${formatDate(now)}</p>
+                <p>Valor Total: ${formatCurrency(valorComAtraso)}</p>
+                <p>Método: Manual (registrado pelo administrador)</p>
+                <p>ID: ${paymentDoc.id}</p>
+            </div>
+            
+            <p>Você pode verificar este pagamento no histórico do seu aplicativo.</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="https://papatangoalugueldemotos.com.br/Financeiro" style="background-color: #CB2921; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                    Abrir no Aplicativo
+                </a>
+            </div>
+            <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
+                Este é um email automático. Por favor, não responda a este email.
+            </p>
+        </div>
+    `;
+
+            await enviarEmailPeloFirestore(
+                userEmail,
+                emailSubject,
+                emailBody,
+                {
+                    id: paymentDoc.id,
+                    amount: valorComAtraso,
+                    paymentMethod: 'manual',
+                    date: now,
+                    isPagamentoComAtraso: true,
+                    valorRegular: valorRegular,
+                    valorAdicional: valorAdicional,
+                    motivoAtraso: motivoAtraso
+                }
+            );
+
+            showMessage('Sucesso', 'Pagamento com atraso registrado com sucesso!');
+        } catch (error) {
+            console.error('Erro ao registrar pagamento com atraso:', error);
+            showMessage('Erro', 'Não foi possível registrar o pagamento com atraso.');
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     // Renderizar item da lista
     const renderPaymentItem = ({ item }) => (
         <PaymentCard>
+            <StatusBadge style={{ backgroundColor: getStatusColor(item.status), marginTop: 5 }}>
+                <StatusText>{formatStatus(item.status)}</StatusText>
+            </StatusBadge>
             <PaymentHeader>
                 <PaymentTitle>{item.description || 'Pagamento'}</PaymentTitle>
-                <StatusBadge style={{ backgroundColor: getStatusColor(item.status), marginTop: -22 }}>
-                    <StatusText>{formatStatus(item.status)}</StatusText>
-                </StatusBadge>
             </PaymentHeader>
 
             <PaymentAmount>{formatCurrency(item.transaction_amount)}</PaymentAmount>
@@ -783,6 +1036,353 @@ export default function AdminUserPayments() {
                         paddingBottom: 20
                     }}
                 />
+            )}
+            {/* Modal para selecionar tipo de pagamento */}
+            {showPaymentTypeModal && (
+                <View style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: 1000
+                }}>
+                    <View style={{
+                        width: '80%',
+                        backgroundColor: 'white',
+                        borderRadius: 10,
+                        padding: 20,
+                        maxWidth: 400
+                    }}>
+                        <Text style={{
+                            fontSize: 18,
+                            fontWeight: 'bold',
+                            marginBottom: 20,
+                            textAlign: 'center'
+                        }}>
+                            Tipo de Pagamento
+                        </Text>
+
+                        <Text style={{
+                            marginBottom: 20,
+                            textAlign: 'center'
+                        }}>
+                            Selecione o tipo de pagamento para {userName}:
+                        </Text>
+
+                        <View style={{
+                            marginTop: 10
+                        }}>
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: '#28a745',
+                                    padding: 10,
+                                    borderRadius: 5,
+                                    marginBottom: 10,
+                                    alignItems: 'center'
+                                }}
+                                onPress={() => {
+                                    setShowPaymentTypeModal(false);
+                                    const valorPagamento = userContract.tipoRecorrencia === 'semanal'
+                                        ? userContract.valorSemanal
+                                        : userContract.valorMensal;
+                                    registrarPagamentoTotal(valorPagamento);
+                                }}
+                            >
+                                <Text style={{ color: 'white' }}>Pagamento Total</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: '#ffc107',
+                                    padding: 10,
+                                    borderRadius: 5,
+                                    marginBottom: 10,
+                                    alignItems: 'center'
+                                }}
+                                onPress={() => {
+                                    setShowPaymentTypeModal(false);
+                                    setShowPartialPaymentModal(true);
+                                    setPartialPaymentValue('');
+                                }}
+                            >
+                                <Text style={{ color: 'white' }}>Pagamento Parcial</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: '#dc3545',
+                                    padding: 10,
+                                    borderRadius: 5,
+                                    marginBottom: 10,
+                                    alignItems: 'center'
+                                }}
+                                onPress={() => {
+                                    setShowPaymentTypeModal(false);
+                                    setShowLatePaymentModal(true);
+                                    setLatePaymentValue('');
+                                    setLatePaymentReason('');
+                                }}
+                            >
+                                <Text style={{ color: 'white' }}>Pagamento com Atraso</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={{
+                                marginTop: 15,
+                                alignItems: 'center'
+                            }}
+                            onPress={() => setShowPaymentTypeModal(false)}
+                        >
+                            <Text style={{ color: '#6c757d' }}>Cancelar</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
+
+            {/* Modal para inserir valor do pagamento parcial */}
+            {showPartialPaymentModal && (
+                <View style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: 1000
+                }}>
+                    <View style={{
+                        width: '80%',
+                        backgroundColor: 'white',
+                        borderRadius: 10,
+                        padding: 20,
+                        maxWidth: 400
+                    }}>
+                        <Text style={{
+                            fontSize: 18,
+                            fontWeight: 'bold',
+                            marginBottom: 20,
+                            textAlign: 'center'
+                        }}>
+                            Pagamento Parcial
+                        </Text>
+
+                        <Text style={{
+                            marginBottom: 10,
+                            textAlign: 'center'
+                        }}>
+                            Digite o valor do pagamento parcial realizado por {userName}:
+                        </Text>
+
+                        <TextInput
+                            style={{
+                                borderWidth: 1,
+                                borderColor: '#ced4da',
+                                borderRadius: 5,
+                                padding: 10,
+                                marginBottom: 20,
+                                fontSize: 16
+                            }}
+                            placeholder="0.00"
+                            keyboardType="numeric"
+                            value={partialPaymentValue}
+                            onChangeText={setPartialPaymentValue}
+                        />
+
+                        <View style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            marginTop: 10
+                        }}>
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: '#6c757d',
+                                    padding: 10,
+                                    borderRadius: 5,
+                                    flex: 1,
+                                    marginRight: 5,
+                                    alignItems: 'center'
+                                }}
+                                onPress={() => setShowPartialPaymentModal(false)}
+                            >
+                                <Text style={{ color: 'white' }}>Cancelar</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: '#28a745',
+                                    padding: 10,
+                                    borderRadius: 5,
+                                    flex: 1,
+                                    marginLeft: 5,
+                                    alignItems: 'center'
+                                }}
+                                onPress={() => {
+                                    setShowPartialPaymentModal(false);
+
+                                    const valorTotal = userContract.tipoRecorrencia === 'semanal'
+                                        ? userContract.valorSemanal
+                                        : userContract.valorMensal;
+
+                                    const valorParcialFloat = parseFloat(partialPaymentValue.replace(',', '.'));
+
+                                    if (isNaN(valorParcialFloat) || valorParcialFloat <= 0 || valorParcialFloat >= valorTotal) {
+                                        showMessage('Erro', 'Valor inválido. O pagamento parcial deve ser maior que zero e menor que o valor total.');
+                                        return;
+                                    }
+
+                                    registrarPagamentoParcial(valorTotal, valorParcialFloat);
+                                }}
+                                disabled={isProcessing}
+                            >
+                                <Text style={{ color: 'white' }}>
+                                    {isProcessing ? 'Processando...' : 'Registrar'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            )}
+            {/* Modal para inserir valor do pagamento com atraso */}
+            {showLatePaymentModal && (
+                <View style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: 1000
+                }}>
+                    <View style={{
+                        width: '80%',
+                        backgroundColor: 'white',
+                        borderRadius: 10,
+                        padding: 20,
+                        maxWidth: 400
+                    }}>
+                        <Text style={{
+                            fontSize: 18,
+                            fontWeight: 'bold',
+                            marginBottom: 20,
+                            textAlign: 'center'
+                        }}>
+                            Pagamento com Atraso
+                        </Text>
+
+                        <Text style={{
+                            marginBottom: 10,
+                            textAlign: 'center'
+                        }}>
+                            Digite o valor total do pagamento com atraso de {userName}:
+                        </Text>
+
+                        <TextInput
+                            style={{
+                                borderWidth: 1,
+                                borderColor: '#ced4da',
+                                borderRadius: 5,
+                                padding: 10,
+                                marginBottom: 15,
+                                fontSize: 16
+                            }}
+                            placeholder="0.00"
+                            keyboardType="numeric"
+                            value={latePaymentValue}
+                            onChangeText={setLatePaymentValue}
+                        />
+
+                        <Text style={{
+                            marginBottom: 10,
+                            textAlign: 'left'
+                        }}>
+                            Motivo do atraso/valor adicional:
+                        </Text>
+
+                        <TextInput
+                            style={{
+                                borderWidth: 1,
+                                borderColor: '#ced4da',
+                                borderRadius: 5,
+                                padding: 10,
+                                marginBottom: 20,
+                                fontSize: 16,
+                                height: 80,
+                                textAlignVertical: 'top'
+                            }}
+                            placeholder="Ex: Multa de R$X por 2 dias de atraso"
+                            multiline={true}
+                            numberOfLines={3}
+                            value={latePaymentReason}
+                            onChangeText={setLatePaymentReason}
+                        />
+
+                        <View style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            marginTop: 10
+                        }}>
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: '#6c757d',
+                                    padding: 10,
+                                    borderRadius: 5,
+                                    flex: 1,
+                                    marginRight: 5,
+                                    alignItems: 'center'
+                                }}
+                                onPress={() => setShowLatePaymentModal(false)}
+                            >
+                                <Text style={{ color: 'white' }}>Cancelar</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: '#dc3545',
+                                    padding: 10,
+                                    borderRadius: 5,
+                                    flex: 1,
+                                    marginLeft: 5,
+                                    alignItems: 'center'
+                                }}
+                                onPress={() => {
+                                    setShowLatePaymentModal(false);
+
+                                    const valorTotal = userContract.tipoRecorrencia === 'semanal'
+                                        ? userContract.valorSemanal
+                                        : userContract.valorMensal;
+
+                                    const valorComAtrasoFloat = parseFloat(latePaymentValue.replace(',', '.'));
+
+                                    if (isNaN(valorComAtrasoFloat) || valorComAtrasoFloat <= 0) {
+                                        showMessage('Erro', 'Valor inválido. O pagamento deve ser maior que zero.');
+                                        return;
+                                    }
+
+                                    if (valorComAtrasoFloat <= valorTotal) {
+                                        showMessage('Erro', 'O valor com atraso deve ser maior que o valor regular.');
+                                        return;
+                                    }
+
+                                    registrarPagamentoComAtraso(valorTotal, valorComAtrasoFloat, latePaymentReason);
+                                }}
+                                disabled={isProcessing}
+                            >
+                                <Text style={{ color: 'white' }}>
+                                    {isProcessing ? 'Processando...' : 'Registrar'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
             )}
         </Container>
     );

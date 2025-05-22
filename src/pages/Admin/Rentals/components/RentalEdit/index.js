@@ -294,7 +294,7 @@ export default function RentalEdit({ route, navigation }) {
     
     return (
         <Container>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView>
                 <Form>
                     <Section>
                         <SectionTitle>Dados do Aluguel</SectionTitle>

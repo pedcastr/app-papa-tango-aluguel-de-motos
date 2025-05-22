@@ -122,7 +122,7 @@ export default function LandingPage() {
         <HeroSection>
           <HeroTitle>Alugue uma moto e tenha liberdade, rapidez e economia no seu dia a dia.</HeroTitle>
           <HeroSubtitle>
-            Temos motos excelentes e de autíssiama qualidade, com preços acessíveis e planos flexíveis.
+            Temos motos excelentes e de altíssima qualidade, com preços acessíveis e planos flexíveis.
           </HeroSubtitle>
           <HeroButton onPress={handleRegisterPress}>
             <HeroButtonText>Cadastre-se agora</HeroButtonText>
@@ -149,6 +149,7 @@ export default function LandingPage() {
               <MotorcyclePrice>R$ 350,00/Semana</MotorcyclePrice>
               <MotorcyclePrice>R$ 700,00/Caução</MotorcyclePrice>
               <MotorcycleNote>*Valor referente ao plano mensal</MotorcycleNote>
+              <MotorcycleNote>*Verificar disponibilidade do modelo</MotorcycleNote>
             </MotorcycleInfo>
           </MotorcycleCard>
 
@@ -164,9 +165,10 @@ export default function LandingPage() {
               <MotorcycleDetail>• Já com Suporte de Celular</MotorcycleDetail>
               <MotorcycleDetail>• Alongador de Guidão Incluso</MotorcycleDetail>
               <MotorcycleDetail>• Moto com seguro</MotorcycleDetail>
-              <MotorcyclePrice>R$ 250,00/Semana</MotorcyclePrice>
+              <MotorcyclePrice>R$ 260,00/Semana</MotorcyclePrice>
               <MotorcyclePrice>R$ 400,00/Caução</MotorcyclePrice>
               <MotorcycleNote>*Valor referente ao plano mensal</MotorcycleNote>
+              <MotorcycleNote>*Verificar disponibilidade do modelo</MotorcycleNote>
             </MotorcycleInfo>
           </MotorcycleCard>
 
@@ -185,6 +187,7 @@ export default function LandingPage() {
               <MotorcyclePrice>R$ 230,00/Semana</MotorcyclePrice>
               <MotorcyclePrice>R$ 400,00/Caução</MotorcyclePrice>
               <MotorcycleNote>*Valor referente ao plano mensal</MotorcycleNote>
+              <MotorcycleNote>*Verificar disponibilidade do modelo</MotorcycleNote>
             </MotorcycleInfo>
           </MotorcycleCard>
           </View>
@@ -211,7 +214,7 @@ export default function LandingPage() {
           </AppDownloadText>
           <AppDownloadButtons>
             <StoreButton 
-              onPress={() => Linking.openURL('https://play.google.com/store/')}
+              onPress={() => Linking.openURL('https://play.google.com/store/apps/details?id=com.papatango.alugueldemotos')}
             >
               <StoreImage 
                 source={require('../../assets/google-play-badge.png')} 

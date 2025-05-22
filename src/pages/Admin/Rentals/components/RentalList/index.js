@@ -19,7 +19,8 @@ import {
     LoadingContainer,
     EmptyListContainer,
     EmptyListText,
-    RentalsList
+    RentalsList,
+    EmptyText
 } from './styles';
 
 export default function RentalList({ navigation }) {
@@ -235,6 +236,7 @@ export default function RentalList({ navigation }) {
             {loading ? (
                 <LoadingContainer>
                     <ActivityIndicator size="large" color="#CB2921" />
+                    <EmptyText>Carregando Alugueis...</EmptyText>
                 </LoadingContainer>
             ) : filteredRentals.length === 0 ? (
                 <EmptyListContainer>

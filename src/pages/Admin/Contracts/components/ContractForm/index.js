@@ -491,7 +491,7 @@ export default function ContractForm({ navigation }) {
 
     return (
         <Container>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView>
                 <Form>
                     <Section>
                         <SectionTitle>Dados do Contrato</SectionTitle>

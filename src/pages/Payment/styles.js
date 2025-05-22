@@ -44,7 +44,7 @@ export const WebViewContainer = styled.View`
 
 export const Button = styled.TouchableOpacity`
     background-color: #888888;
-    margin-top: ${isWebDesktop ? '5px' : '60px'};
+    margin-top: ${isWebDesktop ? '5px' : '20px'};
     max-width: 500px;
     padding: 15px;
     border-radius: 25px;

@@ -8,6 +8,7 @@ import FilterPanel from '../../../../../components/FilterPanel';
 
 import {
     Container,
+    UsersList,
     UserCard,
     UserInfo,
     TextContainer,
@@ -475,73 +476,75 @@ export default function UserList({ navigation }) {
                     <EmptyMessage>Nenhum usuário encontrado com os filtros selecionados</EmptyMessage>
                 </View>
             ) : (
-                filteredUsers.map(user => (
-                    <UserCard key={user.id}>
-                        <UserEmail>{user.email}</UserEmail>
-                        <UserInfo>
-                            <TextContainer>
-                                <TextInfo>Nome: </TextInfo>
-                                <TextUserData>{user.nomeCompleto || user.nome}</TextUserData>
-                            </TextContainer>
+                <UsersList>
+                    {filteredUsers.map(user => (
+                        <UserCard key={user.id}>
+                            <UserEmail>{user.email}</UserEmail>
+                            <UserInfo>
+                                <TextContainer>
+                                    <TextInfo>Nome: </TextInfo>
+                                    <TextUserData>{user.nomeCompleto || user.nome}</TextUserData>
+                                </TextContainer>
 
-                            <TextContainer>
-                                <TextInfo>Telefone: </TextInfo>
-                                <TextUserData>{user.telefone}</TextUserData>
-                            </TextContainer>
+                                <TextContainer>
+                                    <TextInfo>Telefone: </TextInfo>
+                                    <TextUserData>{user.telefone}</TextUserData>
+                                </TextContainer>
 
-                            <TextContainer>
-                                <TextInfo>Tem Moto Alugada?: </TextInfo>
-                                <TextUserDataMotoAlugada alugada={user.motoAlugada}>
-                                    {user.motoAlugada ? 'SIM' : 'NÃO'}
-                                </TextUserDataMotoAlugada>
-                            </TextContainer>
+                                <TextContainer>
+                                    <TextInfo>Tem Moto Alugada?: </TextInfo>
+                                    <TextUserDataMotoAlugada alugada={user.motoAlugada}>
+                                        {user.motoAlugada ? 'SIM' : 'NÃO'}
+                                    </TextUserDataMotoAlugada>
+                                </TextContainer>
 
-                            <TextContainer>
-                                <TextInfo>Moto Alugada: </TextInfo>
-                                <TextUserData>{user.motoAlugadaId || 'N/A'}</TextUserData>
-                            </TextContainer>
+                                <TextContainer>
+                                    <TextInfo>Moto Alugada: </TextInfo>
+                                    <TextUserData>{user.motoAlugadaId || 'N/A'}</TextUserData>
+                                </TextContainer>
 
-                            <TextContainer>
-                                <TextInfo>Aluguel: </TextInfo>
-                                <TextUserData>{user.aluguelAtivoId || 'N/A'}</TextUserData>
-                            </TextContainer>
+                                <TextContainer>
+                                    <TextInfo>Aluguel: </TextInfo>
+                                    <TextUserData>{user.aluguelAtivoId || 'N/A'}</TextUserData>
+                                </TextContainer>
 
-                            <TextContainer>
-                                <TextInfo>Contrato: </TextInfo>
-                                <TextUserData>{user.contratoId || 'N/A'}</TextUserData>
-                            </TextContainer>
+                                <TextContainer>
+                                    <TextInfo>Contrato: </TextInfo>
+                                    <TextUserData>{user.contratoId || 'N/A'}</TextUserData>
+                                </TextContainer>
 
-                            <TextContainer>
-                                <TextInfoStatus>Status: </TextInfoStatus>
-                                <UserStatus approved={user.aprovado}>
-                                    {user.aprovado ? 'Aprovado' : 'Pendente'}
-                                </UserStatus>
-                            </TextContainer>
-                        </UserInfo>
+                                <TextContainer>
+                                    <TextInfoStatus>Status: </TextInfoStatus>
+                                    <UserStatus approved={user.aprovado}>
+                                        {user.aprovado ? 'Aprovado' : 'Pendente'}
+                                    </UserStatus>
+                                </TextContainer>
+                            </UserInfo>
 
-                        <AreaButtons>
-                            <ActionButton
-                                onPress={() => navigation.navigate('UserEdit', { user })}
-                            >
-                                <ActionButtonText>Editar</ActionButtonText>
-                            </ActionButton>
+                            <AreaButtons>
+                                <ActionButton
+                                    onPress={() => navigation.navigate('UserEdit', { user })}
+                                >
+                                    <ActionButtonText>Editar</ActionButtonText>
+                                </ActionButton>
 
-                            <TrocaOleoButton
-                                onPress={() => navigation.navigate('UserTrocaOleo', { user })}
-                            >
-                                <TrocaOleoButtonText>Trocas Óleo</TrocaOleoButtonText>
-                            </TrocaOleoButton>
+                                <TrocaOleoButton
+                                    onPress={() => navigation.navigate('UserTrocaOleo', { user })}
+                                >
+                                    <TrocaOleoButtonText>Trocas Óleo</TrocaOleoButtonText>
+                                </TrocaOleoButton>
 
-                            <DestalhesButton
-                                onPress={() => navigation.navigate('UserDetails', { user })}
-                            >
-                                <DestalhesButtonText>
-                                    Detalhes
-                                </DestalhesButtonText>
-                            </DestalhesButton>
-                        </AreaButtons>
-                    </UserCard>
-                ))
+                                <DestalhesButton
+                                    onPress={() => navigation.navigate('UserDetails', { user })}
+                                >
+                                    <DestalhesButtonText>
+                                        Detalhes
+                                    </DestalhesButtonText>
+                                </DestalhesButton>
+                            </AreaButtons>
+                        </UserCard>
+                    ))}
+                </UsersList>
             )}
         </Container>
     );

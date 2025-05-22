@@ -3,7 +3,7 @@ import 'dotenv/config';
 export default {
   name: "Papa Tango",
   slug: "papamotos",
-  version: "1.0.5",
+  version: "1.0.9",
   scheme: "papamotors",
   orientation: "portrait",
   updates: {

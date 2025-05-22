@@ -8,7 +8,7 @@ export const Container = styled.View`
 `;
 
 export const RentalsList = styled.ScrollView.attrs({
-    showsVerticalScrollIndicator: false,
+    showsVerticalScrollIndicator: true,
     contentContainerStyle: {
         paddingBottom: 20
     }
@@ -107,4 +107,11 @@ export const EmptyListText = styled.Text`
     font-size: 16px;
     margin-top: 10px;
     text-align: center;
+`;
+
+export const EmptyText = styled.Text`
+    font-size: 16px;
+    color: #667;
+    text-align: center;
+    margin-top: 26px;
 `;

@@ -3,23 +3,26 @@ import { Platform } from 'react-native';
 
 const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
 
-export const Container = styled.ScrollView.attrs({
-    contentContainerStyle: {
-        padding: 20,
-        paddingBottom: 30
-    },
-    nestedScrollEnabled: true
-})`
+export const Container = styled.View`
     flex: 1;
     background-color: #F5F5F5;
+    padding: 16px;
+`;
+
+export const BikesList = styled.ScrollView.attrs({
+    showsVerticalScrollIndicator: true,
+    contentContainerStyle: {
+        paddingBottom: 20
+    }
+})`
+    flex: 1;
 `;
 
 export const BikeCard = styled.View`
     background-color: #FFF;
     border-radius: 10px;
-    margin-top: -20px;
     overflow: hidden;
-    margin-bottom: ${isWebDesktop ? '60px' : '30px'};
+    margin-bottom: 30px;
     ${Platform.OS === 'web' 
         ? `box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.1);` 
         : `
@@ -80,4 +83,11 @@ export const EmptyMessage = styled.Text`
     font-size: 16px;
     color: #666;
     text-align: center;
+`;
+
+export const EmptyText = styled.Text`
+    font-size: 16px;
+    color: #667;
+    text-align: center;
+    margin-top: 26px;
 `;

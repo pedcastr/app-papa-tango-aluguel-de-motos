@@ -359,7 +359,7 @@ exports.enviarEmailResetSenha = functions.https.onRequest((req, res) => {
                   </div>
                   <p>Se você não solicitou esta alteração, ignore este email.</p>
                   <p>Atenciosamente,</p>
-                  <p>Equipe Papa Tango Aluguel de Motos</p>
+                  <p>Equipe Papa Tango - Aluguel de Motos</p>
                 </div>
             `,
         attachments: [{
@@ -385,63 +385,133 @@ exports.enviarEmailResetSenha = functions.https.onRequest((req, res) => {
   });
 });
 
-// Função para enviar email de notificação de troca de óleo
-// Esta é uma função callable, não HTTP, então não precisa de CORS
-exports.enviarEmailTrocaOleo = functions.https.onCall(async (data) => {
+// Função para enviar email de notificação de troca de óleo para o admin e user
+exports.enviarEmailsTrocaOleo = functions.https.onCall(async (data) => {
   try {
-    // Enviar Notificação Push ao Usuário Administrador
-    await sendPaymentNotification(null, {
-      title: "Nova Troca de Óleo Registrada",
-      body: `Usuário: ${data.data.userEmail}`,
-      data: {screen: "Usuários", params: {screen: "UserList"}},
-    }, true);
+    console.log("Dados recebidos para troca de óleo");
 
-    const mailOptions = {
-      from: `"Sistema Papa Tango" <${env.email.user}>`,
-      to: env.email.user,
-      subject: "Nova Troca de Óleo Registrada",
-      html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; 
-                padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-                  <div style="text-align: center; margin-bottom: 20px;">
-                    <img src="cid:Logo" alt="Logo Papa Tango"
-                      style="width: 70px; margin-bottom: 20px;">
-                  </div>
-                  <h2>Nova troca de óleo registrada! 🏍️</h2>
-                  <p>Usuário: <strong>${data.data.userName}</strong></p>
-                  <p>Email: ${data.data.userEmail}</p>
-                  <p>Telefone: ${data.data.userPhone}</p>
-                  <p>Data: ${data.data.dataUpload}</p>
-                  <h3>Arquivos:</h3>
-                  <p><strong>Foto do Óleo:</strong>
-                    <a href="${data.data.fotoOleo}">Visualizar</a></p>
-                  <p><strong>Nota Fiscal:</strong>
-                    <a href="${data.data.fotoNota}">Visualizar</a></p>
-                  <p><strong>Quilometragem:</strong>
-                    <a href="${data.data.fotoKm}">Visualizar</a></p>
-                  <p><strong>Vídeo da Troca:</strong>
-                    <a href="${data.data.videoOleo}">Visualizar</a></p>
-                  <br>
-                  <p>Atenciosamente,</p>
-                  <p>Sistema Papa Tango</p>
-                </div>
-            `,
-      attachments: [{
-        filename: "Logo.png",
-        path: path.join(__dirname, "src/assets/Logo.png"),
-        cid: "Logo",
-      }],
-    };
+    // Extrair dados com segurança
+    const userData = data.data || data;
 
-    await transporter.sendMail(mailOptions);
+    // Log apenas das propriedades importantes
+    console.log("Email do usuário:", userData.userEmail);
+    console.log("Nome do usuário:", userData.userName);
+
+    // Verificar se temos o email do usuário
+    if (!userData.userEmail) {
+      console.error("Email do usuário não fornecido");
+      throw new functions.https.HttpsError("invalid-argument", "Email do usuário não fornecido");
+    }
+
+    // 1. Enviar Notificação Push ao Usuário Administrador
+    try {
+      await sendPaymentNotification(null, {
+        title: "🛢️ Nova Troca de Óleo Registrada 🛢️",
+        body: `Usuário: ${userData.userEmail}`,
+        data: {screen: "Usuários", params: {screen: "UserList"}},
+      }, true);
+      console.log("Notificação para admin enviada com sucesso");
+    } catch (notifError) {
+      console.error("Erro ao enviar notificação para admin:", notifError.message);
+      // Continuar mesmo com erro na notificação
+    }
+
+    // 2. Enviar Notificação Push ao Usuário
+    try {
+      await sendPaymentNotification(userData.userEmail, {
+        title: "🛢️ Nova Troca de Óleo Registrada 🛢️",
+        body: `Recebemos sua troca de óleo realizada ${userData.dataUpload}`,
+        data: {screen: "Manutenção", params: {screen: "Lista de Trocas de Óleo"}},
+      }, false);
+      console.log("Notificação para usuário enviada com sucesso");
+    } catch (notifError) {
+      console.error("Erro ao enviar notificação para usuário:", notifError.message);
+      // Continuar mesmo com erro na notificação
+    }
+
+    // 3. Email para o administrador
+    try {
+      const adminEmail = env.email.user;
+      console.log("Enviando email para admin:", adminEmail);
+
+      const adminMailOptions = {
+        from: `"Sistema Papa Tango" <${adminEmail}>`,
+        to: adminEmail,
+        subject: "Nova Troca de Óleo Registrada",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;
+          padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+            <h2>🛢️ Nova troca de óleo registrada! 🏍️</h2>
+            <p>Usuário: <strong>${userData.userName || "Usuário"}</strong></p>
+            <p>Email: ${userData.userEmail}</p>
+            <p>Telefone: ${userData.userPhone || "Não informado"}</p>
+            <p>Data: ${userData.dataUpload || new Date().toLocaleString("pt-BR")}</p>
+            <h3>Arquivos:</h3>
+            <p><strong>Foto do Óleo:</strong>
+              <a href="${userData.fotoOleo || "#"}">Visualizar</a></p>
+            <p><strong>Nota Fiscal:</strong>
+              <a href="${userData.fotoNota || "#"}">Visualizar</a></p>
+            <p><strong>Quilometragem:</strong>
+              <a href="${userData.fotoKm || "#"}">Visualizar</a></p>
+            <p><strong>Vídeo da Troca:</strong>
+              <a href="${userData.videoOleo || "#"}">Visualizar</a></p>
+            <br>
+            <p>Atenciosamente,</p>
+            <p>Sistema Papa Tango</p>
+          </div>
+        `,
+      };
+
+      // Enviar email para o admin
+      const adminResult = await transporter.sendMail(adminMailOptions);
+      console.log("Email para admin enviado com sucesso:", adminResult.messageId);
+    } catch (adminEmailError) {
+      console.error("Erro ao enviar email para admin:", adminEmailError.message);
+      // Continuar mesmo com erro no email do admin
+    }
+
+    // 4. Email para o usuário
+    try {
+      if (userData.userEmail) {
+        const adminEmail = env.email.user;
+        console.log("Enviando email para usuário:", userData.userEmail);
+
+        const userMailOptions = {
+          from: `"Papa Tango" <${adminEmail}>`,
+          to: userData.userEmail,
+          subject: "Sua Troca de Óleo foi Registrada",
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;
+            padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+              <h2>🛢️ Sua troca de óleo foi registrada! 🏍️</h2>
+              <p>Olá <strong>${userData.userName || "Usuário"}</strong>,</p>
+              <p>Recebemos o registro da sua troca de óleo realizada em ${userData.dataUpload || new Date().toLocaleString("pt-BR")}.</p>
+              <p>Seus arquivos foram recebidos com sucesso!</p>
+              <br>
+              <p>Obrigado por manter sua moto em dia!</p>
+              <br>
+              <p>Atenciosamente,</p>
+              <p>Equipe Papa Tango</p>
+            </div>
+          `,
+        };
+
+        const userResult = await transporter.sendMail(userMailOptions);
+        console.log("Email para usuário enviado com sucesso:", userResult.messageId);
+      }
+    } catch (userEmailError) {
+      console.error("Erro ao enviar email para usuário:", userEmailError.message);
+      // Não interrompe o fluxo se o email do usuário falhar
+    }
 
     return {
       success: true,
-      message: "Email enviado com sucesso!",
+      message: "Processamento concluído com sucesso!",
     };
   } catch (error) {
-    console.error("Erro ao enviar email de troca de óleo:", error);
-    throw new functions.https.HttpsError("internal", "Erro ao enviar email.");
+    // Evitar serializar o objeto de erro completo
+    console.error("Erro ao processar troca de óleo:", error.message);
+    throw new functions.https.HttpsError("internal", "Erro ao processar solicitação: " + error.message);
   }
 });
 
@@ -2730,7 +2800,7 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                         <li>Método: ${paymentMethodId || paymentData.paymentMethod || "Não especificado"}</li>
                       </ul>
                       <p>Obrigado por utilizar nossos serviços!</p>
-                      <p>Equipe Papa Tango</p>
+                      <p>Equipe Papa Tango - Aluguel de Motos</p>
                       <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
                         Este é um email automático. Por favor, não responda a este email.\n\n
                         Em caso de dúvidas, entre em contato com um dos números: (85) 99268-4035 ou (85) 99137-2994
@@ -2803,7 +2873,7 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                               Falar com Suporte
                           </a>
                       </div>
-                      <p>Equipe Papa Tango</p>
+                      <p>Equipe Papa Tango - Aluguel de Motos</p>
                       <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
                         Este é um email automático. Por favor, não responda a este email.\n\n
                       </p>
@@ -2840,7 +2910,7 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
 
               // Usar a função sendPaymentNotification existente
               await sendPaymentNotification(userId, {
-                title: "Pagamento Pendente",
+                title: "⚠️ Pagamento Pendente ⚠️",
                 body: `${paymentData.userName || "Cliente"}, seu pagamento de R$ ${transactionAmount.toFixed(2)} está pendente de confirmação.\nSe você já realizou o pagamento, aguarde a confirmação do processamento.`,
                 data: {screen: "Financeiro", params: {screen: "Financeiro Screen"}},
               });
@@ -2880,7 +2950,7 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
                                 Falar com Suporte
                             </a>
                         </div>
-                        <p>Equipe Papa Tango</p>
+                        <p>Equipe Papa Tango - Aluguel de Motos</p>
                         <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
                           Este é um email automático. Por favor, não responda a este email.
                         </p>
@@ -2910,9 +2980,9 @@ exports.webhook = functions.https.onRequest(async (req, res) => {
             try {
               // Enviar notificação para administradores sobre a mudança de status usando a função existente
               await sendPaymentNotification(null, {
-                title: `Pagamento ${status === "approved" ? "Aprovado" :
-                  status === "rejected" ? "Rejeitado" :
-                    status === "cancelled" ? "Cancelado" : "Atualizado"}`,
+                title: `Pagamento ${status === "approved" ? "Aprovado 💰" :
+                  status === "rejected" ? "Rejeitado 😥" :
+                    status === "cancelled" ? "Cancelado ⚠️" : "Atualizado ⚠️"}`,
                 body: `Pagamento de R$ ${transactionAmount.toFixed(2)} do usuário ${userEmail} foi ${status === "approved" ? "aprovado" :
                   status === "rejected" ? "rejeitado" :
                     status === "cancelled" ? "cancelado" :

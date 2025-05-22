@@ -8,6 +8,7 @@ import PdfViewer from '../../../../../components/PdfViewerAdmin';
 
 import {
     Container,
+    ContractsList,
     ContractCard,
     ContractNumber,
     ContractDetails,
@@ -24,6 +25,7 @@ import {
     ActionButtonText,
     EmptyMessage,
     Divider,
+    EmptyText,
 } from './styles';
 
 export default function ContractList({ navigation }) {
@@ -77,7 +79,7 @@ export default function ContractList({ navigation }) {
 
                     // Aplicar o filtro salvo
                     if (filterValue === 'ativos') {
-                        setStatusFilter('ativo'); 
+                        setStatusFilter('ativo');
                     } else {
                         setStatusFilter('todos');
                     }
@@ -107,7 +109,7 @@ export default function ContractList({ navigation }) {
             const { filter } = event.detail;
 
             if (filter === 'ativos') {
-                setStatusFilter('ativo'); 
+                setStatusFilter('ativo');
             } else {
                 setStatusFilter('todos');
             }
@@ -151,7 +153,7 @@ export default function ContractList({ navigation }) {
 
                     // Aplicar o filtro
                     if (filter === 'ativos') {
-                        setStatusFilter('ativo'); 
+                        setStatusFilter('ativo');
                     } else {
                         setStatusFilter('todos');
                     }
@@ -462,99 +464,100 @@ export default function ContractList({ navigation }) {
         return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                 <ActivityIndicator size="large" color="#CB2921" />
+                <EmptyText>Carregando Contratos...</EmptyText>
             </View>
         );
     }
 
     return (
         <Container>
-            <View style={{ marginBottom: 20 }}>
-                <FilterPanel
-                    searchTerm={searchTerm}
-                    onSearchChange={handleSearchChange}
-                    onSearch={applyAllFilters}
-                    filterSections={getFilterSections()}
-                    activeFiltersCount={countActiveFilters()}
-                    onAddButtonPress={() => navigation.navigate('ContractForm')}
-                    addButtonIcon="add"
-                    searchPlaceholder="Buscar contratos..."
-                />
-            </View>
+            <FilterPanel
+                searchTerm={searchTerm}
+                onSearchChange={handleSearchChange}
+                onSearch={applyAllFilters}
+                filterSections={getFilterSections()}
+                activeFiltersCount={countActiveFilters()}
+                onAddButtonPress={() => navigation.navigate('ContractForm')}
+                addButtonIcon="add"
+                searchPlaceholder="Buscar contratos..."
+            />
             {filteredContracts.length === 0 ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 20 }}>
                     <EmptyMessage>Nenhum contrato encontrado</EmptyMessage>
                 </View>
             ) : (
-                filteredContracts.map(contract => (
-                    <ContractCard key={contract.id}>
-                        <ContractContainer>
-                            <ContractNumber>Contrato: </ContractNumber>
-                            <ContractId>{contract.contratoId}</ContractId>
-                        </ContractContainer>
-                        <ContractDetails>
-                            <DetailRow>
-                                <DetailLabel>Cliente:</DetailLabel>
-                                <DetailValue>{contract.cliente}</DetailValue>
-                            </DetailRow>
-                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                            <DetailRow>
-                                <DetailLabel>Aluguel:</DetailLabel>
-                                <DetailValue>{contract.aluguelId}</DetailValue>
-                            </DetailRow>
-                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                            <DetailRow>
-                                <DetailLabel>Moto:</DetailLabel>
-                                <DetailValue>{contract.motoId}</DetailValue>
-                            </DetailRow>
-                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                            <DetailRow>
-                                <DetailLabel>Data Início:</DetailLabel>
-                                <DetailValue>{formatDate(contract.dataInicio)}</DetailValue>
-                            </DetailRow>
-                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                            <DetailRow>
-                                <DetailLabel>Recorrência de Pagamento</DetailLabel>
-                                <DetailValue>{contract.tipoRecorrenciaPagamento === 'semanal' ? 'Semanal' : 'Mensal'}</DetailValue>
-                            </DetailRow>
-                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                            <DetailRow>
-                                <DetailLabel>MesesContratados:</DetailLabel>
-                                <DetailValue>{contract.mesesContratados} meses</DetailValue>
-                            </DetailRow>
-                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                            <DetailRow>
-                                <DetailLabelStatus>Status:</DetailLabelStatus>
-                                <DetailStatus aprovado={contract.statusContrato}>
-                                    {contract.statusContrato ? 'Ativo' : 'Inativo'}
-                                </DetailStatus>
-                            </DetailRow>
-                            <Divider style={{ marginTop: 5, marginBottom: 0 }} />
+                <ContractsList>
+                    {filteredContracts.map(contract => (
+                        <ContractCard key={contract.id}>
+                            <ContractContainer>
+                                <ContractNumber>Contrato: </ContractNumber>
+                                <ContractId>{contract.contratoId}</ContractId>
+                            </ContractContainer>
+                            <ContractDetails>
+                                <DetailRow>
+                                    <DetailLabel>Cliente:</DetailLabel>
+                                    <DetailValue>{contract.cliente}</DetailValue>
+                                </DetailRow>
+                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
+                                <DetailRow>
+                                    <DetailLabel>Aluguel:</DetailLabel>
+                                    <DetailValue>{contract.aluguelId}</DetailValue>
+                                </DetailRow>
+                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
+                                <DetailRow>
+                                    <DetailLabel>Moto:</DetailLabel>
+                                    <DetailValue>{contract.motoId}</DetailValue>
+                                </DetailRow>
+                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
+                                <DetailRow>
+                                    <DetailLabel>Data Início:</DetailLabel>
+                                    <DetailValue>{formatDate(contract.dataInicio)}</DetailValue>
+                                </DetailRow>
+                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
+                                <DetailRow>
+                                    <DetailLabel>Recorrência de Pagamento</DetailLabel>
+                                    <DetailValue>{contract.tipoRecorrenciaPagamento === 'semanal' ? 'Semanal' : 'Mensal'}</DetailValue>
+                                </DetailRow>
+                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
+                                <DetailRow>
+                                    <DetailLabel>MesesContratados:</DetailLabel>
+                                    <DetailValue>{contract.mesesContratados} meses</DetailValue>
+                                </DetailRow>
+                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
+                                <DetailRow>
+                                    <DetailLabelStatus>Status:</DetailLabelStatus>
+                                    <DetailStatus aprovado={contract.statusContrato}>
+                                        {contract.statusContrato ? 'Ativo' : 'Inativo'}
+                                    </DetailStatus>
+                                </DetailRow>
+                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
 
-                            {contract.urlContrato ? (
-                                <>
-                                    <DocumentTitle>
-                                        Contrato (PDF)
-                                    </DocumentTitle>
+                                {contract.urlContrato ? (
+                                    <>
+                                        <DocumentTitle>
+                                            Contrato (PDF)
+                                        </DocumentTitle>
 
-                                    <PdfContainer>
-                                        <PdfViewer
-                                            uri={contract.urlContrato}
-                                            fileName={`Contrato-${contract.contratoId || contract.id}.pdf`}
-                                            height={isWebDesktop ? 600 : 300}
-                                        />
-                                    </PdfContainer>
-                                </>
-                            ) : (
-                                <View style={{ padding: 10 }}>
-                                    <Text>PDF do contrato não disponível</Text>
-                                </View>
-                            )}
-                        </ContractDetails>
-                        <ActionButton onPress={() => navigation.navigate('ContractEdit', { contract })}>
-                            <ActionButtonText>Editar</ActionButtonText>
-                        </ActionButton>
-                    </ContractCard>
-                ))
+                                        <PdfContainer>
+                                            <PdfViewer
+                                                uri={contract.urlContrato}
+                                                fileName={`Contrato-${contract.contratoId || contract.id}.pdf`}
+                                                height={isWebDesktop ? 600 : 300}
+                                            />
+                                        </PdfContainer>
+                                    </>
+                                ) : (
+                                    <View style={{ padding: 10 }}>
+                                        <Text>PDF do contrato não disponível</Text>
+                                    </View>
+                                )}
+                            </ContractDetails>
+                            <ActionButton onPress={() => navigation.navigate('ContractEdit', { contract })}>
+                                <ActionButtonText>Editar</ActionButtonText>
+                            </ActionButton>
+                        </ContractCard>
+                    ))}
+                </ContractsList>
             )}
         </Container>
     );

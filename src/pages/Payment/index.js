@@ -604,8 +604,15 @@ const Payment = () => {
           status: result.status || 'pending',
           // Garantir que point_of_interaction esteja definido para evitar erros
           point_of_interaction: result.point_of_interaction || {},
-          // Garantir que transaction_details esteja definido
-          transaction_details: result.transaction_details || {}
+          // Garantir que transaction_details esteja definido e inclua a linha digitável para boletos
+          transaction_details: {
+            ...result.transaction_details,
+            // Adicionar a linha digitável do boleto se estiver disponível
+            digitable_line: result.transaction_details?.digitable_line ||
+              result.point_of_interaction?.transaction_data?.ticket?.digitable_line ||
+              result.barcode ||
+              result.digitable_line
+          }
         };
 
         // Data de vencimento para boletos

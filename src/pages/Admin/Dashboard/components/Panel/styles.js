@@ -301,3 +301,10 @@ export const RefreshButtonText = styled.Text`
     margin-left: 8px;
 `;
 
+export const EmptyText = styled.Text`
+    font-size: 16px;
+    color: #667;
+    text-align: center;
+    margin-top: 26px;
+`;
+
