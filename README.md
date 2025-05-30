@@ -1,7 +1,7 @@
 # Papa Tango: Aluguel de Motos
 
 <p align="center">
-  <img src="screenshots/Logo.png" alt="Logo Papa Motos" width="200"/>
+  <img src="screenshots/icon.png" alt="Logo Papa Tango: Aluguel de Motos" width="200"/>
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
 
 ## Visão Geral
 
-Papa Tango é uma aplicação multiplataforma desenvolvida com React Native e Expo que oferece um serviço completo de aluguel de motocicletas. O aplicativo funciona em dispositivos Android, iOS e navegadores web, com interfaces adaptadas para cada plataforma.
+Papa Tango: Aluguel de Motos é uma aplicação multiplataforma desenvolvida com React Native e Expo que oferece um serviço completo de aluguel de motocicletas. O aplicativo funciona em dispositivos Android, iOS e navegadores web, com interfaces adaptadas para cada plataforma.
 
 O sistema possui duas áreas principais:
 - **Área do Cliente**: Permite aos usuários visualizar motos disponíveis, realizar cadastro, acompanhar informações da sua locação da moto, informar troca de óleo, contato facilitado com a empresa e efetuar pagamentos.
@@ -61,7 +61,7 @@ A aplicação é integrada com Firebase para autenticação, armazenamento de da
 ### Área do Cliente
 
 <details>
-<summary><b>Clique para ver screenshots da área do cliente</b></summary>
+<summary><b>Clique para ver screenshots da área do cliente (Landing Page, Login, Home, Notificações e Área do Usuário)</b></summary>
 
 <div align="center">
   <p><strong>Landing Page</strong></p>
@@ -93,7 +93,7 @@ A aplicação é integrada com Firebase para autenticação, armazenamento de da
 ### Área Financeira
 
 <details>
-<summary><b>Clique para ver screenshots da área financeira</b></summary>
+<summary><b>Clique para ver screenshots da área do cliente (Telas do Financeiro)</b></summary>
 
 <div align="center">
   <p><strong>Tela Financeiro</strong></p>
@@ -120,7 +120,7 @@ A aplicação é integrada com Firebase para autenticação, armazenamento de da
 ### Área de Manutenção
 
 <details>
-<summary><b>Clique para ver screenshots da área de manutenção</b></summary>
+<summary><b>Clique para ver screenshots da área do cliente (Telas de Manutenção)</b></summary>
 
 <div align="center">
   <p><strong>Tela Manutenção (Última(s) Trocas de óleo)</strong></p>
@@ -387,7 +387,7 @@ eas build -p ios
 
 2. Construa o aplicativo web:
    ```bash
-   expo build:web
+   npx expo export --platform web
    ```
 
 3. Implante no Firebase Hosting:
