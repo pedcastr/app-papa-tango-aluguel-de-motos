@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
+import { FeedbackModal } from '../../components/FeedbackModal';
 
 import {
   Container,
@@ -33,6 +34,9 @@ const PaymentSuccess = () => {
   const [processedData, setProcessedData] = useState(false);
   const [paymentData, setPaymentData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [feedback, setFeedback] = useState({ type: '', title: '', message: '' })
 
   // Usar uma ref para controlar se o listener já foi configurado
   const listenerConfigured = useRef(false);
@@ -108,11 +112,14 @@ const PaymentSuccess = () => {
 
                 // Se o pagamento foi aprovado, mostrar uma notificação
                 if (normalizedData.status === 'approved') {
-                  showMessage('Pagamento Aprovado', 'Seu pagamento foi aprovado com sucesso!');
+                  setFeedback({ type: 'success', title: 'Pagamento Aprovado', message: 'Seu pagamento foi aprovado com sucesso!' });
+                  setFeedbackVisible(true);
                 } else if (normalizedData.status === 'rejected') {
-                  showMessage('Pagamento Rejeitado', 'Seu pagamento foi rejeitado. Por favor, tente outro método de pagamento.');
+                  setFeedback({ type: 'error', title: 'Pagamento Rejeitado', message: 'Seu pagamento foi rejeitado. Por favor, tente outro método de pagamento.' });
+                  setFeedbackVisible(true);
                 } else if (normalizedData.status === 'cancelled') {
-                  showMessage('Pagamento Cancelado', 'Este pagamento foi cancelado.');
+                  setFeedback({ type: 'error', title: 'Pagamento Cancelado', message: 'Seu pagamento foi cancelado. Por favor, tente novamente.' });
+                  setFeedbackVisible(true);
                 }
               }
             }
@@ -692,6 +699,27 @@ const PaymentSuccess = () => {
           <ButtonText>Voltar para Financeiro</ButtonText>
         </Button>
       </ScrollView>
+      {feedbackVisible && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999
+          }}
+        >
+          <FeedbackModal
+            visible={feedbackVisible}
+            {...feedback}
+            onClose={() => setFeedbackVisible(false)}
+          />
+        </View>
+      )}
     </Container>
   );
 };

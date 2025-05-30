@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Linking, Keyboard, Alert, ActivityIndicator, View, StyleSheet, Platform, Text } from 'react-native';
+import { Linking, Keyboard, ActivityIndicator, View, StyleSheet, Platform, Text } from 'react-native';
 import { MaterialIcons } from "@expo/vector-icons";
 import { FontAwesome } from '@expo/vector-icons';
 import Logo from '../../assets/LogoTransparente.svg'; // importei o pm install react-native-svg react-native-svg-transformer para usar a imagem em svg
@@ -89,15 +89,6 @@ export default function SignIn({ navigation }) {
             esconderTeclado.remove();
         };
     }, []);
-
-    // Função para mostrar mensagem de sucesso/erro
-    const showMessage = (title, message) => {
-        if (Platform.OS === 'web') {
-            window.alert(`${title}: ${message}`);
-        } else {
-            Alert.alert(title, message);
-        }
-    };
 
     // Validação de email
     const validarEmail = (email) => {
@@ -261,7 +252,7 @@ export default function SignIn({ navigation }) {
 
         setLoadingSupport(true);
         const telefone = '5585992684035';
-        const mensagem = 'Olá! Preciso de ajuda :)';
+        const mensagem = 'Olá! Estou na tela de login e preciso de ajuda :)';
         const urlWhatsapp = `whatsapp://send?phone=${telefone}&text=${encodeURIComponent(mensagem)}`;
 
         Linking.canOpenURL(urlWhatsapp)
@@ -269,12 +260,22 @@ export default function SignIn({ navigation }) {
                 if (suportado) {
                     return Linking.openURL(urlWhatsapp);
                 } else {
-                    showMessage('WhatsApp não está instalado');
+                    setFeedback({
+                        type: 'error',
+                        title: 'WhatsApp não está instalado',
+                        message: 'Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com'
+                    });
+                    setFeedbackVisible(true);
                 }
             })
             .catch(erro => {
                 console.error('Erro ao abrir WhatsApp:', erro);
-                showMessage('Não foi possível abrir o WhatsApp');
+                setFeedback({
+                    type: 'error',
+                    title: 'Erro ao abrir o WhatsApp',
+                    message: 'Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com'
+                });
+                setFeedbackVisible(true);
             })
             .finally(() => {
                 setLoadingSupport(false);
@@ -353,42 +354,42 @@ export default function SignIn({ navigation }) {
 
                 {!tecladoVisivel && (
                     <View>
-                    <BottomButtonsContainer>
-                        <ButtonSuporte
-                            onPress={abrirWhatsApp}
-                            activeOpacity={0.8}
-                        >
-                            {loadingSupport ? (
-                                <TextButtonSuporte>Abrindo Whatsapp...</TextButtonSuporte>
-                            ) : (
-                                <TextButtonSuporte>Ajuda</TextButtonSuporte>
-                            )}
-                            <FontAwesome name="whatsapp" size={24} color="#00000" marginLeft={5} />
-                        </ButtonSuporte>
-                    </BottomButtonsContainer>
-                    <View style={{
-                        flexDirection: 'row',
-                        justifyContent: 'center',
-                        marginTop: 0,
-                        marginBottom: 5
-                    }}>
-                        <Text style={{
-                            color: '#667',
-                            fontSize: 14,
-                            textAlign: 'center'
-                        }}>
-                            Ao continuar, você concorda com nossa{' '}
-                            <Text
-                                style={{
-                                    color: '#CB2921',
-                                    textDecorationLine: 'underline'
-                                }}
-                                onPress={() => Linking.openURL('https://pedcastr.github.io/politica-privacidade-papa-tango/')}
+                        <BottomButtonsContainer>
+                            <ButtonSuporte
+                                onPress={abrirWhatsApp}
+                                activeOpacity={0.8}
                             >
-                                Política de Privacidade
+                                {loadingSupport ? (
+                                    <TextButtonSuporte>Abrindo Whatsapp...</TextButtonSuporte>
+                                ) : (
+                                    <TextButtonSuporte>Ajuda</TextButtonSuporte>
+                                )}
+                                <FontAwesome name="whatsapp" size={24} color="#00000" marginLeft={5} />
+                            </ButtonSuporte>
+                        </BottomButtonsContainer>
+                        <View style={{
+                            flexDirection: 'row',
+                            justifyContent: 'center',
+                            marginTop: 0,
+                            marginBottom: 5
+                        }}>
+                            <Text style={{
+                                color: '#667',
+                                fontSize: 14,
+                                textAlign: 'center'
+                            }}>
+                                Ao continuar, você concorda com nossa{' '}
+                                <Text
+                                    style={{
+                                        color: '#CB2921',
+                                        textDecorationLine: 'underline'
+                                    }}
+                                    onPress={() => Linking.openURL('https://pedcastr.github.io/politica-privacidade-papa-tango/')}
+                                >
+                                    Política de Privacidade
+                                </Text>
                             </Text>
-                        </Text>
-                    </View>
+                        </View>
                     </View>
                 )}
 

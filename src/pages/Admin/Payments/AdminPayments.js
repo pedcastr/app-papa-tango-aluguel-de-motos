@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import { ActivityIndicator, FlatList, Alert, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
@@ -34,6 +34,162 @@ import {
     StatusText,
     Divider,
 } from './styles';
+
+// Componente de item de pagamento otimizado com memo
+const PaymentItem = memo(({ item, onViewUserPayments, onSendPaymentReminder, formatCurrency, formatDate, getStatusColor, getStatusText }) => {
+    // Determinar qual valor mostrar com base no tipo de recorrência
+    const valorExibir = item.tipoRecorrencia === 'semanal' ? item.valorSemanal : item.valorMensal;
+
+    return (
+        <PaymentCard
+            style={{
+                backgroundColor: item.contratoAtivo ? '#fff' : '#f8f9fa',
+                opacity: item.contratoAtivo ? 1 : 0.85
+            }}
+        >
+            {item.contratoAtivo && (
+                <StatusBadge style={{ backgroundColor: getStatusColor(item.status) }}>
+                    <StatusText>{getStatusText(item.status)}</StatusText>
+                </StatusBadge>
+            )}
+
+            {!item.contratoAtivo && (
+                <StatusBadge style={{
+                    backgroundColor: '#6c757d',
+                    left: 'auto'
+                }}>
+                    <StatusText>Contrato Inativo</StatusText>
+                </StatusBadge>
+            )}
+
+            <PaymentHeader>
+                <PaymentTitle>{item.userEmail}</PaymentTitle>
+            </PaymentHeader>
+            <PaymentAmount>{formatCurrency(valorExibir)}</PaymentAmount>
+
+            <PaymentInfo>
+                <PaymentInfoRow>
+                    <PaymentInfoLabel>Nome:</PaymentInfoLabel>
+                    <PaymentInfoValue>{item.userName}</PaymentInfoValue>
+                </PaymentInfoRow>
+                <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+
+                <PaymentInfoRow>
+                    <PaymentInfoLabel>Recorrência:</PaymentInfoLabel>
+                    <PaymentInfoValue>
+                        {item.tipoRecorrencia === 'semanal' ? 'Semanal' : 'Mensal'}
+                    </PaymentInfoValue>
+                </PaymentInfoRow>
+                <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+
+                <PaymentInfoRow>
+                    <PaymentInfoLabel
+                        style={{
+                            color: item.contratoAtivo && item.diasRestantes < 0 ? '#dc3545' :
+                                item.contratoAtivo && item.diasRestantes === 0 ? '#ffc107' : '#6C757D'
+                        }}
+                    >
+                        {item.contratoAtivo
+                            ? (item.diasRestantes < 0 ? 'Data de vencimento:' : 'Próximo pagamento:')
+                            : 'Último pagamento:'}
+                    </PaymentInfoLabel>
+                    <PaymentInfoValue
+                        style={{
+                            color: item.contratoAtivo && item.diasRestantes < 0 ? '#dc3545' :
+                                item.contratoAtivo && item.diasRestantes === 0 ? '#ffc107' : '#000'
+                        }}
+                    >
+                        {formatDate(item.proximaData)}
+                    </PaymentInfoValue>
+                </PaymentInfoRow>
+                <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+
+                {/* Mostrar informações de dias restantes/atrasados apenas se o contrato estiver ativo */}
+                {item.contratoAtivo && (
+                    <>
+                        <PaymentInfoRow>
+                            <PaymentInfoLabel
+                                style={{
+                                    color: item.diasRestantes < 0 ? '#dc3545' :
+                                        item.diasRestantes === 0 ? '#ffc107' :
+                                            (item.diasRestantes > 0 && item.diasRestantes <= 3) ? '#242ef0' : '#06bd0f'
+                                }}
+                            >
+                                {
+                                    item.diasRestantes < 0 ? 'Dias atrasados:' :
+                                        item.diasRestantes === 0 ? 'Status:' : 'Dias restantes:'
+                                }
+                            </PaymentInfoLabel>
+                            <PaymentInfoValue
+                                style={{
+                                    color: item.diasRestantes < 0 ? '#dc3545' :
+                                        item.diasRestantes === 0 ? '#ffc107' :
+                                            (item.diasRestantes > 0 && item.diasRestantes <= 3) ? '#242ef0' : '#06bd0f'
+                                }}
+                            >
+                                {
+                                    item.diasRestantes < 0 ?
+                                        `${Math.abs(item.diasRestantes)} ${Math.abs(item.diasRestantes) === 1 ? 'dia' : 'dias'}` :
+                                        item.diasRestantes > 0 ?
+                                            `${Math.abs(item.diasRestantes)} ${Math.abs(item.diasRestantes) === 1 ? 'dia' : 'dias'}` :
+                                            item.diasRestantes === 0 ?
+                                                'Hoje é o dia de pagamento' :
+                                                `${item.diasRestantes}`
+                                }
+                            </PaymentInfoValue>
+                        </PaymentInfoRow>
+                        <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+                    </>
+                )}
+
+                <PaymentInfoRow>
+                    <PaymentInfoLabel>Moto:</PaymentInfoLabel>
+                    <PaymentInfoValue>{item.motoModelo} ({item.motoPlaca})</PaymentInfoValue>
+                </PaymentInfoRow>
+                <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+
+                <PaymentInfoRow>
+                    <PaymentInfoLabel>Status do Contrato:</PaymentInfoLabel>
+                    <PaymentInfoValue style={{
+                        color: item.contratoAtivo ? '#212529' : '#6c757d',
+                        fontWeight: 'bold'
+                    }}>
+                        {item.contratoAtivo ? 'Ativo' : 'Inativo'}
+                    </PaymentInfoValue>
+                </PaymentInfoRow>
+                <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+            </PaymentInfo>
+
+            <PaymentActions>
+                <ActionButton
+                    onPress={() => onViewUserPayments(item.userEmail, item.userName)}
+                    style={{ backgroundColor: '#007bff' }}
+                >
+                    <Feather name="eye" size={16} color="#FFF" />
+                    <ActionButtonText>Ver Histórico</ActionButtonText>
+                </ActionButton>
+
+                {item.contratoAtivo && (
+                    <ActionButton
+                        onPress={() => onSendPaymentReminder(item)}
+                        style={{ backgroundColor: 'rgb(43, 42, 42)' }}
+                    >
+                        <Feather name="bell" size={16} color="#FFF" />
+                        <ActionButtonText>Lembrete</ActionButtonText>
+                    </ActionButton>
+                )}
+            </PaymentActions>
+        </PaymentCard>
+    );
+});
+
+// Componente de conteúdo vazio memoizado
+const EmptyContent = memo(() => (
+    <EmptyContainer>
+        <Feather name="dollar-sign" size={50} color="#CCC" />
+        <EmptyText>Nenhum pagamento encontrado.</EmptyText>
+    </EmptyContainer>
+));
 
 export default function AdminPayments() {
     const navigation = useNavigation();
@@ -553,19 +709,17 @@ export default function AdminPayments() {
         };
     }, [activeFilter, searchText]);
 
-
-
     // Função para mostrar o Alert em dispositivos móveis e o window.alert no web
-    const showMessage = (title, message) => {
+    const showMessage = useCallback((title, message) => {
         if (Platform.OS === 'web') {
             window.alert(`${title}: ${message}`);
         } else {
             Alert.alert(title, message);
         }
-    };
+    }, []);
 
     // Função para enviar notificação pelo Firestore
-    const enviarNotificacaoPeloFirestore = async (userEmail, title, body, data) => {
+    const enviarNotificacaoPeloFirestore = useCallback(async (userEmail, title, body, data) => {
         try {
             // Gerar um ID único para a solicitação
             const requestId = `payment_reminder_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
@@ -585,10 +739,10 @@ export default function AdminPayments() {
             console.error(`Erro ao criar solicitação de notificação: ${error.message}`);
             return false;
         }
-    };
+    }, []);
 
     // Função para enviar email pelo Firestore
-    const enviarEmailPeloFirestore = async (userEmail, subject, body, paymentInfo) => {
+    const enviarEmailPeloFirestore = useCallback(async (userEmail, subject, body, paymentInfo) => {
         try {
             // Gerar um ID único para a solicitação
             const requestId = `email_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
@@ -608,10 +762,10 @@ export default function AdminPayments() {
             console.error(`Erro ao criar solicitação de email: ${error.message}`);
             return false;
         }
-    };
+    }, []);
 
     // Função para aplicar filtros
-    const applyFilters = (data, filter, search) => {
+    const applyFilters = useCallback((data, filter, search) => {
         let result = [...data];
 
         // Aplicar filtro de status
@@ -651,15 +805,15 @@ export default function AdminPayments() {
         }
 
         setFilteredPayments(result);
-    };
+    }, []);
 
     // Atualizar filtros quando mudar o texto de busca
     useEffect(() => {
         applyFilters(payments, activeFilter, searchText);
-    }, [searchText, activeFilter]);
+    }, [searchText, activeFilter, applyFilters, payments]);
 
     // Função para formatar data
-    const formatDate = (date) => {
+    const formatDate = useCallback((date) => {
         if (!date) return 'N/A';
 
         // Verificar se date é um objeto Date
@@ -678,15 +832,15 @@ export default function AdminPayments() {
             console.error('Erro ao formatar data:', error);
             return 'Erro na data';
         }
-    };
+    }, []);
 
     // Função para formatar valor
-    const formatCurrency = (value) => {
+    const formatCurrency = useCallback((value) => {
         return `R$ ${parseFloat(value).toFixed(2)}`;
-    };
+    }, []);
 
     // Função para obter cor do status
-    const getStatusColor = (status) => {
+    const getStatusColor = useCallback((status) => {
         switch (status) {
             case 'pending':
                 return '#2ecc71';
@@ -697,10 +851,10 @@ export default function AdminPayments() {
             default:
                 return '#6c757d';
         }
-    };
+    }, []);
 
     // Função para obter texto do status
-    const getStatusText = (status) => {
+    const getStatusText = useCallback((status) => {
         switch (status) {
             case 'pending':
                 return 'Aberto';
@@ -711,15 +865,15 @@ export default function AdminPayments() {
             default:
                 return 'Desconhecido';
         }
-    };
+    }, []);
 
     // Função para ver detalhes de um usuário
-    const viewUserPayments = (userEmail, userName) => {
+    const viewUserPayments = useCallback((userEmail, userName) => {
         navigation.navigate('AdminUserPayments', { userEmail, userName });
-    };
+    }, [navigation]);
 
     // Função para enviar lembrete de pagamento
-    const sendPaymentReminder = async (item) => {
+    const sendPaymentReminder = useCallback(async (item) => {
         try {
             // Determinar qual valor usar baseado no tipo de recorrência
             const valorPagamento = item.tipoRecorrencia === 'semanal'
@@ -784,7 +938,7 @@ export default function AdminPayments() {
                     </div>
                     <p>Para sua comodidade, você pode efetuar o pagamento diretamente pelo aplicativo Papa Motos.</p>
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="papamotors://financeiro" style="background-color: #CB2921; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        <a href="https://papatangoalugueldemotos.com.br/Financeiro" style="background-color: #CB2921; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
                             Abrir no Aplicativo
                         </a>
                     </div>
@@ -823,228 +977,146 @@ export default function AdminPayments() {
             console.error('Erro ao enviar lembrete:', error);
             showMessage('Erro', 'Não foi possível enviar o lembrete de pagamento.');
         }
-    };
+    }, [enviarEmailPeloFirestore, enviarNotificacaoPeloFirestore, formatCurrency, formatDate, showMessage]);
 
-    // Renderizar item da lista
-    const renderPaymentItem = ({ item }) => {
-        // Determinar qual valor mostrar com base no tipo de recorrência
-        const valorExibir = item.tipoRecorrencia === 'semanal' ? item.valorSemanal : item.valorMensal;
+    // Memoizar a função de renderização do item
+    const renderPaymentItem = useCallback(({ item }) => (
+        <PaymentItem
+            item={item}
+            onViewUserPayments={viewUserPayments}
+            onSendPaymentReminder={sendPaymentReminder}
+            formatCurrency={formatCurrency}
+            formatDate={formatDate}
+            getStatusColor={getStatusColor}
+            getStatusText={getStatusText}
+        />
+    ), [viewUserPayments, sendPaymentReminder, formatCurrency, formatDate, getStatusColor, getStatusText]);
 
-        return (
-            <PaymentCard
-                style={{
-                    backgroundColor: item.contratoAtivo ? '#fff' : '#f8f9fa',
-                    opacity: item.contratoAtivo ? 1 : 0.85
-                }}
-            >
-                <StatusBadge style={{ backgroundColor: getStatusColor(item.status) }}>
-                    <StatusText>{getStatusText(item.status)}</StatusText>
-                </StatusBadge>
+    // Usar uma chave de extração estável
+    const keyExtractor = useCallback((item) => item.id, []);
 
-                {!item.contratoAtivo && (
-                    <StatusBadge style={{
-                        backgroundColor: '#6c757d',
-                        left: 'auto'
-                    }}>
-                        <StatusText>Contrato Inativo</StatusText>
-                    </StatusBadge>
-                )}
+    // Otimização: Memoizar o estilo do contentContainerStyle
+    const listContentContainerStyle = useMemo(() => ({
+        flexGrow: 1,
+        paddingHorizontal: 16,
+        paddingBottom: 20
+    }), []);
 
-                <PaymentHeader>
-                    <PaymentTitle>{item.userEmail}</PaymentTitle>
-                </PaymentHeader>
-                <PaymentAmount>{formatCurrency(valorExibir)}</PaymentAmount>
+    // Memoizar o componente de lista vazia
+    const renderEmptyComponent = useCallback(() => <EmptyContent />, []);
 
-                <PaymentInfo>
-                    <PaymentInfoRow>
-                        <PaymentInfoLabel>Nome:</PaymentInfoLabel>
-                        <PaymentInfoValue>{item.userName}</PaymentInfoValue>
-                    </PaymentInfoRow>
-                    <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+    // Memoizar o componente de carregamento
+    const renderLoadingComponent = useMemo(() => (
+        <LoadingContainer>
+            <ActivityIndicator size="large" color="#CB2921" />
+            <EmptyText style={{ marginTop: 10, color: '#667' }}>
+                Carregando pagamentos...
+            </EmptyText>
+        </LoadingContainer>
+    ), []);
 
-                    <PaymentInfoRow>
-                        <PaymentInfoLabel>Recorrência:</PaymentInfoLabel>
-                        <PaymentInfoValue>
-                            {item.tipoRecorrencia === 'semanal' ? 'Semanal' : 'Mensal'}
-                        </PaymentInfoValue>
-                    </PaymentInfoRow>
-                    <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+    // Memoizar o componente de filtro
+    const filterComponent = useMemo(() => (
+        showFilters && (
+            <FilterContainer>
+                <FilterOption
+                    active={activeFilter === 'all'}
+                    onPress={() => setActiveFilter('all')}
+                >
+                    <FilterOptionText active={activeFilter === 'all'}>Todos</FilterOptionText>
+                </FilterOption>
 
-                    <PaymentInfoRow>
-                        <PaymentInfoLabel
-                            style={{
-                                color: item.diasRestantes < 0 ? '#dc3545' : '#6C757D'
-                            }}
-                        >
-                            {item.diasRestantes < 0 ? 'Data de vencimento:' : 'Próximo pagamento:'}
-                        </PaymentInfoLabel>
-                        <PaymentInfoValue
-                            style={{
-                                color: item.diasRestantes < 0 ? '#dc3545' :
-                                    item.diasRestantes === 0 ? '#ffc107' : '#000'
-                            }}
-                        >
-                            {formatDate(item.proximaData)}
-                        </PaymentInfoValue>
-                    </PaymentInfoRow>
-                    <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+                <FilterOption
+                    active={activeFilter === 'inactive'}
+                    onPress={() => setActiveFilter('inactive')}
+                >
+                    <FilterOptionText active={activeFilter === 'inactive'}>Inativos</FilterOptionText>
+                </FilterOption>
 
-                    <PaymentInfoRow>
-                        <PaymentInfoLabel
-                            style={{
-                                color: item.diasRestantes < 0 ? '#dc3545' :
-                                    item.diasRestantes === 0 ? '#ffc107' :
-                                        (item.diasRestantes > 0 && item.diasRestantes <= 3) ? '#242ef0' : '#06bd0f'
-                            }}
-                        >
-                            {
-                                item.diasRestantes < 0 ? 'Dias atrasados:' :
-                                    item.diasRestantes === 0 ? 'Status:' : 'Dias restantes:'
-                            }
-                        </PaymentInfoLabel>
-                        <PaymentInfoValue
-                            style={{
-                                color: item.diasRestantes < 0 ? '#dc3545' :
-                                    item.diasRestantes === 0 ? '#ffc107' :
-                                        (item.diasRestantes > 0 && item.diasRestantes <= 3) ? '#242ef0' : '#06bd0f'
-                            }}
-                        >
-                            {
-                                item.diasRestantes < 0 ? `${Math.abs(item.diasRestantes)} dias` :
-                                    item.diasRestantes > 0 ? `${Math.abs(item.diasRestantes)} dias` :
-                                        item.diasRestantes === 0 ? 'Hoje é o dia de pagamento' :
-                                            `${item.diasRestantes}`
-                            }
-                        </PaymentInfoValue>
-                    </PaymentInfoRow>
-                    <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+                <FilterOption
+                    active={activeFilter === 'pending'}
+                    onPress={() => setActiveFilter('pending')}
+                >
+                    <FilterOptionText active={activeFilter === 'pending'}>Aberto</FilterOptionText>
+                </FilterOption>
 
-                    <PaymentInfoRow>
-                        <PaymentInfoLabel>Moto:</PaymentInfoLabel>
-                        <PaymentInfoValue>{item.motoModelo} ({item.motoPlaca})</PaymentInfoValue>
-                    </PaymentInfoRow>
-                    <Divider style={{ marginTop: -5, marginBottom: 5 }} />
+                <FilterOption
+                    active={activeFilter === 'today'}
+                    onPress={() => setActiveFilter('today')}
+                >
+                    <FilterOptionText active={activeFilter === 'today'}>Hoje</FilterOptionText>
+                </FilterOption>
 
-                    <PaymentInfoRow>
-                        <PaymentInfoLabel>Status do Contrato:</PaymentInfoLabel>
-                        <PaymentInfoValue style={{
-                            color: item.contratoAtivo ? '#212529' : '#6c757d',
-                            fontWeight: 'bold'
-                        }}>
-                            {item.contratoAtivo ? 'Ativo' : 'Inativo'}
-                        </PaymentInfoValue>
-                    </PaymentInfoRow>
-                    <Divider style={{ marginTop: -5, marginBottom: 5 }} />
-                </PaymentInfo>
+                <FilterOption
+                    active={activeFilter === 'overdue'}
+                    onPress={() => setActiveFilter('overdue')}
+                >
+                    <FilterOptionText active={activeFilter === 'overdue'}>Atrasados</FilterOptionText>
+                </FilterOption>
+            </FilterContainer>
+        )
+    ), [showFilters, activeFilter]);
 
-                <PaymentActions>
-                    <ActionButton
-                        onPress={() => viewUserPayments(item.userEmail, item.userName)}
-                        style={{ backgroundColor: '#007bff' }}
-                    >
-                        <Feather name="eye" size={16} color="#FFF" />
-                        <ActionButtonText>Ver Histórico</ActionButtonText>
-                    </ActionButton>
+    // Memoizar o componente de busca
+    const searchComponent = useMemo(() => (
+        <SearchContainer>
+            <Feather name="search" size={20} color="#999"
+                style={{ marginLeft: 10 }} />
+            <SearchInput
+                placeholder="Buscar por nome, email, placa..."
+                value={searchText}
+                onChangeText={setSearchText}
+            />
+        </SearchContainer>
+    ), [searchText]);
 
-                    {item.contratoAtivo && (
-                        <ActionButton
-                            onPress={() => sendPaymentReminder(item)}
-                            style={{ backgroundColor: 'rgb(43, 42, 42)' }}
-                        >
-                            <Feather name="bell" size={16} color="#FFF" />
-                            <ActionButtonText>Lembrete</ActionButtonText>
-                        </ActionButton>
-                    )}
-                </PaymentActions>
-            </PaymentCard>
-        );
-    };
+    // Memoizar o componente de cabeçalho
+    const headerComponent = useMemo(() => (
+        <Header>
+            <HeaderTitle>Pagamentos</HeaderTitle>
+            <HeaderRight>
+                <FilterButton onPress={() => setShowFilters(!showFilters)}>
+                    <Feather name="filter" size={22} color="#333" />
+                </FilterButton>
+            </HeaderRight>
+        </Header>
+    ), [showFilters]);
 
-    // Renderizar conteúdo vazio
-    const renderEmptyContent = () => (
-        <EmptyContainer>
-            <Feather name="dollar-sign" size={50} color="#CCC" />
-            <EmptyText>Nenhum pagamento encontrado.</EmptyText>
-        </EmptyContainer>
-    );
+    // Memoizar a lista de pagamentos filtrados
+    const memoizedFilteredPayments = useMemo(() => filteredPayments, [filteredPayments]);
+
+    // Configurar o windowSize e maxToRenderPerBatch para melhorar a performance
+    const windowSize = useMemo(() => 10, []); // Reduzir o número de itens renderizados fora da tela
+    const maxToRenderPerBatch = useMemo(() => 5, []); // Reduzir o número de itens renderizados por lote
+    const updateCellsBatchingPeriod = useMemo(() => 50, []); // Aumentar o período de atualização em lote
+    const initialNumToRender = useMemo(() => 5, []); // Reduzir o número inicial de itens renderizados
+
+    // RemoveClippedSubviews para melhorar a performance em listas longas
+    const removeClippedSubviews = useMemo(() => Platform.OS !== 'web', []); // Não funciona bem na web
 
     return (
         <Container>
-            <Header>
-                <HeaderTitle>Pagamentos</HeaderTitle>
-                <HeaderRight>
-                    <FilterButton onPress={() => setShowFilters(!showFilters)}>
-                        <Feather name="filter" size={22} color="#333" />
-                    </FilterButton>
-                </HeaderRight>
-            </Header>
-
-            <SearchContainer>
-                <Feather name="search" size={20} color="#999" style={{ marginLeft: 10 }} />
-                <SearchInput
-                    placeholder="Buscar por nome, email, placa..."
-                    value={searchText}
-                    onChangeText={setSearchText}
-                />
-            </SearchContainer>
-
-            {showFilters && (
-                <FilterContainer>
-                    <FilterOption
-                        active={activeFilter === 'all'}
-                        onPress={() => setActiveFilter('all')}
-                    >
-                        <FilterOptionText active={activeFilter === 'all'}>Todos</FilterOptionText>
-                    </FilterOption>
-
-                    <FilterOption
-                        active={activeFilter === 'inactive'}
-                        onPress={() => setActiveFilter('inactive')}
-                    >
-                        <FilterOptionText active={activeFilter === 'inactive'}>Inativos</FilterOptionText>
-                    </FilterOption>
-
-                    <FilterOption
-                        active={activeFilter === 'pending'}
-                        onPress={() => setActiveFilter('pending')}
-                    >
-                        <FilterOptionText active={activeFilter === 'pending'}>Aberto</FilterOptionText>
-                    </FilterOption>
-
-                    <FilterOption
-                        active={activeFilter === 'today'}
-                        onPress={() => setActiveFilter('today')}
-                    >
-                        <FilterOptionText active={activeFilter === 'today'}>Hoje</FilterOptionText>
-                    </FilterOption>
-
-                    <FilterOption
-                        active={activeFilter === 'overdue'}
-                        onPress={() => setActiveFilter('overdue')}
-                    >
-                        <FilterOptionText active={activeFilter === 'overdue'}>Atrasados</FilterOptionText>
-                    </FilterOption>
-                </FilterContainer>
-            )}
+            {headerComponent}
+            {searchComponent}
+            {filterComponent}
 
             {loading ? (
-                <LoadingContainer>
-                    <ActivityIndicator size="large" color="#CB2921" />
-                    <EmptyText style={{ marginTop: 10, color: '#667' }}>
-                        Carregando pagamentos...
-                    </EmptyText>
-                </LoadingContainer>
+                renderLoadingComponent
             ) : (
                 <FlatList
-                    data={filteredPayments}
-                    keyExtractor={(item) => item.id}
+                    data={memoizedFilteredPayments}
+                    keyExtractor={keyExtractor}
                     renderItem={renderPaymentItem}
-                    ListEmptyComponent={renderEmptyContent}
-                    contentContainerStyle={{
-                        flexGrow: 1,
-                        paddingHorizontal: 16,
-                        paddingBottom: 20
-                    }}
+                    ListEmptyComponent={renderEmptyComponent}
+                    contentContainerStyle={listContentContainerStyle}
+                    windowSize={windowSize}
+                    maxToRenderPerBatch={maxToRenderPerBatch}
+                    updateCellsBatchingPeriod={updateCellsBatchingPeriod}
+                    initialNumToRender={initialNumToRender}
+                    removeClippedSubviews={removeClippedSubviews}
+                    getItemLayout={(data, index) => (
+                        { length: 350, offset: 350 * index, index }
+                    )}
                 />
             )}
         </Container>

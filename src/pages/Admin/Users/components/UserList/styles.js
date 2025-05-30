@@ -145,3 +145,10 @@ export const EmptyMessage = styled.Text`
     color: #666;
     text-align: center;
 `;
+
+export const EmptyText = styled.Text`
+    font-size: 16px;
+    color: #666;
+    margin-top: 10px;
+    text-align: center;
+`;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { Alert, ActivityIndicator, View, Text, Platform } from 'react-native';
 import { db } from '../../../../../services/firebaseConfig';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -28,7 +28,97 @@ import {
     EmptyText,
 } from './styles';
 
+// Componente memoizado para a mensagem de carregamento
+const LoadingIndicator = memo(() => (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#CB2921" />
+        <EmptyText>Carregando Contratos...</EmptyText>
+    </View>
+));
+
+// Componente memoizado para a mensagem de lista vazia
+const EmptyContractList = memo(() => (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 20 }}>
+        <EmptyMessage>Nenhum contrato encontrado</EmptyMessage>
+    </View>
+));
+
+// Componente memoizado para o detalhe de linha
+const DetailRowMemo = memo(({ label, value, isStatus = false, aprovado = false }) => (
+    <>
+        <DetailRow>
+            {isStatus ? (
+                <>
+                    <DetailLabelStatus>{label}</DetailLabelStatus>
+                    <DetailStatus aprovado={aprovado}>
+                        {value}
+                    </DetailStatus>
+                </>
+            ) : (
+                <>
+                    <DetailLabel>{label}</DetailLabel>
+                    <DetailValue>{value}</DetailValue>
+                </>
+            )}
+        </DetailRow>
+        <Divider style={{ marginTop: 5, marginBottom: 0 }} />
+    </>
+));
+
+// Componente memoizado para o card de contrato
+const ContractCardMemo = memo(({ contract, formatDate, isWebDesktop, navigation }) => (
+    <ContractCard>
+        <ContractContainer>
+            <ContractNumber>Contrato: </ContractNumber>
+            <ContractId>{contract.contratoId}</ContractId>
+        </ContractContainer>
+        <ContractDetails>
+            <DetailRowMemo label="Cliente:" value={contract.cliente} />
+            <DetailRowMemo label="Aluguel:" value={contract.aluguelId} />
+            <DetailRowMemo label="Moto:" value={contract.motoId} />
+            <DetailRowMemo label="Data Início:" value={formatDate(contract.dataInicio)} />
+            <DetailRowMemo
+                label="Recorrência de Pagamento"
+                value={contract.tipoRecorrenciaPagamento === 'semanal' ? 'Semanal' : 'Mensal'}
+            />
+            <DetailRowMemo
+                label="MesesContratados:"
+                value={`${contract.mesesContratados} meses`}
+            />
+            <DetailRowMemo
+                label="Status:"
+                value={contract.statusContrato ? 'Ativo' : 'Inativo'}
+                isStatus={true}
+                aprovado={contract.statusContrato}
+            />
+
+            {contract.urlContrato ? (
+                <>
+                    <DocumentTitle>
+                        Contrato (PDF)
+                    </DocumentTitle>
+                    <PdfContainer>
+                        <PdfViewer
+                            uri={contract.urlContrato}
+                            fileName={`Contrato-${contract.contratoId || contract.id}.pdf`}
+                            height={isWebDesktop ? 600 : 300}
+                        />
+                    </PdfContainer>
+                </>
+            ) : (
+                <View style={{ padding: 10 }}>
+                    <Text>PDF do contrato não disponível</Text>
+                </View>
+            )}
+        </ContractDetails>
+        <ActionButton onPress={() => navigation.navigate('ContractEdit', { contract })}>
+            <ActionButtonText>Editar</ActionButtonText>
+        </ActionButton>
+    </ContractCard>
+));
+
 export default function ContractList({ navigation }) {
+    // Estados principais
     const [contracts, setContracts] = useState([]);
     const [filteredContracts, setFilteredContracts] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -48,6 +138,88 @@ export default function ContractList({ navigation }) {
     // Verifica se o dispositivo é um desktop web
     const isWebDesktop = Platform.OS === 'web' && window.innerWidth >= 768;
 
+    // Função para mostrar mensagem de sucesso/erro
+    const showMessage = useCallback((title, message) => {
+        if (Platform.OS === 'web') {
+            window.alert(`${title}: ${message}`);
+        } else {
+            Alert.alert(title, message);
+        }
+    }, []);
+
+    // Extrair opções únicas para filtros
+    const extractFilterOptions = useCallback((contractsData) => {
+        // Extrair clientes únicos
+        const clientes = [...new Set(contractsData
+            .map(contract => contract.cliente)
+            .filter(cliente => cliente && cliente.trim() !== '')
+        )].sort();
+
+        // Extrair aluguéis únicos
+        const alugueis = [...new Set(contractsData
+            .map(contract => contract.aluguelId)
+            .filter(aluguel => aluguel && aluguel.trim() !== '')
+        )].sort();
+
+        // Extrair motos únicas
+        const motos = [...new Set(contractsData
+            .map(contract => contract.motoId)
+            .filter(moto => moto && moto.trim() !== '')
+        )].sort();
+
+        setClientesDisponiveis(clientes);
+        setAlugueisDisponiveis(alugueis);
+        setMotosDisponiveis(motos);
+    }, []);
+
+    // Aplicar todos os filtros
+    const applyAllFilters = useCallback(() => {
+        let filtered = [...contracts];
+
+        // Filtrar por termo de busca
+        if (searchTerm.trim()) {
+            const searchTermLower = searchTerm.toLowerCase();
+            filtered = filtered.filter(contract =>
+                (contract.id && contract.id.toLowerCase().includes(searchTermLower)) ||
+                (contract.cliente && contract.cliente.toLowerCase().includes(searchTermLower)) ||
+                (contract.aluguelId && contract.aluguelId.toLowerCase().includes(searchTermLower)) ||
+                (contract.motoId && contract.motoId.toLowerCase().includes(searchTermLower))
+            );
+        }
+
+        // Filtrar por status
+        if (statusFilter !== 'todos') {
+            filtered = filtered.filter(contract => {
+                const isActive = contract.statusContrato === true;
+                return statusFilter === 'ativo' ? isActive : !isActive;
+            });
+        }
+
+        // Filtrar por cliente
+        if (clienteFilter !== 'todos') {
+            filtered = filtered.filter(contract =>
+                contract.cliente && contract.cliente === clienteFilter
+            );
+        }
+
+        // Filtrar por aluguel
+        if (aluguelFilter !== 'todos') {
+            filtered = filtered.filter(contract =>
+                contract.aluguelId && contract.aluguelId === aluguelFilter
+            );
+        }
+
+        // Filtrar por moto
+        if (motoFilter !== 'todos') {
+            filtered = filtered.filter(contract =>
+                contract.motoId && contract.motoId === motoFilter
+            );
+        }
+
+        setFilteredContracts(filtered);
+    }, [contracts, searchTerm, statusFilter, clienteFilter, aluguelFilter, motoFilter]);
+
+    // Função para aplicar filtro inicial
     useEffect(() => {
         let isMounted = true;
 
@@ -76,7 +248,6 @@ export default function ContractList({ navigation }) {
                 }
 
                 if (filterValue && isMounted) {
-
                     // Aplicar o filtro salvo
                     if (filterValue === 'ativos') {
                         setStatusFilter('ativo');
@@ -134,7 +305,7 @@ export default function ContractList({ navigation }) {
                 document.removeEventListener('applyContractFilter', handleFilterEvent);
             }
         };
-    }, [contracts]);
+    }, [contracts, applyAllFilters]);
 
     // UseEffect para verificar o filtro quando o componente recebe foco
     useEffect(() => {
@@ -150,7 +321,6 @@ export default function ContractList({ navigation }) {
 
                 // Verificar se temos um filtro e um timestamp
                 if (filter && timestamp && isMounted) {
-
                     // Aplicar o filtro
                     if (filter === 'ativos') {
                         setStatusFilter('ativo');
@@ -187,8 +357,9 @@ export default function ContractList({ navigation }) {
             isMounted = false;
             unsubscribe();
         };
-    }, [navigation, contracts]);
+    }, [navigation, contracts, applyAllFilters]);
 
+    // Carregar dados iniciais
     useEffect(() => {
         setLoading(true);
 
@@ -217,88 +388,7 @@ export default function ContractList({ navigation }) {
             }
         );
         return () => unsubscribe();
-    }, []);
-
-    // Função para mostrar mensagem de sucesso/erro
-    const showMessage = (title, message) => {
-        if (Platform.OS === 'web') {
-            window.alert(`${title}: ${message}`);
-        } else {
-            Alert.alert(title, message);
-        }
-    };
-
-    // Extrair opções únicas para filtros
-    const extractFilterOptions = (contractsData) => {
-        // Extrair clientes únicos
-        const clientes = [...new Set(contractsData
-            .map(contract => contract.cliente)
-            .filter(cliente => cliente && cliente.trim() !== '')
-        )].sort();
-
-        // Extrair aluguéis únicos
-        const alugueis = [...new Set(contractsData
-            .map(contract => contract.aluguelId)
-            .filter(aluguel => aluguel && aluguel.trim() !== '')
-        )].sort();
-
-        // Extrair motos únicas
-        const motos = [...new Set(contractsData
-            .map(contract => contract.motoId)
-            .filter(moto => moto && moto.trim() !== '')
-        )].sort();
-
-        setClientesDisponiveis(clientes);
-        setAlugueisDisponiveis(alugueis);
-        setMotosDisponiveis(motos);
-    };
-
-    // Aplicar todos os filtros
-    const applyAllFilters = useCallback(() => {
-        let filtered = [...contracts];
-
-        // Filtrar por termo de busca
-        if (searchTerm.trim()) {
-            const searchTermLower = searchTerm.toLowerCase();
-            filtered = filtered.filter(contract =>
-                (contract.id && contract.id.toLowerCase().includes(searchTermLower)) ||
-                (contract.cliente && contract.cliente.toLowerCase().includes(searchTermLower)) ||
-                (contract.aluguelId && contract.aluguelId.toLowerCase().includes(searchTermLower)) ||
-                (contract.motoId && contract.motoId.toLowerCase().includes(searchTermLower))
-            );
-        }
-
-        // Filtrar por status
-        if (statusFilter !== 'todos') {
-            filtered = filtered.filter(contract => {
-                const isActive = contract.statusContrato === true;
-                return statusFilter === 'ativo' ? isActive : !isActive;
-            });
-        }
-
-        // Filtrar por cliente
-        if (clienteFilter !== 'todos') {
-            filtered = filtered.filter(contract =>
-                contract.cliente && contract.cliente === clienteFilter
-            );
-        }
-
-        // Filtrar por aluguel
-        if (aluguelFilter !== 'todos') {
-            filtered = filtered.filter(contract =>
-                contract.aluguelId && contract.aluguelId === aluguelFilter
-            );
-        }
-
-        // Filtrar por moto
-        if (motoFilter !== 'todos') {
-            filtered = filtered.filter(contract =>
-                contract.motoId && contract.motoId === motoFilter
-            );
-        }
-
-        setFilteredContracts(filtered);
-    }, [contracts, searchTerm, statusFilter, clienteFilter, aluguelFilter, motoFilter]);
+    }, [extractFilterOptions, showMessage]);
 
     // Aplicar filtros quando qualquer filtro mudar
     useEffect(() => {
@@ -306,36 +396,36 @@ export default function ContractList({ navigation }) {
     }, [applyAllFilters]);
 
     // Funções para manipular mudanças de filtro
-    const handleSearchChange = (text) => {
+    const handleSearchChange = useCallback((text) => {
         setSearchTerm(text);
-    };
+    }, []);
 
-    const handleStatusFilter = (status) => {
+    const handleStatusFilter = useCallback((status) => {
         setStatusFilter(status);
-    };
+    }, []);
 
-    const handleClienteFilter = (cliente) => {
+    const handleClienteFilter = useCallback((cliente) => {
         setClienteFilter(cliente);
-    };
+    }, []);
 
-    const handleAluguelFilter = (aluguel) => {
+    const handleAluguelFilter = useCallback((aluguel) => {
         setAluguelFilter(aluguel);
-    };
+    }, []);
 
-    const handleMotoFilter = (moto) => {
+    const handleMotoFilter = useCallback((moto) => {
         setMotoFilter(moto);
-    };
+    }, []);
 
     // Contar filtros ativos
-    const countActiveFilters = () => {
+    const countActiveFilters = useCallback(() => {
         return (statusFilter !== 'todos' ? 1 : 0) +
             (clienteFilter !== 'todos' ? 1 : 0) +
             (aluguelFilter !== 'todos' ? 1 : 0) +
             (motoFilter !== 'todos' ? 1 : 0);
-    };
+    }, [statusFilter, clienteFilter, aluguelFilter, motoFilter]);
 
     // Preparar seções de filtro
-    const getFilterSections = () => {
+    const getFilterSections = useMemo(() => {
         const sections = [
             {
                 title: "Status:",
@@ -426,14 +516,26 @@ export default function ContractList({ navigation }) {
         }
 
         return sections;
-    };
+    }, [
+        statusFilter,
+        clienteFilter,
+        aluguelFilter,
+        motoFilter,
+        clientesDisponiveis,
+        alugueisDisponiveis,
+        motosDisponiveis,
+        handleStatusFilter,
+        handleClienteFilter,
+        handleAluguelFilter,
+        handleMotoFilter
+    ]);
 
-    const formatDate = (timestamp) => {
+    // Função para formatar data - memoizada para evitar recálculos
+    const formatDate = useCallback((timestamp) => {
         if (!timestamp) return 'Data não disponível';
 
         if (timestamp.toDate && typeof timestamp.toDate === 'function') {
             const date = timestamp.toDate();
-
             return date.toLocaleDateString('pt-BR', {
                 day: '2-digit',
                 month: '2-digit',
@@ -457,16 +559,16 @@ export default function ContractList({ navigation }) {
                 return 'Formato de data inválido';
             }
         }
-    };
+    }, []);
+
+    // Handler para navegação para o formulário de contrato
+    const handleAddContract = useCallback(() => {
+        navigation.navigate('ContractForm');
+    }, [navigation]);
 
     // Renderiza um indicador de carregamento quando os dados estão sendo carregados
     if (loading) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#CB2921" />
-                <EmptyText>Carregando Contratos...</EmptyText>
-            </View>
-        );
+        return <LoadingIndicator />;
     }
 
     return (
@@ -475,87 +577,25 @@ export default function ContractList({ navigation }) {
                 searchTerm={searchTerm}
                 onSearchChange={handleSearchChange}
                 onSearch={applyAllFilters}
-                filterSections={getFilterSections()}
+                filterSections={getFilterSections}
                 activeFiltersCount={countActiveFilters()}
-                onAddButtonPress={() => navigation.navigate('ContractForm')}
+                onAddButtonPress={handleAddContract}
                 addButtonIcon="add"
                 searchPlaceholder="Buscar contratos..."
             />
+
             {filteredContracts.length === 0 ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 20 }}>
-                    <EmptyMessage>Nenhum contrato encontrado</EmptyMessage>
-                </View>
+                <EmptyContractList />
             ) : (
                 <ContractsList>
                     {filteredContracts.map(contract => (
-                        <ContractCard key={contract.id}>
-                            <ContractContainer>
-                                <ContractNumber>Contrato: </ContractNumber>
-                                <ContractId>{contract.contratoId}</ContractId>
-                            </ContractContainer>
-                            <ContractDetails>
-                                <DetailRow>
-                                    <DetailLabel>Cliente:</DetailLabel>
-                                    <DetailValue>{contract.cliente}</DetailValue>
-                                </DetailRow>
-                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                                <DetailRow>
-                                    <DetailLabel>Aluguel:</DetailLabel>
-                                    <DetailValue>{contract.aluguelId}</DetailValue>
-                                </DetailRow>
-                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                                <DetailRow>
-                                    <DetailLabel>Moto:</DetailLabel>
-                                    <DetailValue>{contract.motoId}</DetailValue>
-                                </DetailRow>
-                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                                <DetailRow>
-                                    <DetailLabel>Data Início:</DetailLabel>
-                                    <DetailValue>{formatDate(contract.dataInicio)}</DetailValue>
-                                </DetailRow>
-                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                                <DetailRow>
-                                    <DetailLabel>Recorrência de Pagamento</DetailLabel>
-                                    <DetailValue>{contract.tipoRecorrenciaPagamento === 'semanal' ? 'Semanal' : 'Mensal'}</DetailValue>
-                                </DetailRow>
-                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                                <DetailRow>
-                                    <DetailLabel>MesesContratados:</DetailLabel>
-                                    <DetailValue>{contract.mesesContratados} meses</DetailValue>
-                                </DetailRow>
-                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-                                <DetailRow>
-                                    <DetailLabelStatus>Status:</DetailLabelStatus>
-                                    <DetailStatus aprovado={contract.statusContrato}>
-                                        {contract.statusContrato ? 'Ativo' : 'Inativo'}
-                                    </DetailStatus>
-                                </DetailRow>
-                                <Divider style={{ marginTop: 5, marginBottom: 0 }} />
-
-                                {contract.urlContrato ? (
-                                    <>
-                                        <DocumentTitle>
-                                            Contrato (PDF)
-                                        </DocumentTitle>
-
-                                        <PdfContainer>
-                                            <PdfViewer
-                                                uri={contract.urlContrato}
-                                                fileName={`Contrato-${contract.contratoId || contract.id}.pdf`}
-                                                height={isWebDesktop ? 600 : 300}
-                                            />
-                                        </PdfContainer>
-                                    </>
-                                ) : (
-                                    <View style={{ padding: 10 }}>
-                                        <Text>PDF do contrato não disponível</Text>
-                                    </View>
-                                )}
-                            </ContractDetails>
-                            <ActionButton onPress={() => navigation.navigate('ContractEdit', { contract })}>
-                                <ActionButtonText>Editar</ActionButtonText>
-                            </ActionButton>
-                        </ContractCard>
+                        <ContractCardMemo
+                            key={contract.id}
+                            contract={contract}
+                            formatDate={formatDate}
+                            isWebDesktop={isWebDesktop}
+                            navigation={navigation}
+                        />
                     ))}
                 </ContractsList>
             )}

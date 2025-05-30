@@ -5,6 +5,8 @@ import { Feather } from '@expo/vector-icons';
 import { auth, db } from '../../services/firebaseConfig';
 import { registerForPushNotifications } from '../../services/notificationService';
 import { collection, query, where, getDocs, doc, getDoc, onSnapshot, orderBy, writeBatch, serverTimestamp, setDoc } from 'firebase/firestore';
+import { FeedbackModal } from '../../components/FeedbackModal'; // Modal de feedback
+
 import {
   Container,
   Header,
@@ -44,6 +46,8 @@ const Financeiro = () => {
   const [proximoPagamento, setProximoPagamento] = useState(null);
   const [contratoAtivo, setContratoAtivo] = useState(false);
   const [contratoCarregado, setContratoCarregado] = useState(false);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [feedback, setFeedback] = useState({ type: '', title: '', message: '' })
 
   // useEffect principal que gerencia autenticação e carregamento inicial
   useEffect(() => {
@@ -1076,7 +1080,7 @@ const Financeiro = () => {
 
     setLoadingSupport(true);
     const telefone = '5585992684035';
-    const mensagem = 'Olá! Estou logado no app da Papa Tango e quero alugar uma moto novamente! Já fui cliente de vocês :)';
+    const mensagem = 'Olá! Estou logado no app da Papa Tango e quero alugar uma moto :)';
     const urlWhatsapp = `whatsapp://send?phone=${telefone}&text=${encodeURIComponent(mensagem)}`;
 
     Linking.canOpenURL(urlWhatsapp)
@@ -1084,12 +1088,22 @@ const Financeiro = () => {
         if (suportado) {
           return Linking.openURL(urlWhatsapp);
         } else {
-          showMessage('WhatsApp não está instalado\nSe o App está instalado e o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com');
+          setFeedback({
+            type: 'error',
+            title: 'WhatsApp não está instalado',
+            message: 'Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com'
+          });
+          setFeedbackVisible(true);
         }
       })
       .catch(erro => {
         console.error('Erro ao abrir WhatsApp:', erro);
-        showMessage('Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com');
+        setFeedback({
+          type: 'error',
+          title: 'Erro ao abrir o WhatsApp',
+          message: 'Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com'
+        });
+        setFeedbackVisible(true);
       })
       .finally(() => {
         setLoadingSupport(false);
@@ -1324,7 +1338,7 @@ const Financeiro = () => {
         <Button onPress={handleWhatsapp} style={{ marginTop: 5 }}>
           {loadingSupport ? (
             <ButtonText>Abrindo WhatsApp...</ButtonText>
-          ): (
+          ) : (
             <ButtonText>Alugar uma Moto Novamente</ButtonText>
           )}
         </Button>
@@ -1425,14 +1439,39 @@ const Financeiro = () => {
                   <EmptyText style={{ marginTop: 10, fontSize: 14, color: '#666', textAlign: 'center' }}>
                     Entre em contato com a Papa Tango para mais informações sobre como alugar uma moto.
                   </EmptyText>
-                  <Button onPress={() => navigation.navigate('Home')} style={{ marginTop: 20 }}>
-                    <ButtonText>Alugar uma Moto</ButtonText>
+                  <Button onPress={handleWhatsapp} style={{ marginTop: 20 }} activeOpacity={0.8}>
+                    {loadingSupport ? (
+                      <ButtonText>Abrindo WhatsApp...</ButtonText>
+                    ) : (
+                      <ButtonText>Alugar uma Moto</ButtonText>
+                    )}
                   </Button>
                 </EmptyContainer>
               )}
             </>
           )}
         </>
+      )}
+      {feedbackVisible && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999
+          }}
+        >
+          <FeedbackModal
+            visible={feedbackVisible}
+            {...feedback}
+            onClose={() => setFeedbackVisible(false)}
+          />
+        </View>
       )}
     </Container>
   );

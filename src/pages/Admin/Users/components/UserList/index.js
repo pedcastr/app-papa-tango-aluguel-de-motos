@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { View, Platform, ActivityIndicator } from 'react-native';
 import { Alert } from 'react-native';
 import { db } from '../../../../../services/firebaseConfig';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -25,19 +25,103 @@ import {
     AreaButtons,
     TrocaOleoButton,
     TrocaOleoButtonText,
-    EmptyMessage
+    EmptyMessage,
+    EmptyText
 } from './styles';
+
+// Componente memoizado para a mensagem de carregamento
+const LoadingIndicator = memo(() => (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#CB2921" />
+        <EmptyText>Carregando Usuários...</EmptyText>
+    </View>
+));
+
+// Componente memoizado para o card de usuário
+const UserCardMemo = memo(({ user, navigation }) => (
+    <UserCard>
+        <UserEmail>{user.email}</UserEmail>
+        <UserInfo>
+            <TextContainer>
+                <TextInfo>Nome: </TextInfo>
+                <TextUserData>{user.nomeCompleto || user.nome}</TextUserData>
+            </TextContainer>
+
+            <TextContainer>
+                <TextInfo>Telefone: </TextInfo>
+                <TextUserData>{user.telefone}</TextUserData>
+            </TextContainer>
+
+            <TextContainer>
+                <TextInfo>Tem Moto Alugada?: </TextInfo>
+                <TextUserDataMotoAlugada alugada={user.motoAlugada}>
+                    {user.motoAlugada ? 'SIM' : 'NÃO'}
+                </TextUserDataMotoAlugada>
+            </TextContainer>
+
+            <TextContainer>
+                <TextInfo>Moto Alugada: </TextInfo>
+                <TextUserData>{user.motoAlugadaId || 'N/A'}</TextUserData>
+            </TextContainer>
+
+            <TextContainer>
+                <TextInfo>Aluguel: </TextInfo>
+                <TextUserData>{user.aluguelAtivoId || 'N/A'}</TextUserData>
+            </TextContainer>
+
+            <TextContainer>
+                <TextInfo>Contrato: </TextInfo>
+                <TextUserData>{user.contratoId || 'N/A'}</TextUserData>
+            </TextContainer>
+
+            <TextContainer>
+                <TextInfoStatus>Status: </TextInfoStatus>
+                <UserStatus approved={user.aprovado}>
+                    {user.aprovado ? 'Aprovado' : 'Pendente'}
+                </UserStatus>
+            </TextContainer>
+        </UserInfo>
+
+        <AreaButtons>
+            <ActionButton
+                onPress={() => navigation.navigate('UserEdit', { user })}
+            >
+                <ActionButtonText>Editar</ActionButtonText>
+            </ActionButton>
+
+            <TrocaOleoButton
+                onPress={() => navigation.navigate('UserTrocaOleo', { user })}
+            >
+                <TrocaOleoButtonText>Trocas Óleo</TrocaOleoButtonText>
+            </TrocaOleoButton>
+
+            <DestalhesButton
+                onPress={() => navigation.navigate('UserDetails', { user })}
+            >
+                <DestalhesButtonText>
+                    Detalhes
+                </DestalhesButtonText>
+            </DestalhesButton>
+        </AreaButtons>
+    </UserCard>
+));
+
+// Componente memoizado para a mensagem vazia
+const EmptyContent = memo(() => (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <EmptyMessage>Nenhum usuário encontrado com os filtros selecionados</EmptyMessage>
+    </View>
+));
 
 export default function UserList({ navigation }) {
     // Estados principais
     const [users, setUsers] = useState([]);
-    const [searchTerm, setSearchTerm] = useState('');
     const [filteredUsers, setFilteredUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Estados para controle de filtros
     const [approvalFilter, setApprovalFilter] = useState('todos'); // 'todos', 'aprovados', 'pendentes'
-
-    // Filtros específicos por ID
     const [motoAlugadaFilter, setMotoAlugadaFilter] = useState('todos'); // 'todos', específico ID, 'sem_moto'
     const [aluguelFilter, setAluguelFilter] = useState('todos'); // 'todos', específico ID, 'sem_aluguel'
     const [contratoFilter, setContratoFilter] = useState('todos'); // 'todos', específico ID, 'sem_contrato'
@@ -47,236 +131,25 @@ export default function UserList({ navigation }) {
     const [alugueisUnicos, setAlugueisUnicos] = useState([]);
     const [contratosUnicos, setContratosUnicos] = useState([]);
 
-    // Função para funcionar a navegação da tela Dashboard para a tela de Usuários com filtro aplicado
-    useEffect(() => {
-        let isMounted = true;
-
-        // Função para aplicar filtro recebido
-        const applyInitialFilter = async () => {
-            try {
-                // Verificar se há um filtro salvo
-                let filterValue = null;
-
-                // Tentar obter do AsyncStorage
-                const asyncStorageFilter = await AsyncStorage.getItem('userListFilter');
-                if (asyncStorageFilter) {
-                    filterValue = asyncStorageFilter; // Usar o valor diretamente
-                    // Limpar o filtro após usá-lo
-                    await AsyncStorage.removeItem('userListFilter');
-                }
-
-                // Para web, verificar também o sessionStorage
-                if (Platform.OS === 'web' && !filterValue) {
-                    const sessionFilter = sessionStorage.getItem('userListFilter');
-                    if (sessionFilter) {
-                        filterValue = sessionFilter; // Usar o valor diretamente
-                        // Limpar o filtro após usá-lo
-                        sessionStorage.removeItem('userListFilter');
-                    }
-                }
-
-                if (filterValue && isMounted) {
-
-                    // Aplicar o filtro salvo
-                    if (filterValue === 'aprovados') {
-                        setApprovalFilter('aprovados');
-                    } else if (filterValue === 'pendentes') {
-                        setApprovalFilter('pendentes');
-                    } else {
-                        setApprovalFilter('todos');
-                    }
-
-                    // Garantir que os dados estejam carregados antes de aplicar o filtro
-                    if (users.length > 0) {
-                        // Aplicar os filtros aos dados com um pequeno delay
-                        setTimeout(() => {
-                            if (isMounted) {
-                                applyAllFilters(users);
-                            }
-                        }, 300);
-                    }
-                }
-            } catch (error) {
-                console.error('Erro ao recuperar filtro de usuários:', error);
-            }
-        };
-
-        // Executar ao montar o componente
-        applyInitialFilter();
-
-        // Configurar listener para eventos de filtro (web)
-        const handleFilterEvent = (event) => {
-            if (!isMounted) return;
-
-            const { filter } = event.detail;
-
-            if (filter === 'aprovados') {
-                setApprovalFilter('aprovados');
-            } else if (filter === 'pendentes') {
-                setApprovalFilter('pendentes');
-            } else {
-                setApprovalFilter('todos');
-            }
-
-            // Aplicar os filtros aos dados com um pequeno delay
-            setTimeout(() => {
-                if (isMounted && users.length > 0) {
-                    applyAllFilters(users);
-                }
-            }, 300);
-        };
-
-        // Adicionar listener apenas no ambiente web
-        if (Platform.OS === 'web') {
-            document.addEventListener('applyUserFilter', handleFilterEvent);
-        }
-
-        // Cleanup
-        return () => {
-            isMounted = false;
-            if (Platform.OS === 'web') {
-                document.removeEventListener('applyUserFilter', handleFilterEvent);
-            }
-        };
-    }, []);
-
-    // UseEffect para reagir a mudanças nos dados
-    useEffect(() => {
-        // Verificar se temos um filtro ativo que não seja 'todos'
-        if (approvalFilter !== 'todos' && users.length > 0) {
-            // Aplicar o filtro aos dados atualizados
-            applyAllFilters(users);
-        }
-    }, [users]);
-
-    // UseEffect para verificar o filtro a cada vez que o componente recebe foco
-    useEffect(() => {
-        let isMounted = true;
-
-        // Função para verificar e aplicar o filtro quando o componente recebe foco
-        const checkFilterOnFocus = async () => {
-            if (Platform.OS === 'web') return; // Apenas para mobile
-
-            try {
-                const filter = await AsyncStorage.getItem('userListFilter');
-                const timestamp = await AsyncStorage.getItem('userListFilterTimestamp');
-
-                // Verificar se temos um filtro e um timestamp
-                if (filter && timestamp && isMounted) {
-
-                    // Aplicar o filtro
-                    if (filter === 'aprovados') {
-                        setApprovalFilter('aprovados');
-                    } else if (filter === 'pendentes') {
-                        setApprovalFilter('pendentes');
-                    } else {
-                        setApprovalFilter('todos');
-                    }
-
-                    // Aplicar os filtros aos dados
-                    if (users.length > 0) {
-                        setTimeout(() => {
-                            if (isMounted) {
-                                applyAllFilters(users);
-                            }
-                        }, 300);
-                    }
-
-                    await AsyncStorage.removeItem('userListFilter'); // Limpar o filtro após usá-lo
-                    await AsyncStorage.removeItem('userListFilterTimestamp'); // Limpar o timestamp após usá-lo
-                }
-            } catch (error) {
-                console.error('Erro ao verificar filtro no foco:', error);
-            }
-        };
-
-        // Configurar listener para o evento de foco
-        const unsubscribe = navigation.addListener('focus', checkFilterOnFocus);
-
-        // Verificar filtro ao montar o componente
-        checkFilterOnFocus();
-
-        // Cleanup
-        return () => {
-            isMounted = false;
-            unsubscribe();
-        };
-    }, [navigation, users]);
-
-    /**
-     * Efeito para extrair valores únicos para os filtros
-     */
-    useEffect(() => {
-        if (users.length > 0) {
-            // Extrair IDs únicos de motos alugadas
-            const motosIds = [...new Set(users
-                .filter(user => user.motoAlugadaId && user.motoAlugadaId.trim() !== '')
-                .map(user => user.motoAlugadaId)
-            )].sort();
-            setMotosAlugadasUnicas(motosIds);
-
-            // Extrair IDs únicos de aluguéis
-            const alugueisIds = [...new Set(users
-                .filter(user => user.aluguelAtivoId && user.aluguelAtivoId.trim() !== '')
-                .map(user => user.aluguelAtivoId)
-            )].sort();
-            setAlugueisUnicos(alugueisIds);
-
-            // Extrair IDs únicos de contratos
-            const contratosIds = [...new Set(users
-                .filter(user => user.contratoId && user.contratoId.trim() !== '')
-                .map(user => user.contratoId)
-            )].sort();
-            setContratosUnicos(contratosIds);
-        }
-    }, [users]);
-
-    /**
-     * Efeito para configurar o listener em tempo real do Firestore
-     */
-    useEffect(() => {
-        const usersRef = collection(db, "users");
-
-        const unsubscribe = onSnapshot(usersRef, (querySnapshot) => {
-            try {
-                const usersList = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                setUsers(usersList);
-                applyAllFilters(usersList);
-            } catch (error) {
-                console.error("Erro ao processar dados:", error);
-                showMessage('Erro', 'Falha ao atualizar lista de usuários');
-            }
-        }, (error) => {
-            console.error("Erro no listener:", error);
-            showMessage('Erro', 'Falha na conexão com o banco de dados');
-        });
-
-        return () => unsubscribe();
-    }, [searchTerm, approvalFilter, motoAlugadaFilter, aluguelFilter, contratoFilter]);
-
     // Função para mostrar mensagem de sucesso/erro
-    const showMessage = (title, message) => {
+    const showMessage = useCallback((title, message) => {
         if (Platform.OS === 'web') {
             window.alert(`${title}: ${message}`);
         } else {
             Alert.alert(title, message);
         }
-    };
+    }, []);
 
-    /**
-     * Função para aplicar todos os filtros
-     */
-    const applyAllFilters = useCallback((usersList) => {
-        let filtered = [...usersList];
+    // Função para aplicar todos os filtros
+    const applyAllFilters = useCallback(() => {
+        let filtered = [...users];
 
         // Filtro por termo de busca
         if (searchTerm.trim()) {
             const searchTermLower = searchTerm.toLowerCase();
             filtered = filtered.filter(user =>
                 (user.nome && user.nome.toLowerCase().includes(searchTermLower)) ||
+                (user.nomeCompleto && user.nomeCompleto.toLowerCase().includes(searchTermLower)) ||
                 (user.email && user.email.toLowerCase().includes(searchTermLower)) ||
                 (user.telefone && user.telefone.includes(searchTerm))
             );
@@ -324,41 +197,215 @@ export default function UserList({ navigation }) {
         }
 
         setFilteredUsers(filtered);
-    }, [searchTerm, approvalFilter, motoAlugadaFilter, aluguelFilter, contratoFilter]);
+    }, [users, searchTerm, approvalFilter, motoAlugadaFilter, aluguelFilter, contratoFilter]);
 
-    /**
-     * Funções para aplicar filtros
-     */
-    const handleApprovalFilter = (status) => {
+    // Função para aplicar filtro inicial recebido de outra tela
+    useEffect(() => {
+        let isMounted = true;
+
+        const applyInitialFilter = async () => {
+            try {
+                // Verificar se há um filtro salvo
+                let filterValue = null;
+
+                // Tentar obter do AsyncStorage
+                const asyncStorageFilter = await AsyncStorage.getItem('userListFilter');
+                if (asyncStorageFilter) {
+                    filterValue = asyncStorageFilter;
+                    await AsyncStorage.removeItem('userListFilter');
+                }
+
+                // Para web, verificar também o sessionStorage
+                if (Platform.OS === 'web' && !filterValue) {
+                    const sessionFilter = sessionStorage.getItem('userListFilter');
+                    if (sessionFilter) {
+                        filterValue = sessionFilter;
+                        sessionStorage.removeItem('userListFilter');
+                    }
+                }
+
+                if (filterValue && isMounted) {
+                    // Aplicar o filtro salvo
+                    if (filterValue === 'aprovados') {
+                        setApprovalFilter('aprovados');
+                    } else if (filterValue === 'pendentes') {
+                        setApprovalFilter('pendentes');
+                    } else {
+                        setApprovalFilter('todos');
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao recuperar filtro de usuários:', error);
+            }
+        };
+
+        applyInitialFilter();
+
+        // Configurar listener para eventos de filtro (web)
+        const handleFilterEvent = (event) => {
+            if (!isMounted) return;
+
+            const { filter } = event.detail;
+
+            if (filter === 'aprovados') {
+                setApprovalFilter('aprovados');
+            } else if (filter === 'pendentes') {
+                setApprovalFilter('pendentes');
+            } else {
+                setApprovalFilter('todos');
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            document.addEventListener('applyUserFilter', handleFilterEvent);
+        }
+
+        return () => {
+            isMounted = false;
+            if (Platform.OS === 'web') {
+                document.removeEventListener('applyUserFilter', handleFilterEvent);
+            }
+        };
+    }, []);
+
+    // Verificar filtro quando o componente recebe foco
+    useEffect(() => {
+        let isMounted = true;
+
+        const checkFilterOnFocus = async () => {
+            if (Platform.OS === 'web') return; // Apenas para mobile
+
+            try {
+                const filter = await AsyncStorage.getItem('userListFilter');
+                const timestamp = await AsyncStorage.getItem('userListFilterTimestamp');
+
+                if (filter && timestamp && isMounted) {
+                    if (filter === 'aprovados') {
+                        setApprovalFilter('aprovados');
+                    } else if (filter === 'pendentes') {
+                        setApprovalFilter('pendentes');
+                    } else {
+                        setApprovalFilter('todos');
+                    }
+
+                    await AsyncStorage.removeItem('userListFilter');
+                    await AsyncStorage.removeItem('userListFilterTimestamp');
+                }
+            } catch (error) {
+                console.error('Erro ao verificar filtro no foco:', error);
+            }
+        };
+
+        const unsubscribe = navigation.addListener('focus', checkFilterOnFocus);
+        checkFilterOnFocus();
+
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
+    }, [navigation]);
+
+    // Extrair valores únicos para os filtros
+    useEffect(() => {
+        if (users.length > 0) {
+            // Extrair IDs únicos de motos alugadas
+            const motosIds = [...new Set(users
+                .filter(user => user.motoAlugadaId && user.motoAlugadaId.trim() !== '')
+                .map(user => user.motoAlugadaId)
+            )].sort();
+            setMotosAlugadasUnicas(motosIds);
+
+            // Extrair IDs únicos de aluguéis
+            const alugueisIds = [...new Set(users
+                .filter(user => user.aluguelAtivoId && user.aluguelAtivoId.trim() !== '')
+                .map(user => user.aluguelAtivoId)
+            )].sort();
+            setAlugueisUnicos(alugueisIds);
+
+            // Extrair IDs únicos de contratos
+            const contratosIds = [...new Set(users
+                .filter(user => user.contratoId && user.contratoId.trim() !== '')
+                .map(user => user.contratoId)
+            )].sort();
+            setContratosUnicos(contratosIds);
+        }
+    }, [users]);
+
+    // Aplicar filtros quando qualquer filtro mudar
+    useEffect(() => {
+        applyAllFilters();
+    }, [applyAllFilters]);
+
+    // Carregar dados do Firestore
+    useEffect(() => {
+        setLoading(true);
+
+        const usersRef = collection(db, "users");
+
+        const unsubscribe = onSnapshot(
+            usersRef,
+            (querySnapshot) => {
+                try {
+                    const usersList = querySnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    setUsers(usersList);
+                    setFilteredUsers(usersList);
+                    setLoading(false);
+                } catch (error) {
+                    console.error("Erro ao processar dados:", error);
+                    showMessage('Erro', 'Falha ao atualizar lista de usuários');
+                    setLoading(false);
+                }
+            },
+            (error) => {
+                console.error("Erro no listener:", error);
+                showMessage('Erro', 'Falha na conexão com o banco de dados');
+                setLoading(false);
+            }
+        );
+
+        return () => unsubscribe();
+    }, [showMessage]);
+
+    // Funções para manipular mudanças de filtro
+    const handleApprovalFilter = useCallback((status) => {
         setApprovalFilter(status);
-    };
+    }, []);
 
-    const handleMotoAlugadaFilter = (motoId) => {
+    const handleMotoAlugadaFilter = useCallback((motoId) => {
         setMotoAlugadaFilter(motoId);
-    };
+    }, []);
 
-    const handleAluguelFilter = (aluguelId) => {
+    const handleAluguelFilter = useCallback((aluguelId) => {
         setAluguelFilter(aluguelId);
-    };
+    }, []);
 
-    const handleContratoFilter = (contratoId) => {
+    const handleContratoFilter = useCallback((contratoId) => {
         setContratoFilter(contratoId);
-    };
+    }, []);
 
-    /**
-     * Função para contar filtros ativos
-     */
-    const countActiveFilters = () => {
+    // Handler para mudança de texto de busca
+    const handleSearchChange = useCallback((text) => {
+        setSearchTerm(text);
+    }, []);
+
+    // Handler para navegação para o formulário de usuário
+    const handleAddUser = useCallback(() => {
+        navigation.navigate('UserForm');
+    }, [navigation]);
+
+    // Contar filtros ativos
+    const countActiveFilters = useCallback(() => {
         return (approvalFilter !== 'todos' ? 1 : 0) +
             (motoAlugadaFilter !== 'todos' ? 1 : 0) +
             (aluguelFilter !== 'todos' ? 1 : 0) +
             (contratoFilter !== 'todos' ? 1 : 0);
-    };
+    }, [approvalFilter, motoAlugadaFilter, aluguelFilter, contratoFilter]);
 
-    /**
-     * Função para preparar as seções de filtro
-     */
-    const getFilterSections = () => {
+    // Preparar seções de filtro
+    const getFilterSections = useMemo(() => {
         return [
             {
                 title: "Status de Aprovação:",
@@ -453,96 +500,48 @@ export default function UserList({ navigation }) {
                 ]
             }
         ];
-    };
+    }, [
+        approvalFilter,
+        motoAlugadaFilter,
+        aluguelFilter,
+        contratoFilter,
+        motosAlugadasUnicas,
+        alugueisUnicos,
+        contratosUnicos,
+        handleApprovalFilter,
+        handleMotoAlugadaFilter,
+        handleAluguelFilter,
+        handleContratoFilter
+    ]);
+
+    // Renderiza um indicador de carregamento quando os dados estão sendo carregados
+    if (loading) {
+        return <LoadingIndicator />;
+    }
 
     return (
         <Container>
             <FilterPanel
                 searchTerm={searchTerm}
-                onSearchChange={text => {
-                    setSearchTerm(text);
-                    setTimeout(() => applyAllFilters(users), 100);
-                }}
-                onSearch={() => applyAllFilters(users)}
-                filterSections={getFilterSections()}
+                onSearchChange={handleSearchChange}
+                onSearch={applyAllFilters}
+                filterSections={getFilterSections}
                 activeFiltersCount={countActiveFilters()}
-                onAddButtonPress={() => navigation.navigate('UserForm')}
+                onAddButtonPress={handleAddUser}
                 addButtonIcon="person-add"
                 searchPlaceholder="Buscar usuário"
             />
 
             {filteredUsers.length === 0 ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                    <EmptyMessage>Nenhum usuário encontrado com os filtros selecionados</EmptyMessage>
-                </View>
+                <EmptyContent />
             ) : (
                 <UsersList>
                     {filteredUsers.map(user => (
-                        <UserCard key={user.id}>
-                            <UserEmail>{user.email}</UserEmail>
-                            <UserInfo>
-                                <TextContainer>
-                                    <TextInfo>Nome: </TextInfo>
-                                    <TextUserData>{user.nomeCompleto || user.nome}</TextUserData>
-                                </TextContainer>
-
-                                <TextContainer>
-                                    <TextInfo>Telefone: </TextInfo>
-                                    <TextUserData>{user.telefone}</TextUserData>
-                                </TextContainer>
-
-                                <TextContainer>
-                                    <TextInfo>Tem Moto Alugada?: </TextInfo>
-                                    <TextUserDataMotoAlugada alugada={user.motoAlugada}>
-                                        {user.motoAlugada ? 'SIM' : 'NÃO'}
-                                    </TextUserDataMotoAlugada>
-                                </TextContainer>
-
-                                <TextContainer>
-                                    <TextInfo>Moto Alugada: </TextInfo>
-                                    <TextUserData>{user.motoAlugadaId || 'N/A'}</TextUserData>
-                                </TextContainer>
-
-                                <TextContainer>
-                                    <TextInfo>Aluguel: </TextInfo>
-                                    <TextUserData>{user.aluguelAtivoId || 'N/A'}</TextUserData>
-                                </TextContainer>
-
-                                <TextContainer>
-                                    <TextInfo>Contrato: </TextInfo>
-                                    <TextUserData>{user.contratoId || 'N/A'}</TextUserData>
-                                </TextContainer>
-
-                                <TextContainer>
-                                    <TextInfoStatus>Status: </TextInfoStatus>
-                                    <UserStatus approved={user.aprovado}>
-                                        {user.aprovado ? 'Aprovado' : 'Pendente'}
-                                    </UserStatus>
-                                </TextContainer>
-                            </UserInfo>
-
-                            <AreaButtons>
-                                <ActionButton
-                                    onPress={() => navigation.navigate('UserEdit', { user })}
-                                >
-                                    <ActionButtonText>Editar</ActionButtonText>
-                                </ActionButton>
-
-                                <TrocaOleoButton
-                                    onPress={() => navigation.navigate('UserTrocaOleo', { user })}
-                                >
-                                    <TrocaOleoButtonText>Trocas Óleo</TrocaOleoButtonText>
-                                </TrocaOleoButton>
-
-                                <DestalhesButton
-                                    onPress={() => navigation.navigate('UserDetails', { user })}
-                                >
-                                    <DestalhesButtonText>
-                                        Detalhes
-                                    </DestalhesButtonText>
-                                </DestalhesButton>
-                            </AreaButtons>
-                        </UserCard>
+                        <UserCardMemo
+                            key={user.id}
+                            user={user}
+                            navigation={navigation}
+                        />
                     ))}
                 </UsersList>
             )}

@@ -17,8 +17,13 @@
   <a href="#deploy">Deploy</a> •
   <a href="#política-de-privacidade">Política de Privacidade</a> •
   <a href="#atualizações">Atualizações</a> •
+  <a href="#dependênciais-principais">Dependências Principais</a> •
+  <a href="#recursos-e-funcionalidades-detalhadas">Recursos e Funcionalidades Detalhadas</a> •
+  <a href="#arquitetura-do-projeto">Arquitetura do Projeto</a> •
+  <a href="#contribuição">Contribuição</a> •
   <a href="#licença">Licença</a> •
   <a href="#contato">Contato</a>
+  <a href="#agradecimentos">Agradecimentos</a>
 </p>
 
 ## Visão Geral

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Modal, Linking, ActivityIndicator, Platform, ActionSheetIOS, Alert, View } from 'react-native';
 import { auth, db, storage } from '../../services/firebaseConfig';
+import { FeedbackModal } from '../../components/FeedbackModal'; // Modal de feedback
 import { getDoc, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -54,6 +55,9 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [loadingSupport, setLoadingSupport] = useState(false);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+    const [feedbackVisible, setFeedbackVisible] = useState(false);
+    const [feedback, setFeedback] = useState({ type: '', title: '', message: '' })
 
     const [loadingProfileImage, setLoadingProfileImage] = useState(true);
     const [loadingMotoImage, setLoadingMotoImage] = useState(true);
@@ -110,24 +114,43 @@ export default function Home() {
                 setUserPhoto(userData.photoURL);
             }
 
-            if (userData.motoAlugada && userData.motoAlugadaId) {
-                // Carrega dados da moto
-                const motoDoc = await getDoc(doc(db, 'motos', userData.motoAlugadaId));
-                setMotoData(motoDoc.data());
-
-                // Carrega dados do aluguel
-                const aluguelDoc = await getDoc(doc(db, 'alugueis', userData.aluguelAtivoId));
-                setAluguelData(aluguelDoc.data());
-
-                // Carrega dados do contrato usando contratoId
+            // Verificar se o usuário tem um contratoId
+            if (userData.contratoId) {
+                // Carrega dados do contrato
                 const contratoDoc = await getDoc(doc(db, 'contratos', userData.contratoId));
-                const contratoData = contratoDoc.data();
-                setContratoAtivo({
-                    ...contratoData
-                });
+
+                if (contratoDoc.exists()) {
+                    const contratoData = contratoDoc.data();
+                    setContratoAtivo(contratoData);
+
+                    // Se o contrato estiver ativo e tiver moto alugada, carrega os dados da moto
+                    if (contratoData.statusContrato === true && userData.motoAlugada && userData.motoAlugadaId) {
+                        // Carrega dados da moto
+                        const motoDoc = await getDoc(doc(db, 'motos', userData.motoAlugadaId));
+                        if (motoDoc.exists()) {
+                            setMotoData(motoDoc.data());
+                        }
+
+                        // Carrega dados do aluguel
+                        if (userData.aluguelAtivoId) {
+                            const aluguelDoc = await getDoc(doc(db, 'alugueis', userData.aluguelAtivoId));
+                            if (aluguelDoc.exists()) {
+                                setAluguelData(aluguelDoc.data());
+                            }
+                        }
+                    }
+                } else {
+                    // Contrato não existe mais, definir como null
+                    setContratoAtivo(null);
+                }
+            } else {
+                // Usuário não tem contratoId, definir como null
+                setContratoAtivo(null);
             }
         } catch (error) {
             console.error('Erro ao carregar dados:', error);
+            // Em caso de erro, definir contratoAtivo como null para mostrar a mensagem adequada
+            setContratoAtivo(null);
         } finally {
             setLoading(false);
         }
@@ -231,12 +254,22 @@ export default function Home() {
                 if (suportado) {
                     return Linking.openURL(urlWhatsapp);
                 } else {
-                    showMessage('WhatsApp não está instalado\nSe o App está instalado e o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com');
+                    setFeedback({
+                        type: 'error',
+                        title: 'WhatsApp não está instalado',
+                        message: 'Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com'
+                    });
+                    setFeedbackVisible(true);
                 }
             })
             .catch(erro => {
                 console.error('Erro ao abrir WhatsApp:', erro);
-                showMessage('Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com');
+                setFeedback({
+                    type: 'error',
+                    title: 'Erro ao abrir o WhatsApp',
+                    message: 'Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com'
+                });
+                setFeedbackVisible(true);
             })
             .finally(() => {
                 setLoadingSupport(false);
@@ -398,7 +431,11 @@ export default function Home() {
                                     </MotoContainer>
                                 ) : (
                                     <EmptyContainer>
-                                        <MaterialCommunityIcons name="emoticon-sad-outline" size={300} color={Platform.OS === 'web' ? 'rgb(185, 187, 185)' : "#CB2921"} />
+                                        <MaterialCommunityIcons
+                                            name="emoticon-sad-outline"
+                                            size={300}
+                                            color={Platform.OS === 'web' ? 'rgb(185, 187, 185)' : "#CB2921"}
+                                        />
                                         <EmptyText>{userData?.nome}, seu contrato de locação está encerrado</EmptyText>
                                         <WhatsappButton
                                             onPress={handleWhatsapp}
@@ -414,7 +451,11 @@ export default function Home() {
                                 )
                             ) : (
                                 <EmptyContainer>
-                                    <MaterialCommunityIcons name="emoticon-sad-outline" size={300} color={Platform.OS === 'web' ? 'rgb(185, 187, 185)' : "#CB2921"} />
+                                    <MaterialCommunityIcons
+                                        name="emoticon-sad-outline"
+                                        size={300}
+                                        color={Platform.OS === 'web' ? 'rgb(185, 187, 185)' : "#CB2921"}
+                                    />
                                     <EmptyText>{userData?.nome}, você não possui moto alugada na Papa Tango</EmptyText>
                                     <WhatsappButton
                                         onPress={handleWhatsapp}
@@ -423,7 +464,7 @@ export default function Home() {
                                         {loadingSupport ? (
                                             <WhatsappText>Abrindo Whatsapp...</WhatsappText>
                                         ) : (
-                                            <WhatsappText>Alugar Moto</WhatsappText>
+                                            <WhatsappText>Alugar Agora</WhatsappText>
                                         )}
                                     </WhatsappButton>
                                 </EmptyContainer>
@@ -512,6 +553,27 @@ export default function Home() {
                                 abrirCamera();
                             }}
                         />
+                    )}
+                    {feedbackVisible && (
+                        <View
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                zIndex: 9999
+                            }}
+                        >
+                            <FeedbackModal
+                                visible={feedbackVisible}
+                                {...feedback}
+                                onClose={() => setFeedbackVisible(false)}
+                            />
+                        </View>
                     )}
                 </ViewPadding>
             </Container>

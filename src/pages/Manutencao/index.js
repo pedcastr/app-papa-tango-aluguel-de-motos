@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Linking, Alert, ActivityIndicator } from 'react-native';
+import { Linking, ActivityIndicator, View } from 'react-native';
 import { auth, db } from '../../services/firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
+import { FeedbackModal } from '../../components/FeedbackModal'; // Modal de feedback
+
 import {
     Container,
     TextTitle,
@@ -26,14 +28,8 @@ export default function Manutencao({ navigation }) {
     const [loadingContrato, setLoadingContrato] = useState(false);
     const [contratoAtivo, setContratoAtivo] = useState(false);
 
-    // Função para mostrar mensagem de sucesso/erro
-    const showMessage = (title, message) => {
-        if (Platform.OS === 'web') {
-            window.alert(`${title}: ${message}`);
-        } else {
-            Alert.alert(title, message);
-        }
-    };
+    const [feedbackVisible, setFeedbackVisible] = useState(false);
+    const [feedback, setFeedback] = useState({ type: '', title: '', message: '' })
 
     // Função para abrir WhatsApp para manutenção
     const abrirWhatsAppManutencao = useCallback(() => {
@@ -47,12 +43,22 @@ export default function Manutencao({ navigation }) {
                 if (suportado) {
                     return Linking.openURL(urlWhatsapp);
                 } else {
-                    showMessage('WhatsApp não está instalado');
+                    setFeedback({
+                        type: 'error',
+                        title: 'WhatsApp não está instalado',
+                        message: 'Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com'
+                    });
+                    setFeedbackVisible(true);
                 }
             })
             .catch(erro => {
                 console.error('Erro ao abrir WhatsApp:', erro);
-                showMessage('Não foi possível abrir o WhatsApp');
+                setFeedback({
+                    type: 'error',
+                    title: 'Erro ao abrir o WhatsApp',
+                    message: 'Não foi possível abrir o WhatsApp\nSe o problema persistir, entre em contato por WhatsApp com o suporte no número (85) 99268-4035 ou envie um e-mail para papatangoalugueldemotos@gmail.com'
+                });
+                setFeedbackVisible(true);
             })
             .finally(() => {
                 setLoading(false);
@@ -120,6 +126,27 @@ export default function Manutencao({ navigation }) {
                         </AreaSemContratoAtivo>
                     )}
                 </>
+            )}
+            {feedbackVisible && (
+                <View
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 9999
+                    }}
+                >
+                    <FeedbackModal
+                        visible={feedbackVisible}
+                        {...feedback}
+                        onClose={() => setFeedbackVisible(false)}
+                    />
+                </View>
             )}
         </Container>
     );
